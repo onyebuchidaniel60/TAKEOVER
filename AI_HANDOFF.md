@@ -69,7 +69,96 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 0 complete — Repository reconnaissance done (2026-09-11). Next: Phase 1 — Foundation and environment (NOT started, awaiting explicit instruction).**
+**Phase 1 complete — Foundation and environment done (2026-09-11). Next: Phase 2 — Database schema and migrations (NOT started, awaiting explicit instruction).**
+
+## Phase 1 implementation results (2026-09-11)
+
+Created the npm-workspaces monorepo foundation. No product features, no auth,
+no slots/claims/payments/admin, no Nimiq SDK wiring (all deferred per phase scope).
+
+New structure:
+
+```text
+package.json (workspaces: apps/*, packages/*; engines node>=20; type: module)
+.nvmrc (24.20.0) | .gitignore | .env.example | LICENSE (MIT) | README.md
+tsconfig.base.json | eslint.config.js (flat) | .prettierrc / .prettierignore
+apps/web    # Vite 5 + React 18 + TS + Tailwind v3 placeholder page
+apps/api    # Fastify 5 + Zod; GET /health -> { "status": "ok" }; env validation
+packages/shared  # placeholder contracts only (version/health/app-info)
+db/         # drizzle.config.ts + schema/index.ts (empty) + lazy client.ts
+tests/ docs/checkpoints/  # staged with .gitkeep
+package-lock.json (committed)
+```
+
+- `GET /health` has no DB dependency; API boots with zero env configured.
+- Env policy (Phase 1): all vars optional; `loadEnv()` warns and falls back,
+  never throws; pure `parseEnv()` throws ZodError for tests/later phases.
+- Secrets: only `.env.example` (placeholders) committed; `.env` gitignored;
+  no secrets in browser bundle (web has no env wiring at all).
+- `/health` returns `{ "status": "ok" }` (plain infra shape). The
+  `{data,requestId}` envelope from ARCHITECTURE.md s12 applies to `/api/v1`
+  routes starting Phase 3 — no conflict.
+
+IMPLEMENTATION DETAILS — AGENT DECIDED (within fixed architecture):
+
+- Dependency majors: react 18.3.1, vite ^5.4, tailwind ^3.4 (+postcss/autoprefixer),
+  fastify ^5.0, zod ^3.23, drizzle-orm ^0.36 / drizzle-kit ^0.28, pg ^8.13,
+  vitest ^2.1, eslint ^9.14 + typescript-eslint ^8, prettier ^3.3, tsx ^4, TS ^5.6.
+  (Registry resolved eslint 9.39.5 with a "no longer supported" deprecation
+  notice — functional; revisit in a later phase if needed.)
+- API default port 3001 (web dev keeps Vite default 5173).
+- Root `type: module` added solely to silence Node's typeless-package warning
+  when ESLint loads the flat config; api/shared stay CommonJS via tsc.
+- `db/` is not a workspace (no package.json); runtime DB deps (`drizzle-orm`,
+  `pg`) live in `takeover-api`; `db/` has its own tsconfig checked by root `typecheck`.
+- Root `dev` starts the API; `dev:web` / `dev:api` documented in README.
+- Prettier ignores the authoritative spec markdown docs (never reformat them).
+- LICENSE copyright: `onyebuchidaniel60` (repo owner handle).
+- No dotenv dependency: devs copy `.env.example` to `.env`; Node `--env-file`
+  or shell exports supply values.
+
+Verification (actual, via `npm.cmd`; toolchain node v24.20.0 / npm 11.19.0):
+
+- `npm.cmd install --no-audit --no-fund` → 466 packages, exit 0.
+- `npm.cmd run typecheck` → clean (api + web + shared + db), exit 0.
+- `npm.cmd run lint` → clean, exit 0.
+- `npm.cmd run test` → 8/8 pass (api: 5 env + 2 health; shared: 1 smoke), exit 0.
+- `npm.cmd run build` → api (tsc) + web (vite: 31 modules, dist ok) + shared (tsc), exit 0.
+- `npm.cmd run format` → clean after scoping spec docs out, exit 0.
+- Live: built `apps/api/dist/server.js` on PORT=3101 → `GET /health` = 200
+  `{"status":"ok"}` (verified via Invoke-RestMethod; Fastify log confirms).
+  No DB configured; port free and no node residue afterwards.
+- Note: PowerShell 5.1 `$?` after `npm.cmd ... 2>&1` can report False despite
+  exit 0 (stderr-merge artifact); use `$LASTEXITCODE` as authoritative.
+
+## Checkpoint
+
+```text
+CURRENT PHASE: Phase 1 complete
+COMPLETED: monorepo foundation + env (no product features)
+TESTS RUN: typecheck clean; lint clean; tests 8/8 pass; build clean (all 3
+  workspaces); format clean; live /health 200 {"status":"ok"} without DB
+RESULT: frontend builds, backend starts, health returns 200, no DB required
+KNOWN ISSUES: eslint 9.39.5 deprecation notice (functional); $PROFILE-scope
+  note: use npm.cmd + $LASTEXITCODE on this Windows env
+SECURITY NOTES: no secrets committed (.env.example placeholders only);
+  no auth/payment surface exists yet; .env gitignored
+FILES CHANGED: package.json, package-lock.json, .nvmrc, .gitignore,
+  .env.example, LICENSE, README.md, tsconfig.base.json, eslint.config.js,
+  .prettierrc, .prettierignore, apps/web/**, apps/api/**,
+  packages/shared/**, db/**, tests/.gitkeep, docs/checkpoints/.gitkeep,
+  AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: chore: phase 1 foundation and environment
+NEXT TASK: Phase 2 — Database schema and migrations (do NOT start automatically)
+BLOCKED BY: none (Phase 2 will need Supabase DATABASE_URL for migration smoke test)
+```
+
+## Exact next task (Phase 2 — awaiting explicit instruction, DO NOT start)
+
+Phase 2 objective per `IMPLEMENTATION_PLAN.md`: create the complete MVP
+relational model (users, sessions, auth_challenges, provider_profiles, slots,
+claims, payment_intents, reports, audit_events) with constraints/indexes and
+migration scripts. STOP — do not begin Phase 2 automatically.
 
 ## Phase 0 reconnaissance results (2026-09-11)
 

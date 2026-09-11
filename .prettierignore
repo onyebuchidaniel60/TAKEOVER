@@ -1,0 +1,13 @@
+node_modules
+dist
+coverage
+package-lock.json
+db/migrations
+*.min.js
+# Pre-existing authoritative spec docs: never reformat (source of truth).
+AGENTS.md
+ARCHITECTURE.md
+IMPLEMENTATION_PLAN.md
+PROJECT_SPEC.md
+TAKEOVER_COMPLETE_BLUEPRINT.md
+AI_HANDOFF.md
