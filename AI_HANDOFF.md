@@ -69,7 +69,133 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 3 completion — auth verification + cookie/CORS done (2026-09-11). Phase 3 is now complete. Next: Phase 4 — Marketplace read path (NOT started, awaiting explicit instruction).**
+**Phase 4 complete — Marketplace discovery done (2026-09-11). Next: Phase 5 — Provider slot creation and lifecycle (NOT started, awaiting explicit instruction).**
+
+## Phase 4 implementation results (2026-09-11)
+
+Public read-only marketplace: seed data, list + detail endpoints, buyer
+discovery UI. No slot creation/publishing, claims, payments, admin, or Nimiq
+transaction sending. No architecture change. Phase 5 NOT started.
+
+Backend (`apps/api/src/`):
+
+- `slots/price.ts` — `serializePriceNim()` (bigint/string/number → exact
+  decimal string; rejects zero/negative/non-integer/unsafe numbers).
+- `slots/public-slot.ts` — locked projection: id, title, description,
+  category, location_label, starts_at, ends_at, price_nim (STRING),
+  total_quantity, available_quantity, status, published_at. Never
+  payout_wallet, provider_id, or internal columns.
+- `slots/service.ts` — `buildPublicSlotConditions()` (base: status =
+  published AND starts_at > now, strict `>`; q ilike over title/description/
+  location_label with LIKE-escaping; category exact; location ilike; from/to
+  bounding starts_at), `listPublicSlots()` (starts_at ASC + count),
+  `getPublicSlotById()`, pure `isStartInFuture()` boundary helper.
+- `routes/slots.ts` — GET /slots (limit dflt 20/max 50, offset dflt 0, q,
+  category, location, from/to ISO; strict schema, unknown params → 400) and
+  GET /slots/:slotId (malformed UUID → 400; valid but non-published → 404,
+  same as missing — no existence leak). No auth. Enveloped 400/404/500.
+- `app.ts` — registered `slotRoutes` under /api/v1 alongside authRoutes.
+
+Seed (`db/seed.ts`, `npm run db:seed`): refuses production (non-zero exit +
+clear message); 5 fixture providers + 21 slots (15 published future incl. one
+with 0 left for the sold-out UI; 2 draft, 1 cancelled, 2 expired-past, 1
+sold_out); fixed UUIDs + onConflictDoNothing (re-run never duplicates; does
+not update edited rows). Times relative to now (today/tonight/tomorrow/this
+week/next week). Prices in integer base units, quantities varied.
+
+Fixture wallet pattern (so Phase 5+ knows what to ignore): providers
+`NQ00 SEEDFIXTURE00000000000X`, payouts `NQ00 SEEDPAYOUT00000000000X`. The
+`SEED…` marker breaks the IBAN checksum, so auth canonicalization always
+rejects them — no seed user can ever log in. No real wallets, no PII.
+
+Frontend (`apps/web/src/`, no Nimiq SDK in any Phase 4 file):
+
+- `lib/slots.ts` — PublicSlot type, fetchSlots/fetchSlot (URLSearchParams,
+  empties dropped), formatNim() (exact BigInt math, 1 NIM = 100,000 base units).
+- Components: SearchFilters (labeled, URL-driven), SlotCard, SlotList,
+  SlotDetail (WHAT/WHEN/WHERE/HOW MUCH/HOW MANY LEFT, no Claim button),
+  PriceDisplay, TimeBadge (Today/Tomorrow/date), AvailabilityBadge (text, never
+  color alone), EmptyState, LoadingSkeleton, ErrorState.
+- Routes: `/` marketplace feed (filters in URL = deep-linkable; offset in
+  component state; Show-more pagination; result count "soonest first");
+  `/slot/:slotId` detail (loading/error/not-found/sold-out states; 404 →
+  "no longer available"). AppShell/TopBar/WalletStatus reused untouched.
+  Mobile-first, consumer language, no crypto jargon.
+
+Tests (real, passing):
+
+- Unit (`test/slots-unit.test.ts`, 9 tests, no DB): bigint→string incl.
+  >2^53 exactness; string/number paths; zero/negative/garbage rejection;
+  filter builder 2 base conditions when empty, +1 per present filter; LIKE
+  escaping; boundary equal→excluded, ±1ms.
+- Integration (`test/slots.test.ts`, 10 tests, live DB, unique per-run tag):
+  list only published+future; soonest-first sort; q + category filters;
+  limit=51 → 400; limit/offset pagination + total; exact projection keys with
+  price string and no privates; detail 200 correct; 404 draft/cancelled/
+  expired/sold_out/past; 404 random UUID; requestId on list/detail/404.
+
+Verification (actual, via `npm.cmd`; DATABASE_URL loaded from local `.env.txt`
+into the shell, value never printed):
+
+- `run typecheck` → clean, exit 0.
+- `run lint` → clean (after removing one unused const + one unneeded
+  eslint-disable in Home.tsx), exit 0.
+- `run test` (live DB) → api 85 pass (9 files) + shared 1 pass, exit 0.
+  (Was 66+1; +9 unit, +10 integration.)
+- `run build` → clean (api tsc; web vite 63 modules; shared tsc), exit 0.
+- `run db:seed` → twice, both `seed users ok (5 fixture providers)` /
+  `seed slots ok (21 fixture slots)`, exit 0 both.
+- Live built server (PORT=3103, stopped afterwards, port free):
+  GET /api/v1/slots?limit=3 → 200, total 15, 3 published slots, price_nim
+  JSON strings, no payout_wallet, requestId present.
+  GET /api/v1/slots/22222222-2222-4222-8222-000000000001 → 200 correct slot.
+  GET /api/v1/slots/22222222-2222-4222-8222-000000000016 (draft) → 404
+  `{"error":{"code":"NOT_FOUND","message":"Slot not found."},"requestId":"…"}`.
+
+IMPLEMENTATION DETAILS — AGENT DECIDED (locked scope preserved):
+
+- limit > 50 is REJECTED with 400 INVALID_INPUT, not silently clamped.
+- Malformed slot UUID → 400; valid-but-hidden UUID → 404.
+- Empty query values (`?q=`) behave as absent (clearing a filter is a no-op).
+- Sold-out UI keys off `available_quantity === 0` on published rows; status
+  `sold_out` rows stay hidden by the published-only rule.
+- No rate limit added to the public read path (ARCH s14 lists one as future
+  config; deferred to the Phase 12 security pass — reported, not decided).
+- SPEC/ARCH note (reported, not a conflict): ARCH s13 sketches geo/sort/page
+  params (city/lat/lng/sort/page/pageSize); Phase 4 implements exactly the
+  locked contract (limit/offset/q/category/location/from/to, starts_at ASC).
+  Geo/sort extensions are future scope, not added.
+
+Secret handling: DATABASE_URL and session secrets were NEVER printed in
+outputs, logs, or commits (key names + boolean presence only); `.env.txt`
+stays gitignored; seed contains only fixture wallets (unusable for auth).
+
+Files changed (Phase 4): `apps/api/src/slots/{price,public-slot,service}.ts`
+(new), `apps/api/src/routes/slots.ts` (new), `apps/api/src/app.ts`,
+`db/seed.ts` (new), `db/tsconfig.json`, `package.json` (db:seed),
+`apps/web/src/lib/slots.ts` (new),
+`apps/web/src/components/{SearchFilters,SlotCard,SlotList,SlotDetail,
+PriceDisplay,TimeBadge,AvailabilityBadge,EmptyState,LoadingSkeleton,
+ErrorState}.tsx` (new), `apps/web/src/routes/{Home.tsx,SlotDetailPage.tsx}`,
+`apps/web/src/App.tsx`, `apps/api/test/{slots-unit,slots}.test.ts` (new),
+`AI_HANDOFF.md` (this checkpoint).
+
+```text
+CURRENT PHASE: Phase 4 complete
+COMPLETED: seed data + public list/detail endpoints + discovery UI
+TESTS RUN: typecheck clean; lint clean; tests 85 api + 1 shared pass (9 unit
+  incl. >2^53 price + boundary, 10 live marketplace incl. exclusion/filters/
+  pagination/projection/404s); build clean; db:seed twice ok; live curls:
+  list envelope 200 (15 total), detail 200, draft 404 envelope
+RESULT: buyer can browse real DB-backed slots; no unpublished/private data leaks
+KNOWN ISSUES: none functional (rate limits deferred to Phase 12, noted above)
+SECURITY NOTES: DATABASE_URL/session secrets never printed; seed wallets are
+  auth-rejected fixtures; LIKE wildcards escaped; envelopes leak no stacks
+FILES CHANGED: see list above
+GIT COMMIT: feat: phase 4 marketplace discovery
+NEXT TASK: Phase 5 — Provider slot creation and lifecycle (do NOT start automatically)
+BLOCKED BY: none
+```
 
 ## Phase 3 completion results (2026-09-11)
 

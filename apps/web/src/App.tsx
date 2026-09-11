@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import TopBar from './components/TopBar';
 import Home from './routes/Home';
 import Profile from './routes/Profile';
+import SlotDetailPage from './routes/SlotDetailPage';
 import { useAuth } from './store/auth';
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
         <TopBar />
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/slot/:slotId" element={<SlotDetailPage />} />
           <Route path="/profile" element={<Profile />} />
         </Routes>
       </div>
