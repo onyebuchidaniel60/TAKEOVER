@@ -69,7 +69,144 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 2 follow-up complete — schema + docs reconciliation done (2026-09-11). ARCHITECTURE.md §9 was reconciled to the Phase 2 schema on this date; the Phase 2 schema is the source of truth. Next: Phase 3 — Wallet authentication (NOT started, awaiting explicit instruction).**
+**Phase 3 complete — Wallet authentication and sessions done (2026-09-11). Next: Phase 4 — Marketplace read path (NOT started, awaiting explicit instruction).**
+
+## Phase 3 implementation results (2026-09-11)
+
+Server-side wallet auth (Nimiq signature + opaque sessions) plus minimal frontend
+signing wiring. No slots/claims/payments/admin/transaction-sending.
+
+Backend (`apps/api/src/`):
+- `auth/nimiq-address.ts` — canonicalization (spaces stripped, uppercase, 36 chars,
+  NQ prefix, custom base32 alphabet, IBAN mod97==1; rejects everything else),
+  Blake2b-256 via @noble/hashes, Nimiq user-friendly encode/derive.
+- `auth/challenge.ts` — `TAKEOVER-AUTH:v1:<nonce>:<issuedAtISO>`, 32-byte hex nonce,
+  5-min TTL, 7-day session TTL constants.
+- `auth/session-token.ts` — `<sessionId>.<base64url-secret>` tokens, SHA-256 hex
+  storage, strict parse, timing-safe compare.
+- `auth/nimiq-verify.ts` — production verifier (see method below) + injectable
+  `VerifySignatureFn` (tests only).
+- `http/errors.ts` + `http/rate-limit.ts` — `{data,requestId}` / `{error,requestId}`
+  envelopes; in-memory per-IP fixed-window limiter.
+- `auth/session.ts` — `takeover_session` cookie (HttpOnly; Secure in prod only;
+  SameSite=Lax), session middleware (never throws; disabled users treated as
+  unauthenticated), requireAuth (401 UNAUTHENTICATED), server-side logout revoke.
+- `routes/auth.ts` — POST challenge/verify/logout + GET /me (with
+  hasProviderProfile), Zod strict bodies, 16KB body limits, wallet-bound +
+  single-use (race-safe consume) + 5-min expiry (401 AUTH_EXPIRED) + disabled
+  rejection (403 USER_DISABLED).
+- `app.ts` — request-id (UUID) + x-request-id header, /health unchanged (plain,
+  DB-free), /api/v1 prefix, enveloped 404/400/413/415/500 handler (no stacks leak).
+
+Frontend (`apps/web/src/`): @nimiq/mini-app-sdk 0.1.0 (connect/listAccounts/sign
+only — no transactions), zustand auth store (login/challenge-sign-verify, logout,
+refresh-on-boot), TopBar + WalletStatus (Connect Wallet / truncated address +
+logout), /profile debug route showing raw /me, Vite /api proxy to :3001.
+
+SIGNATURE VERIFICATION METHOD (production, NOT mocked):
+`verifyNimiqSignature` in `apps/api/src/auth/nimiq-verify.ts`. The installed SDK
+exposes NO server-side verify primitive (client-only: init/listAccounts/sign/
+send*), so per the locked decision the fallback applies — but as pure local
+cryptography, not RPC: (1) decode publicKey (strict hex-or-base64, 32 bytes);
+(2) derive the Nimiq address (Blake2b-256 → 20 bytes → IBAN) and require it to
+equal the claimed canonical address (binds key to identity — a wallet signing
+with any other account fails closed); (3) hash the official Hub envelope
+`sha256('\x16Nimiq Signed Message:\n' + len + message)` and Ed25519-verify with
+tweetnacl. No network, no RPC, no secrets, deterministic. WHY: SDK has no verify
+helper; RPC is unnecessary for signature math and would add a trusted third party
+to authentication. Grounded by: official nimiq-keys address.rs semantics
+(alphabet/blake2b/IBAN), the NQ07-zero-address vector, BLAKE2b-256 cross-checked
+noble == OpenSSL (hashlib), and sign→verify round-trips. RESIDUAL RISK: whether
+the native mini-app `sign()` applies exactly the Hub envelope and which string
+encoding it returns for signature/publicKey (accepted: strict hex or base64) can
+only be proven against a real wallet — deferred to Phase 14 Nimiq Pay deployment
+verification. The envelope is isolated in `nimiqSignedMessageHash` for adjustment.
+Tests inject a stub ONLY via `buildApp({ verifySignature })`; the default wiring
+always uses the real verifier (assert: no test constructs production traffic with
+the stub; crypto.test.ts uses real tweetnacl signatures).
+
+SAMESITE COOKIE BEHAVIOR: dev only (localhost HTTP, Secure=false, Lax) — login
+cookies verified working via inject tests (set-cookie → cookie → /me 200). The
+cross-origin production path (Vercel → Railway) is untested; if the Mini App
+WebView drops Lax cookies there, SameSite=None; Secure will be required (recorded
+here per instruction). No bearer fallback added — cookies have not demonstrably
+failed.
+
+RATE LIMITS: 10 req / 60s / IP on each of challenge and verify (in-memory Map,
+opportunistic pruning; multi-instance would need shared storage — later phase).
+Proven: 4th challenge request with max:3 → 429 RATE_LIMITED envelope.
+
+IMPLEMENTATION DETAILS — AGENT DECIDED:
+- New deps: @fastify/cookie, tweetnacl, @noble/hashes (api); @nimiq/mini-app-sdk,
+  zustand, react-router-dom (web). Nothing in-tree solved these.
+- Failed verifies do NOT burn the challenge (rate limiter bounds retries); consume
+  happens once, on success, race-safe via conditional UPDATE+returning.
+- Expired challenge → 401 AUTH_EXPIRED; missing/consumed/mismatched/bad-signature
+  → 401 UNAUTHENTICATED; disabled at verify → 403 USER_DISABLED; disabled
+  mid-session → treated as unauthenticated (401), since disabled status is
+  admin-only data per ARCH s11.
+- 413/415/400 parse errors → INVALID_INPUT envelope (status preserved).
+- session middleware refreshes last_seen_at (activity signal, not sliding expiry —
+  lifetime stays 7 days from creation per locked decision).
+- trustProxy:true (req.ip behind Railway); created_at written explicitly on
+  challenge insert so the signed string byte-matches the stored row.
+- tsconfig.base stays CommonJS/Node (a NodeNext attempt caused drizzle
+  dual-package type splits — reverted; noble typed via a minimal ambient
+  declaration, runtime via exports map, proven by tests + live build).
+- API build emits repo-rooted dist (dist/apps/api/src/server.js) because the api
+  imports shared db/ modules; start script updated accordingly.
+- Minor doc delta (reported, not decided): ARCH s13 shows verify body with
+  `challengeId`; implementation uses `{walletAddress, nonce, signature, publicKey?}`
+  per the locked Phase 3 decision (same single-use/wallet-bound semantics).
+
+Verification (actual, via `npm.cmd`; node v24.20.0 / npm 11.19.0):
+- `run typecheck` → clean (all workspaces + db), exit 0.
+- `run lint` → clean, exit 0. `run format` → clean, exit 0.
+- `run test` (live DB) → 55/55 pass: env 5, crypto 28, health 2, db-connectivity 1,
+  auth-live 18, shared 1. Exit 0.
+- `run build` → clean (api tsc incl. db emit; web vite 51 modules incl. SDK;
+  shared tsc), exit 0. `run db:verify` → SELECT 1 ok, 9 tables.
+- Live built server (PORT=3102): GET /health → 200 `{"status":"ok"}`;
+  POST /auth/challenge (zero-address) → 200 `{data:{challenge,expiresAt,nonce},
+  requestId}`; GET /me without cookie → 401
+  `{"error":{"code":"UNAUTHENTICATED","message":"Authentication required."},
+  "requestId":"..."}`. Port free, no residue.
+
+## Checkpoint
+
+```text
+CURRENT PHASE: Phase 3 complete
+COMPLETED: wallet auth + opaque sessions + minimal SDK signing UI
+TESTS RUN: typecheck/lint/format clean; tests 55/55 pass (28 crypto incl. real
+  vectors + round-trips, 18 live auth incl. replay/forge/expiry/revoke/rate-limit);
+  build clean; db:verify ok; live curls: challenge envelope 200, /me 401 envelope
+RESULT: only a valid wallet signature authenticates; no client address
+  impersonation (pubkey→address binding enforced server-side)
+KNOWN ISSUES: real-wallet envelope/encoding proof deferred to Phase 14;
+  production cross-origin cookie behavior untested (SameSite=None fallback noted)
+SECURITY NOTES: DATABASE_URL and session secrets never printed (key names +
+  boolean presence only); raw tokens only in set-cookie/tests memory, SHA-256
+  hashes at rest; .env.txt gitignored; no private keys anywhere; error envelopes
+  leak no stacks/DB internals
+FILES CHANGED: apps/api/src/{auth/{nimiq-address,challenge,session-token,
+  nimiq-verify,session},http/{errors,rate-limit},routes/auth,app}.ts,
+  apps/api/src/types/noble-hashes-blake2.d.ts, apps/api/{package.json,
+  tsconfig.build.json}, apps/api/test/{crypto,auth}.test.ts,
+  apps/web/{package.json,vite.config.ts},
+  apps/web/src/{lib/{api,nimiq},store/auth,components/{TopBar,WalletStatus},
+  routes/{Home,Profile},App}.tsx/ts, package-lock.json, README.md,
+  AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: feat: phase 3 wallet authentication and sessions
+NEXT TASK: Phase 4 — Marketplace read path (do NOT start automatically)
+BLOCKED BY: none
+```
+
+## Exact next task (Phase 4 — awaiting explicit instruction, DO NOT start)
+
+Phase 4 objective per `IMPLEMENTATION_PLAN.md`: make active supply discoverable
+(slot public read service, filtering/sorting/pagination, slot detail endpoint,
+public/private serializer; marketplace home, filters, slot cards, detail shell).
+STOP — do not begin Phase 4 automatically.
 
 ## Phase 2 follow-up results (2026-09-11)
 

@@ -2,7 +2,9 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
-    "rootDir": "src"
+    "noEmitOnError": true,
+    // Repo root: the build emits both apps/api/src and the shared db/ modules it imports.
+    "rootDir": "../.."
   },
-  "include": ["src"]
+  "include": ["src", "../../db/schema", "../../db/client.ts"]
 }

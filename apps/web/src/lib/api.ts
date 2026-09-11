@@ -1,0 +1,46 @@
+// Same-origin API client (dev: Vite proxies /api to the Fastify backend).
+// Cookies (takeover_session) ride along via credentials: 'include'.
+
+export interface ApiErrorEnvelope {
+  error: { code: string; message: string };
+  requestId: string;
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly requestId?: string;
+
+  constructor(status: number, code: string, message: string, requestId?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+    this.requestId = requestId;
+  }
+}
+
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, {
+    credentials: 'include',
+    ...init,
+    headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
+  });
+  const requestId = res.headers.get('x-request-id') ?? undefined;
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    body = undefined;
+  }
+  if (!res.ok) {
+    const err = (body as ApiErrorEnvelope | undefined)?.error;
+    throw new ApiError(
+      res.status,
+      err?.code ?? 'UNKNOWN',
+      err?.message ?? `Request failed (${res.status}).`,
+      requestId,
+    );
+  }
+  return (body as { data: T }).data;
+}

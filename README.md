@@ -47,6 +47,10 @@ npm.cmd run dev:web
 # http://localhost:5173
 ```
 
+The web dev server proxies `/api` to `http://localhost:3001`, so wallet-auth API
+calls stay same-origin (cookies) during development. Wallet login itself requires
+running inside Nimiq Pay with the Mini App SDK provider.
+
 ## Layout
 
 ```text
