@@ -1,8 +1,9 @@
-// Phase 4: public marketplace read service. Server is authoritative: only slots
-// with status = 'published' AND starts_at > now() are ever returned. Draft,
-// cancelled, expired, sold_out, and past slots are excluded in SQL — never
-// client-side.
-import { and, asc, count, eq, gt, gte, ilike, lte, or, type SQL } from 'drizzle-orm';
+// Phase 4: public marketplace read service. Phase 6: sold_out slots stay
+// visible (they flip back to published when holds expire). Server is
+// authoritative: only slots with status IN ('published', 'sold_out') AND
+// starts_at > now() are ever returned. Draft, cancelled, expired, and past
+// slots are excluded in SQL — never client-side.
+import { and, asc, count, eq, gt, gte, ilike, inArray, lte, or, type SQL } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
 import { slots } from '../../../../db/schema';
 import { toPublicSlot, type PublicSlot } from './public-slot';
@@ -33,11 +34,14 @@ export function escapeLikePattern(value: string): string {
 
 /**
  * Build the WHERE conditions for the public list. The two base conditions
- * (published status + future start) are always present; each optional filter
+ * (claimable status + future start) are always present; each optional filter
  * is a no-op when absent/empty and appended when present.
  */
 export function buildPublicSlotConditions(filters: SlotListFilters, now: Date): SQL[] {
-  const conditions: SQL[] = [eq(slots.status, 'published'), gt(slots.startsAt, now)];
+  const conditions: SQL[] = [
+    inArray(slots.status, ['published', 'sold_out']),
+    gt(slots.startsAt, now),
+  ];
   const q = filters.q?.trim();
   if (q) {
     const pattern = `%${escapeLikePattern(q)}%`;
@@ -90,13 +94,19 @@ export async function listPublicSlots(
   return { slots: rows.map(toPublicSlot), total: totalRows[0]?.value ?? 0 };
 }
 
-/** Published + future slot by id, or null (caller maps null to 404). */
+/** Claimable (published or sold_out) + future slot by id, or null (caller maps null to 404). */
 export async function getPublicSlotById(db: Db, id: string, now?: Date): Promise<PublicSlot | null> {
   const at = now ?? new Date();
   const rows = await db
     .select()
     .from(slots)
-    .where(and(eq(slots.id, id), eq(slots.status, 'published'), gt(slots.startsAt, at)))
+    .where(
+      and(
+        eq(slots.id, id),
+        inArray(slots.status, ['published', 'sold_out']),
+        gt(slots.startsAt, at),
+      ),
+    )
     .limit(1);
   const row = rows[0];
   return row ? toPublicSlot(row) : null;

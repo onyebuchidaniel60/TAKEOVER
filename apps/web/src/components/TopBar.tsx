@@ -12,6 +12,9 @@ export default function TopBar() {
           <Link to="/sell" className="text-sm text-slate-600">
             Sell
           </Link>
+          <Link to="/claims" className="text-sm text-slate-600">
+            Claims
+          </Link>
           <Link to="/profile" className="text-sm text-slate-600">
             Profile
           </Link>

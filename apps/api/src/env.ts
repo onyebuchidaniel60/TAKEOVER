@@ -12,6 +12,10 @@ const envSchema = z.object({
   SENTRY_DSN: z.preprocess(emptyToUndefined, z.string().url().optional()),
   PORT: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().optional()),
   CORS_ORIGINS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  CLAIM_HOLD_TTL_SECONDS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().positive().optional(),
+  ),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -23,6 +27,26 @@ export function parseEnv(input: Record<string, string | undefined>): Env {
 
 /** Dev fallback for local Vite (http://localhost:5173). Never used in production. */
 export const DEV_CORS_ORIGIN = 'http://localhost:5173';
+
+/** Default claim hold window: 15 minutes. Overridable via CLAIM_HOLD_TTL_SECONDS. */
+export const DEFAULT_CLAIM_HOLD_TTL_SECONDS = 900;
+
+/**
+ * Claim hold TTL in seconds. Tolerant by design: missing, blank, or invalid
+ * values fall back to the 900s default instead of crashing the claim path.
+ */
+export function getClaimHoldTtlSeconds(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): number {
+  const raw = env.CLAIM_HOLD_TTL_SECONDS;
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const parsed = Number(raw);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return DEFAULT_CLAIM_HOLD_TTL_SECONDS;
+}
 
 /**
  * Explicit CORS allowlist for the locked Vercel (frontend) -> Railway (backend)
@@ -47,8 +71,7 @@ export function parseCorsOrigins(input: NodeJS.ProcessEnv | Record<string, strin
 // Phase 1 policy: warn but never hard-fail the API when optional
 // configuration is missing or invalid. Stricter requirements arrive
 // with the phases that actually need each value.
-export function loadEnv(input: NodeJS.ProcessEnv = process.env): Env {
-  const result = envSchema.safeParse(input);
+export function loadEnv(input: NodeJS.ProcessEnv = process.env): Env {  const result = envSchema.safeParse(input);
   if (!result.success) {
     console.warn(
       'Invalid environment configuration; continuing with defaults.',

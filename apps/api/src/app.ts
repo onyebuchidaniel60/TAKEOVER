@@ -6,6 +6,7 @@ import { sessionMiddleware } from './auth/session';
 import { parseCorsOrigins } from './env';
 import { AppError, errorBody } from './http/errors';
 import { authRoutes, type AuthRouteOptions } from './routes/auth';
+import { claimRoutes } from './routes/claims';
 import { slotRoutes } from './routes/slots';
 
 export type AppOptions = AuthRouteOptions & {
@@ -52,12 +53,13 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
   // Infrastructure health: plain shape, no DB, no session work.
   app.get('/health', async () => ({ status: 'ok' }));
 
-  // Versioned API: enveloped JSON, session resolution, auth + public slot routes.
+  // Versioned API: enveloped JSON, session resolution, auth + slot + claim routes.
   void app.register(
     async (api) => {
       api.addHook('onRequest', sessionMiddleware);
       await api.register(authRoutes, opts);
       await api.register(slotRoutes);
+      await api.register(claimRoutes);
     },
     { prefix: '/api/v1' },
   );

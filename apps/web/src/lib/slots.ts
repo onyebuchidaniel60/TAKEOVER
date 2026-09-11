@@ -155,3 +155,46 @@ export function cancelSlot(slotId: string): Promise<{ slot: OwnerSlot }> {
     method: 'POST',
   });
 }
+
+// Phase 6: buyer claim views (snake_case). No payment fields in this phase.
+export interface ClaimView {
+  id: string;
+  slot_id: string;
+  buyer_id: string;
+  quantity: number;
+  status: string;
+  hold_expires_at: string;
+  claimed_at: string;
+  updated_at: string;
+}
+
+export interface MyClaimsResponse {
+  claims: ClaimView[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export function createClaim(slotId: string): Promise<{ claim: ClaimView; slot: PublicSlot }> {
+  return apiFetch<{ claim: ClaimView; slot: PublicSlot }>(
+    `/api/v1/slots/${encodeURIComponent(slotId)}/claims`,
+    { method: 'POST', body: JSON.stringify({}) },
+  );
+}
+
+export function fetchClaim(claimId: string): Promise<{ claim: ClaimView; slot: PublicSlot }> {
+  return apiFetch<{ claim: ClaimView; slot: PublicSlot }>(
+    `/api/v1/claims/${encodeURIComponent(claimId)}`,
+  );
+}
+
+export function fetchMyClaims(
+  params: { status?: string; limit?: number; offset?: number } = {},
+): Promise<MyClaimsResponse> {
+  const query = new URLSearchParams();
+  if (params.status) query.set('status', params.status);
+  if (typeof params.limit === 'number') query.set('limit', String(params.limit));
+  if (typeof params.offset === 'number') query.set('offset', String(params.offset));
+  const suffix = query.toString();
+  return apiFetch<MyClaimsResponse>(`/api/v1/me/claims${suffix ? `?${suffix}` : ''}`);
+}

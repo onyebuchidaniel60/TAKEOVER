@@ -69,7 +69,153 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 5 complete — Provider slot lifecycle done (2026-09-11). Next: Phase 6 — Claims and concurrency (NOT started, awaiting explicit instruction).**
+**Phase 6 complete — Atomic claims done (2026-09-11). Next: Phase 7 — NIM payment intent (NOT started, awaiting explicit instruction).**
+
+## Phase 6 implementation results (2026-09-11)
+
+Buyers atomically claim published slots; holds expire lazily and restore
+inventory exactly once. No money moves: no intents, no verification, no
+admin, no transaction sending. No architecture change. Phase 7 NOT started.
+
+Backend (`apps/api/src/`):
+
+- `env.ts` + `.env.example` — CLAIM_HOLD_TTL_SECONDS (default 900 = 15 min)
+  via tolerant `getClaimHoldTtlSeconds()` (blank/invalid → default).
+- `claims/claim-view.ts` — buyer projection: id, slot_id, buyer_id, quantity,
+  status, hold_expires_at, claimed_at, updated_at.
+- `claims/service.ts` — pure `isClaimEligible()` (status ∈ {published,
+  sold_out} + future start + stock) and `isHoldExpired()` mirrors;
+  `createClaim()` (SELECT … FOR UPDATE via drizzle `.for('update')`,
+  eligibility → 409 SLOT_UNAVAILABLE, live-claim check + unique-violation
+  backstop → 409 SLOT_ALREADY_CLAIMED, insert hold qty 1, conditional
+  decrement, sold_out flip at 0); `expireHoldsForSlot()` (expire past-due
+  active_hold → guarded increment capped at total → sold_out→published flip,
+  all in one tx); `getClaimForBuyer()` (buyer-scoped, null → 404);
+  `listBuyerClaims()` (buyer-scoped, claimed_at DESC).
+- `claims/validation.ts` — empty-but-strict claim body, uuid claim id,
+  my-claims query (status enum + limit/offset).
+- `routes/claims.ts` — POST /slots/:slotId/claims (200 {claim, slot}; expiry
+  sweep first), GET /claims/:claimId (404 CLAIM_NOT_FOUND), GET /me/claims
+  (sweeps the buyer's stale slots first, then lists).
+- `routes/slots.ts` — GET /slots/:slotId runs the slot's expiry sweep before
+  returning (public and owner paths alike).
+- `slots/service.ts` — public filter widened to status IN (published,
+  sold_out), list and detail. Starts_at > now() unchanged.
+
+Phase 4 filter change (required, why): sold_out is now a live lifecycle state
+that flips back to published when holds expire, so hiding it would show stale
+"gone" state and hide restocked openings. Sold-out rows stay visible with the
+existing sold-out badge; detail works for both. Documented in ARCHITECTURE.md
+§7 Phase 6 note; Phase 4 suite updated (sold_out now expected in list/detail,
+all other exclusions unchanged).
+
+Confirmed: the 'expired' SLOT status is set by no Phase 6 path (only claims
+rows expire; verified by grep — 'expired' writes exist solely for
+claims.status). Claim quantity is fixed at 1 (CLAIM_QUANTITY; no multi-unit
+path). No cron/workers — expiry is lazy on the three locked read paths only.
+
+Frontend (`apps/web/src/`, no Nimiq SDK in any Phase 6 file):
+
+- `lib/slots.ts` — ClaimView, createClaim/fetchClaim/fetchMyClaims.
+- Components: ClaimButton (auth-only, claimable-only; navigates to the new
+  claim; 409 shows inline), ClaimStatusBadge, HoldCountdown (1s tick, clamps
+  at zero), ClaimCard (status + countdown + links, no invented fields).
+- Routes: `/slot/:slotId` gains the button for signed-in buyers on live
+  openings (guests see a connect hint); `/claim/:claimId` (badge, countdown,
+  opening summary, "payment coming next step" placeholder — no payment UI);
+  `/claims` (own holds, status filter). Both claim routes RequireAuth-guarded
+  (server still enforces 401/404). TopBar gained a Claims link.
+
+Tests (real, passing):
+
+- Unit (`test/claims-unit.test.ts`, 8 tests, no DB): TTL default/configured/
+  invalid; eligibility matrix (statuses × past/now/future × stock);
+  expiry predicate (past-deadline holds only).
+- Integration (`test/claims.test.ts`, 19 tests, live DB, stub-verifier auth,
+  per-run tags, batched cleanup): 8-buyer race on 1 unit → exactly one 200,
+  seven 409 SLOT_UNAVAILABLE, avail 0 + sold_out + single claim row; claim →
+  200 + exact 900s hold + decrement; final-unit flip; sold_out/draft/
+  cancelled/past → 409; missing slot → 404; double claim → 409 with stock
+  untouched; 401 anonymous; own-claim 200 {claim, slot}; other's → 404
+  CLAIM_NOT_FOUND; claim-detail 401 anonymous; me/claims isolation + status
+  filter; expiry via detail (expired + restored); sold_out→published flip;
+  double-sweep and parallel-sweep exactly-once; sold_out in public list.
+
+Verification (actual, via `npm.cmd`; DATABASE_URL loaded from local `.env.txt`
+into the shell, value never printed):
+
+- `run typecheck` → clean, exit 0.
+- `run lint` → clean, exit 0.
+- `run test` (live DB) → api 139 pass (13 files) + shared 1 pass, exit 0.
+  (Was 111+1; +8 unit, +19 integration, +1 sold_out detail test in the
+  updated Phase 4 suite. Phase 4/5 suites otherwise unmodified and passing.)
+- `run build` → clean (api tsc; web vite 77 modules; shared tsc), exit 0.
+- Manual race vs built server (PORT=3105; three REAL @nimiq/core wallet
+  signatures through the production verifier; cookies in memory, never
+  printed; one-off Temp scripts, not committed): provider created + published
+  a 1-unit slot; parallel claims → A 200 (active_hold, slot sold_out/avail 0),
+  B 409 `{"error":{"code":"SLOT_UNAVAILABLE","message":"This slot is no longer
+  available."},"requestId":"…"}`; GET slot → 200 sold_out, avail 0.
+- Manual expiry: hold forced past via SQL → GET detail → 200 published,
+  avail 1, claim row `["expired"]`. Residue removed afterwards (slot 1,
+  users 2 via targeted deletes; one extra recent orphan swept, re-sweep 0);
+  server stopped, port free, no node residue.
+
+IMPLEMENTATION DETAILS — AGENT DECIDED (locked scope preserved):
+
+- POST claims returns 200 (per the locked test expectation).
+- Missing slot on claim → 404 NOT_FOUND; missing/foreign claim → 404
+  CLAIM_NOT_FOUND (the locked home for that code).
+- Duplicate check covers the full live set (active_hold/payment_pending/
+  payment_review) mirroring the partial index; only active_hold can exist yet.
+- Missing claim body accepted ({} default); unknown fields rejected.
+- me/claims items are bare claim views (no embedded slot — the brief lists
+  {claims, total, limit, offset} only); cards link to claim/opening pages.
+- GET /claims/:claimId runs no expiry (brief names three paths only);
+  countdown clamps at zero for stale views.
+- Owners may claim their own slots (no restriction in the brief — allowed,
+  not invented as a rule).
+- Disabled buyers → 401 via existing session middleware (no extra code).
+- TTL is read per request through the tolerant getter.
+- No rate limits on the new endpoints (standing Phase 12 note).
+- SPEC note (reported, not a conflict): FR-05 sketches a 10-min hold and
+  idempotent duplicate returns; the locked Phase 6 brief governs — 15-min
+  TTL (env-overridable) and 409 SLOT_ALREADY_CLAIMED rejects.
+
+Secret handling: DATABASE_URL and session secrets were NEVER printed in
+outputs, logs, or commits (key names + boolean presence/counts only);
+`.env.txt` stays gitignored; Temp drivers printed envelopes/statuses only.
+
+Files changed (Phase 6): `apps/api/src/claims/{claim-view,service,
+validation}.ts` (new), `apps/api/src/routes/claims.ts` (new),
+`apps/api/src/{env.ts,app.ts,routes/slots.ts,slots/service.ts}`,
+`apps/api/test/{claims-unit,claims}.test.ts` (new),
+`apps/api/test/slots.test.ts` (sold_out visibility updates),
+`ARCHITECTURE.md` (§7 Phase 6 note), `.env.example`
+(CLAIM_HOLD_TTL_SECONDS), `apps/web/src/lib/slots.ts`,
+`apps/web/src/components/{ClaimButton,ClaimStatusBadge,HoldCountdown,
+ClaimCard}.tsx` (new), `apps/web/src/routes/{ClaimDetailPage,ClaimsPage}.tsx`
+(new), `apps/web/src/{App.tsx,routes/SlotDetailPage.tsx,
+components/TopBar.tsx}`, `AI_HANDOFF.md` (this checkpoint).
+
+```text
+CURRENT PHASE: Phase 6 complete
+COMPLETED: atomic claims + sold_out lifecycle + lazy idempotent expiry + claim UI
+TESTS RUN: typecheck clean; lint clean; tests 139 api + 1 shared pass (8 unit
+  incl. TTL/eligibility/expiry matrices, 19 live incl. 8-way race exactly-once,
+  double + parallel sweep exactly-once, flip both directions); build clean;
+  manual race: 200 + 409 live (sold_out/avail 0); manual expiry: published/
+  avail 1 + claim expired (residue removed)
+RESULT: one buyer wins the final unit, always; expired holds restore stock
+  exactly once; buyers see holds, countdowns, and history
+KNOWN ISSUES: none functional (rate limits deferred to Phase 12, noted above)
+SECURITY NOTES: DATABASE_URL/session secrets never printed; row lock + partial
+  unique index both enforced; foreign claims 404 (never 403); envelopes clean
+FILES CHANGED: see list above
+GIT COMMIT: feat: phase 6 atomic claims and hold expiry
+NEXT TASK: Phase 7 — NIM payment intent (do NOT start automatically)
+BLOCKED BY: none
+```
 
 ## Phase 5 implementation results (2026-09-11)
 

@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { getDb } from '../../../../db/client';
 import { requireAuth } from '../auth/session';
 import { AppError, successBody } from '../http/errors';
+import { expireHoldsForSlot } from '../claims/service';
 import {
   cancelSlot,
   createSlot,
@@ -68,6 +69,8 @@ export async function slotRoutes(app: FastifyInstance): Promise<void> {
       throw new AppError(400, 'INVALID_INPUT', 'Invalid slot id.');
     }
     const db = getDb();
+    // Lazy hold expiry runs before returning so freed units show immediately.
+    await expireHoldsForSlot(db, parsed.data.slotId, new Date());
     const slot = await getPublicSlotById(db, parsed.data.slotId);
     if (slot) {
       return successBody(request, { slot });

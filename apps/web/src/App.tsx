@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import RequireAuth from './components/RequireAuth';
 import TopBar from './components/TopBar';
+import ClaimDetailPage from './routes/ClaimDetailPage';
+import ClaimsPage from './routes/ClaimsPage';
 import Home from './routes/Home';
 import Profile from './routes/Profile';
 import Sell from './routes/Sell';
@@ -24,6 +26,22 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/slot/:slotId" element={<SlotDetailPage />} />
+          <Route
+            path="/claim/:claimId"
+            element={
+              <RequireAuth>
+                <ClaimDetailPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/claims"
+            element={
+              <RequireAuth>
+                <ClaimsPage />
+              </RequireAuth>
+            }
+          />
           <Route
             path="/sell"
             element={

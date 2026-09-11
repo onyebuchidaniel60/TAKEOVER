@@ -69,7 +69,13 @@ describe.skipIf(!isDatabaseConfigured())('public marketplace (live)', () => {
       row(ids.draft, { status: 'draft' }),
       row(ids.cancelled, { status: 'cancelled' }),
       row(ids.expired, { status: 'expired', startsAt: new Date(now - 2 * HOUR) }),
-      row(ids.soldOut, { status: 'sold_out', available: 0 }),
+      // Phase 6: sold_out slots stay visible (own start time avoids sort ties).
+      row(ids.soldOut, {
+        title: `P4 ${tag} sold out supper`,
+        status: 'sold_out',
+        available: 0,
+        startsAt: new Date(now + 1.5 * HOUR),
+      }),
       row(ids.past, { startsAt: new Date(now - 1 * HOUR) }),
     ]);
     publishedId = ids.later;
@@ -104,19 +110,19 @@ describe.skipIf(!isDatabaseConfigured())('public marketplace (live)', () => {
     return { status: res.statusCode, body: res.json() as ListBody };
   }
 
-  it('returns only published + future slots', async () => {
+  it('returns only published/sold_out + future slots', async () => {
     const { status, body } = await getList(`?q=P4%20${tag}`);
     expect(status).toBe(200);
-    expect(body.data.total).toBe(3);
+    expect(body.data.total).toBe(4);
     const found = body.data.slots.map((s) => s.id);
+    expect(found).toContain(ids.soldOut);
     expect(found).not.toContain(ids.draft);
     expect(found).not.toContain(ids.cancelled);
     expect(found).not.toContain(ids.expired);
-    expect(found).not.toContain(ids.soldOut);
     expect(found).not.toContain(ids.past);
     const now = Date.now();
     for (const slot of body.data.slots) {
-      expect(slot.status).toBe('published');
+      expect(['published', 'sold_out']).toContain(slot.status);
       expect(new Date(slot.starts_at).getTime()).toBeGreaterThan(now);
     }
     expect(typeof body.requestId).toBe('string');
@@ -124,7 +130,7 @@ describe.skipIf(!isDatabaseConfigured())('public marketplace (live)', () => {
 
   it('sorts soonest first by default', async () => {
     const { body } = await getList(`?q=P4%20${tag}`);
-    expect(body.data.slots.map((s) => s.id)).toEqual([ids.sooner, ids.later, ids.third]);
+    expect(body.data.slots.map((s) => s.id)).toEqual([ids.sooner, ids.soldOut, ids.later, ids.third]);
   });
 
   it('filters by q across title, description, and location', async () => {
@@ -132,14 +138,16 @@ describe.skipIf(!isDatabaseConfigured())('public marketplace (live)', () => {
     expect(body.data.slots.map((s) => s.id)).toContain(ids.later);
     const locRes = await getList(`?q=${encodeURIComponent(loc)}`);
     expect(locRes.body.data.slots.map((s) => s.id).sort()).toEqual(
-      [ids.later, ids.third].sort(),
+      [ids.later, ids.soldOut, ids.third].sort(),
     );
   });
 
   it('filters by exact category', async () => {
     const { body } = await getList(`?category=${cat}`);
-    expect(body.data.total).toBe(2);
-    expect(body.data.slots.map((s) => s.id).sort()).toEqual([ids.sooner, ids.later].sort());
+    expect(body.data.total).toBe(3);
+    expect(body.data.slots.map((s) => s.id).sort()).toEqual(
+      [ids.sooner, ids.soldOut, ids.later].sort(),
+    );
   });
 
   it('rejects limit=51 with 400 (rejected, not clamped)', async () => {
@@ -151,9 +159,11 @@ describe.skipIf(!isDatabaseConfigured())('public marketplace (live)', () => {
   it('paginates with limit/offset', async () => {
     const first = await getList(`?category=${cat}&limit=1&offset=0`);
     expect(first.body.data.slots.map((s) => s.id)).toEqual([ids.sooner]);
-    expect(first.body.data.total).toBe(2);
+    expect(first.body.data.total).toBe(3);
     const second = await getList(`?category=${cat}&limit=1&offset=1`);
-    expect(second.body.data.slots.map((s) => s.id)).toEqual([ids.later]);
+    expect(second.body.data.slots.map((s) => s.id)).toEqual([ids.soldOut]);
+    const third = await getList(`?category=${cat}&limit=1&offset=2`);
+    expect(third.body.data.slots.map((s) => s.id)).toEqual([ids.later]);
   });
 
   it('returns the locked public projection (price as string, no privates)', async () => {
@@ -190,14 +200,21 @@ describe.skipIf(!isDatabaseConfigured())('public marketplace (live)', () => {
     expect(body.data.slot.title).toContain('sunrise yoga');
   });
 
-  it('returns 404 for draft and cancelled slots (no existence leak)', async () => {
-    for (const id of [ids.draft, ids.cancelled, ids.expired, ids.soldOut, ids.past]) {
+  it('returns 404 for draft, cancelled, expired, and past slots (no existence leak)', async () => {
+    for (const id of [ids.draft, ids.cancelled, ids.expired, ids.past]) {
       const res = await app.inject({ method: 'GET', url: `/api/v1/slots/${id}` });
       expect(res.statusCode).toBe(404);
       const body = res.json() as { error: { code: string }; requestId: string };
       expect(body.error.code).toBe('NOT_FOUND');
       expect(typeof body.requestId).toBe('string');
     }
+  });
+
+  it('returns 200 for sold_out slots (still visible in Phase 6)', async () => {
+    const res = await app.inject({ method: 'GET', url: `/api/v1/slots/${ids.soldOut}` });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { data: { slot: SlotJson } };
+    expect(body.data.slot.status).toBe('sold_out');
   });
 
   it('returns 404 for a non-existent id', async () => {

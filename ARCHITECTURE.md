@@ -240,6 +240,18 @@ COMMIT
 
 The unique constraint and row lock are both required; application-level checks alone are insufficient.
 
+### Phase 6 implementation note (2026-09-11)
+
+Sold-out openings stay publicly visible: the read filter is status IN
+('published', 'sold_out') plus starts_at > now(), for both the list and the
+detail endpoints. The final unit flips a slot to 'sold_out' inside the same
+claim transaction that decrements it to zero; lazy hold expiry flips
+'sold_out' back to 'published' inside the same restoration transaction when
+stock returns. Expiry runs on GET /slots/:slotId, POST /slots/:slotId/claims,
+and GET /me/claims — no background workers. The 'expired' slot status is not
+set by any Phase 6 path. Claim holds last CLAIM_HOLD_TTL_SECONDS (default
+900s); claim quantity is fixed at 1.
+
 ## 8. State machines
 
 ### Slot states
