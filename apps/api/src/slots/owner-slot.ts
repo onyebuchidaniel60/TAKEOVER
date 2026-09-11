@@ -11,6 +11,6 @@ export interface OwnerSlot extends PublicSlot {
 }
 
 /** Project a slots row onto the locked owner shape. */
-export function toOwnerSlot(row: SlotRow): OwnerSlot {
-  return { ...toPublicSlot(row), payout_wallet: row.payoutWallet };
+export function toOwnerSlot(row: SlotRow, providerDisplay: string): OwnerSlot {
+  return { ...toPublicSlot(row, providerDisplay), payout_wallet: row.payoutWallet };
 }

@@ -8,6 +8,7 @@ import { canonicalizeNimiqAddress, InvalidAddressError } from '../auth/nimiq-add
 import { isUniqueViolation } from '../claims/service';
 import { toClaimView, type ClaimView } from '../claims/claim-view';
 import { AppError } from '../http/errors';
+import { loadProviderDisplay } from '../slots/provider-display';
 import { toPublicSlot, type PublicSlot } from '../slots/public-slot';
 import { toPaymentIntentView, type PaymentIntentView } from './intent-view';
 
@@ -37,7 +38,7 @@ export async function createPaymentIntent(
   db: Db,
   options: { claimId: string; buyerId: string },
 ): Promise<{ intent: PaymentIntentView; claim: ClaimView; slot: PublicSlot }> {
-  return db.transaction(async (tx) => {
+  const decided = await db.transaction(async (tx) => {
     const claimRows = await tx
       .select()
       .from(claims)
@@ -64,11 +65,7 @@ export async function createPaymentIntent(
       if (!slot) {
         throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
       }
-      return {
-        intent: toPaymentIntentView(existing[0]),
-        claim: toClaimView(claim),
-        slot: toPublicSlot(slot),
-      };
+      return { intentRow: existing[0], claimRow: claim, slotRow: slot };
     }
     const slotRows = await tx.select().from(slots).where(eq(slots.id, claim.slotId)).limit(1);
     const slot = slotRows[0];
@@ -100,11 +97,7 @@ export async function createPaymentIntent(
           .where(eq(paymentIntents.claimId, claim.id))
           .limit(1);
         if (winner[0]) {
-          return {
-            intent: toPaymentIntentView(winner[0]),
-            claim: toClaimView(claim),
-            slot: toPublicSlot(slot),
-          };
+          return { intentRow: winner[0], claimRow: claim, slotRow: slot };
         }
       }
       throw err;
@@ -113,8 +106,16 @@ export async function createPaymentIntent(
     if (!intent) {
       throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
     }
-    return { intent: toPaymentIntentView(intent), claim: toClaimView(claim), slot: toPublicSlot(slot) };
+    return { intentRow: intent, claimRow: claim, slotRow: slot };
   });
+  return {
+    intent: toPaymentIntentView(decided.intentRow),
+    claim: toClaimView(decided.claimRow),
+    slot: toPublicSlot(
+      decided.slotRow,
+      await loadProviderDisplay(db, decided.slotRow.providerId),
+    ),
+  };
 }
 
 export async function submitPayment(

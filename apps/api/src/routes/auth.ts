@@ -182,10 +182,11 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): 
     const user = await requireAuth(request);
     const db = getDb();
     const profiles = await db
-      .select({ id: providerProfiles.id })
+      .select({ displayName: providerProfiles.displayName })
       .from(providerProfiles)
       .where(eq(providerProfiles.userId, user.id))
       .limit(1);
+    const profile = profiles[0];
     return successBody(request, {
       user: {
         id: user.id,
@@ -193,6 +194,7 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): 
         role: user.role,
         status: user.status,
         hasProviderProfile: profiles.length > 0,
+        providerProfile: profile ? { displayName: profile.displayName } : null,
       },
     });
   });

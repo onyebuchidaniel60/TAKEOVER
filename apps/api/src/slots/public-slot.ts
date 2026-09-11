@@ -1,6 +1,8 @@
 // Phase 4: public slot projection. The marketplace read path exposes ONLY the
 // locked fields below — never payout_wallet, provider_id, or internal columns.
 // price_nim is always a JSON string (see ./price.ts), never a JS number.
+// Phase 9: providerDisplay names the provider (profile display_name preferred,
+// truncated wallet fallback) — public-safe in both forms.
 import type { slots } from '../../../../db/schema';
 import { serializePriceNim } from './price';
 
@@ -19,10 +21,11 @@ export interface PublicSlot {
   available_quantity: number;
   status: string;
   published_at: string | null;
+  providerDisplay: string;
 }
 
 /** Project a slots row onto the locked public shape. Throws on invalid price. */
-export function toPublicSlot(row: SlotRow): PublicSlot {
+export function toPublicSlot(row: SlotRow, providerDisplay: string): PublicSlot {
   return {
     id: row.id,
     title: row.title,
@@ -36,5 +39,6 @@ export function toPublicSlot(row: SlotRow): PublicSlot {
     available_quantity: row.availableQuantity,
     status: row.status,
     published_at: row.publishedAt ? row.publishedAt.toISOString() : null,
+    providerDisplay,
   };
 }

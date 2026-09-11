@@ -10,6 +10,7 @@ export interface AuthUser {
   role: string;
   status: string;
   hasProviderProfile?: boolean;
+  providerProfile?: { displayName: string } | null;
 }
 
 interface ChallengeResponse {

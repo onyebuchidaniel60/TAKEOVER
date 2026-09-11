@@ -1,4 +1,5 @@
-// Phase 6: the caller's hold history, filterable by status.
+// Phase 9: holds grouped into collapsible status buckets (newest data from
+// one unfiltered fetch). Reuses the shared claim components throughout.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ClaimCard from '../components/ClaimCard';
@@ -6,20 +7,11 @@ import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { ApiError } from '../lib/api';
-import { fetchMyClaims, type ClaimView } from '../lib/slots';
-
-const FILTERS = ['', 'active_hold', 'expired', 'cancelled'] as const;
-const LABELS: Record<string, string> = {
-  '': 'All',
-  active_hold: 'On hold',
-  expired: 'Ended',
-  cancelled: 'Cancelled',
-};
+import { fetchMyClaims, groupClaimsForBuckets } from '../lib/slots';
 
 export default function ClaimsPage() {
-  const [claims, setClaims] = useState<ClaimView[]>([]);
+  const [buckets, setBuckets] = useState<ReturnType<typeof groupClaimsForBuckets>>([]);
   const [total, setTotal] = useState(0);
-  const [status, setStatus] = useState<(typeof FILTERS)[number]>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
@@ -28,10 +20,10 @@ export default function ClaimsPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    void fetchMyClaims({ status: status || undefined, limit: 50 })
+    void fetchMyClaims({ limit: 50 })
       .then((res) => {
         if (cancelled) return;
-        setClaims(res.claims);
+        setBuckets(groupClaimsForBuckets(res.claims));
         setTotal(res.total);
         setLoading(false);
       })
@@ -43,7 +35,7 @@ export default function ClaimsPage() {
     return () => {
       cancelled = true;
     };
-  }, [status, retryKey]);
+  }, [retryKey]);
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
@@ -51,29 +43,14 @@ export default function ClaimsPage() {
       <p className="mt-1 text-sm text-slate-500">
         {total} hold{total === 1 ? '' : 's'} in total.
       </p>
-      <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Filter by status">
-        {FILTERS.map((f) => (
-          <button
-            key={f || 'all'}
-            type="button"
-            onClick={() => setStatus(f)}
-            aria-pressed={status === f}
-            className={`min-h-[44px] rounded-full px-4 py-2 text-sm font-medium ${
-              status === f ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'
-            }`}
-          >
-            {LABELS[f] ?? f}
-          </button>
-        ))}
-      </div>
       <div className="mt-4" aria-live="polite">
         {loading ? (
           <LoadingSkeleton />
         ) : error ? (
           <ErrorState message={error} onRetry={() => setRetryKey((k) => k + 1)} />
-        ) : claims.length === 0 ? (
+        ) : total === 0 ? (
           <EmptyState
-            title="No holds yet"
+            title="You haven't claimed anything yet."
             body="Find an opening you like and claim it — it will show up here."
             action={
               <Link
@@ -85,13 +62,32 @@ export default function ClaimsPage() {
             }
           />
         ) : (
-          <ul className="flex flex-col gap-3" aria-label="My claims">
-            {claims.map((claim) => (
-              <li key={claim.id}>
-                <ClaimCard claim={claim} />
-              </li>
+          <div className="flex flex-col gap-3">
+            {buckets.map((bucket) => (
+              <details
+                key={bucket.key}
+                open={bucket.claims.length > 0}
+                className="rounded-xl border border-slate-200 bg-white"
+              >
+                <summary className="min-h-[44px] cursor-pointer list-none px-4 py-3 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 [&::-webkit-details-marker]:hidden">
+                  {bucket.title} ({bucket.claims.length})
+                </summary>
+                <div className="border-t border-slate-100 p-4">
+                  {bucket.claims.length === 0 ? (
+                    <p className="text-sm text-slate-500">{bucket.emptyText}</p>
+                  ) : (
+                    <ul className="flex flex-col gap-3" aria-label={bucket.title}>
+                      {bucket.claims.map((claim) => (
+                        <li key={claim.id}>
+                          <ClaimCard claim={claim} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </details>
             ))}
-          </ul>
+          </div>
         )}
       </div>
     </main>

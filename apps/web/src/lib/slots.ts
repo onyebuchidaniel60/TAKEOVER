@@ -3,6 +3,8 @@
 import { apiFetch } from './api';
 
 // Mirrors the locked backend projection (snake_case). price_nim is a STRING.
+// providerDisplay names the provider (profile display_name preferred,
+// truncated wallet fallback) — public-safe in both forms.
 export interface PublicSlot {
   id: string;
   title: string;
@@ -16,6 +18,7 @@ export interface PublicSlot {
   available_quantity: number;
   status: string;
   published_at: string | null;
+  providerDisplay: string;
 }
 
 export interface SlotsResponse {
@@ -293,4 +296,105 @@ export function fetchMyClaims(
   if (typeof params.offset === 'number') query.set('offset', String(params.offset));
   const suffix = query.toString();
   return apiFetch<MyClaimsResponse>(`/api/v1/me/claims${suffix ? `?${suffix}` : ''}`);
+}
+
+// Phase 9: provider demand view for one owned slot. Mirrors the locked
+// backend shape: truncated buyer identifiers only, plus exact per-status
+// counts (the counts always sum to claims.length — enforced server-side).
+export interface ProviderSlotClaim {
+  id: string;
+  quantity: number;
+  status: string;
+  claimed_at: string;
+  hold_expires_at: string;
+  updated_at: string;
+  buyerDisplay: string;
+}
+
+export interface SlotClaimCounts {
+  active_hold: number;
+  payment_pending: number;
+  paid: number;
+  payment_review: number;
+  expired: number;
+  cancelled: number;
+}
+
+export function fetchSlotClaims(slotId: string): Promise<{
+  claims: ProviderSlotClaim[];
+  counts: SlotClaimCounts;
+}> {
+  return apiFetch(`/api/v1/me/slots/${encodeURIComponent(slotId)}/claims`);
+}
+
+// Phase 9: own profile (GET /me). providerProfile is null until the user
+// sets a display name.
+export interface MeUser {
+  id: string;
+  walletAddress: string;
+  role: string;
+  status: string;
+  hasProviderProfile?: boolean;
+  providerProfile: { displayName: string } | null;
+}
+
+export function fetchMe(): Promise<{ user: MeUser }> {
+  return apiFetch<{ user: MeUser }>('/api/v1/me');
+}
+
+export function updateProviderProfile(displayName: string): Promise<{
+  providerProfile: { displayName: string };
+}> {
+  return apiFetch('/api/v1/me/provider-profile', {
+    method: 'PATCH',
+    body: JSON.stringify({ display_name: displayName }),
+  });
+}
+
+/**
+ * Display-only wallet truncation, mirroring the server format (first 4 +
+ * '…' + last 4 of the compacted address). Never throws; never used for
+ * anything but labels.
+ */
+export function truncateWalletAddress(address: string): string {
+  const compact = address.replace(/ /g, '').toUpperCase();
+  if (compact.length <= 8) {
+    return compact;
+  }
+  return `${compact.slice(0, 4)}…${compact.slice(-4)}`;
+}
+
+// Phase 9: buyer claim buckets for /claims, in display order. Pure grouping
+// over an already-fetched list (kept out of the component per the
+// keep-logic-out-of-UI rule).
+export interface ClaimBucket {
+  key: 'active' | 'pending' | 'review' | 'paid' | 'ended';
+  title: string;
+  emptyText: string;
+  claims: ClaimView[];
+}
+
+export function groupClaimsForBuckets(claims: ClaimView[]): ClaimBucket[] {
+  const active = claims.filter((c) => c.status === 'active_hold');
+  const pending = claims.filter((c) => c.status === 'payment_pending');
+  const review = claims.filter((c) => c.status === 'payment_review');
+  const paid = claims.filter((c) => c.status === 'paid');
+  const ended = claims.filter((c) => c.status === 'expired' || c.status === 'cancelled');
+  return [
+    { key: 'active', title: 'Active holds', emptyText: 'No active holds right now.', claims: active },
+    {
+      key: 'pending',
+      title: 'Awaiting confirmation',
+      emptyText: 'No payments awaiting confirmation.',
+      claims: pending,
+    },
+    {
+      key: 'review',
+      title: 'Payment under review',
+      emptyText: 'No payments under review.',
+      claims: review,
+    },
+    { key: 'paid', title: 'Paid', emptyText: 'No paid holds yet.', claims: paid },
+    { key: 'ended', title: 'Ended', emptyText: 'No ended holds.', claims: ended },
+  ];
 }

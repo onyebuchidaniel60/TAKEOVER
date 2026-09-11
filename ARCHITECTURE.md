@@ -597,7 +597,8 @@ Revokes current session.
 
 Auth: session.
 
-Returns safe user profile and role.
+Returns safe user profile and role, plus `providerProfile:
+{ displayName: string } | null` (null until a display name is set).
 
 ### GET /api/v1/slots
 
@@ -623,7 +624,10 @@ Rate limit: public read limit.
 
 Auth: optional.
 
-Returns public slot detail.
+Returns public slot detail, including `providerDisplay` (profile
+display_name when set, else the truncated provider wallet — public-safe in
+both forms). The owner projection carries the same field plus
+`payout_wallet`.
 
 ### POST /api/v1/slots
 
@@ -656,6 +660,23 @@ Cancels an unpaid active listing.
 Auth: session.
 
 Owner-only listing history.
+
+### GET /api/v1/me/slots/:slotId/claims
+
+Auth: session + slot owner (non-owner sees 404, never 403).
+
+Returns every claim on the owned slot (newest first) with truncated buyer
+identifiers (`buyerDisplay`, first 4 + '…' + last 4) plus exact per-status
+`counts`. Never exposes full buyer wallets, tx hashes, or payment-intent
+fields.
+
+### PATCH /api/v1/me/provider-profile
+
+Auth: session.
+
+Upserts the caller's provider display name (`display_name`, trimmed 2–60
+chars, no links). Only `display_name` is editable; `verified` stays
+server/admin-controlled.
 
 ### POST /api/v1/slots/:slotId/claims
 
@@ -892,6 +913,20 @@ AI is not part of the MVP architecture. Matching, listing quality, fraud scoring
 Future AI must never be allowed to decide payment verification, ownership, eligibility, or final state transitions.
 
 ## 19. UI architecture
+
+### Phase 9 implementation note (2026-09-11)
+
+Buyer/provider dashboards add no new wallet SDK usage and no new columns
+(`provider_profiles.display_name` already exists). `/profile` is a real
+page (truncated wallet with click-to-copy, role, display-name setup/edit,
+shortcuts, logout) behind the shared `RequireAuth`, which now preserves the
+requested route and returns to it after login. `/claims` groups holds into
+five collapsible buckets from one fetch. `/sell` shows Active/Drafts/
+Sold-out tiles plus per-card hold counts from the provider claims endpoint.
+Display rule everywhere: names preferred, truncated wallets as fallback;
+truncation never throws, so a corrupt stored wallet degrades a label instead
+of breaking reads (strict canonicalization stays mandatory on
+payment/verification paths).
 
 ### Routes
 

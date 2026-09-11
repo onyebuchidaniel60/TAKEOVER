@@ -8,6 +8,7 @@ import { AppError, errorBody } from './http/errors';
 import { authRoutes, type AuthRouteOptions } from './routes/auth';
 import { claimRoutes } from './routes/claims';
 import { paymentRoutes, type PaymentRouteOptions } from './routes/payments';
+import { providerRoutes } from './routes/provider';
 import { slotRoutes } from './routes/slots';
 
 export type AppOptions = AuthRouteOptions &
@@ -63,6 +64,7 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
       await api.register(slotRoutes);
       await api.register(claimRoutes);
       await api.register(paymentRoutes, opts);
+      await api.register(providerRoutes);
     },
     { prefix: '/api/v1' },
   );

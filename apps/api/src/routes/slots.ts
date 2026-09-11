@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { getDb } from '../../../../db/client';
 import { requireAuth } from '../auth/session';
 import { AppError, successBody } from '../http/errors';
-import { expireHoldsForSlot } from '../claims/service';
+import { expireHoldsForSlot, listSlotClaimsForProvider } from '../claims/service';
 import {
   cancelSlot,
   createSlot,
@@ -17,6 +17,7 @@ import {
   updateDraftSlot,
 } from '../slots/lifecycle';
 import { toOwnerSlot } from '../slots/owner-slot';
+import { loadProviderDisplay } from '../slots/provider-display';
 import { getPublicSlotById, listPublicSlots } from '../slots/service';
 import {
   meSlotsQuerySchema,
@@ -79,7 +80,9 @@ export async function slotRoutes(app: FastifyInstance): Promise<void> {
     // projection. Everyone else gets the same 404 — no existence leak.
     if (request.user) {
       const owned = await getOwnSlot(db, request.user.id, parsed.data.slotId);
-      return successBody(request, { slot: toOwnerSlot(owned) });
+      return successBody(request, {
+        slot: toOwnerSlot(owned, await loadProviderDisplay(db, owned.providerId)),
+      });
     }
     throw new AppError(404, 'NOT_FOUND', 'Slot not found.');
   });
@@ -151,5 +154,19 @@ export async function slotRoutes(app: FastifyInstance): Promise<void> {
       limit: parsed.data.limit,
       offset: parsed.data.offset,
     });
+  });
+
+  app.get('/me/slots/:slotId/claims', async (request) => {
+    const user = await requireAuth(request);
+    const params = slotIdParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      throw new AppError(400, 'INVALID_INPUT', 'Invalid slot id.');
+    }
+    const db = getDb();
+    const result = await listSlotClaimsForProvider(db, {
+      slotId: params.data.slotId,
+      providerId: user.id,
+    });
+    return successBody(request, result);
   });
 }

@@ -7,6 +7,7 @@ import { getDb } from '../../../../db/client';
 import { claims, slots } from '../../../../db/schema';
 import { AppError } from '../http/errors';
 import { toOwnerSlot, type OwnerSlot } from './owner-slot';
+import { loadProviderDisplay, loadProviderDisplayMap } from './provider-display';
 import { serializePriceNim } from './price';
 import {
   canonicalizePayoutWallet,
@@ -65,7 +66,7 @@ export async function createSlot(
   if (!row) {
     throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
   }
-  return toOwnerSlot(row);
+  return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
 }
 
 export async function updateDraftSlot(
@@ -102,11 +103,11 @@ export async function updateDraftSlot(
   if (!row) {
     throw new AppError(409, 'SLOT_NOT_EDITABLE', 'Only draft slots can be edited.');
   }
-  return toOwnerSlot(row);
+  return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
 }
 
 export async function publishSlot(db: Db, ownerId: string, slotId: string): Promise<OwnerSlot> {
-  return db.transaction(async (tx) => {
+  const row = await db.transaction(async (tx) => {
     const rows = await tx
       .select()
       .from(slots)
@@ -141,12 +142,13 @@ export async function publishSlot(db: Db, ownerId: string, slotId: string): Prom
     if (!row) {
       throw new AppError(409, 'SLOT_NOT_PUBLISHABLE', 'Only draft slots can be published.');
     }
-    return toOwnerSlot(row);
+    return row;
   });
+  return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
 }
 
 export async function cancelSlot(db: Db, ownerId: string, slotId: string): Promise<OwnerSlot> {
-  return db.transaction(async (tx) => {
+  const row = await db.transaction(async (tx) => {
     const rows = await tx
       .select()
       .from(slots)
@@ -191,8 +193,9 @@ export async function cancelSlot(db: Db, ownerId: string, slotId: string): Promi
     if (!row) {
       throw new AppError(409, 'SLOT_NOT_CANCELLABLE', 'This slot can no longer be cancelled.');
     }
-    return toOwnerSlot(row);
+    return row;
   });
+  return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
 }
 
 export interface ListOwnSlotsOptions {
@@ -218,5 +221,17 @@ export async function listOwnSlots(
     .limit(options.limit)
     .offset(options.offset);
   const totalRows = await db.select({ value: count() }).from(slots).where(where);
-  return { slots: rows.map(toOwnerSlot), total: totalRows[0]?.value ?? 0 };
+  const displays = await loadProviderDisplayMap(
+    db,
+    rows.map((row) => row.providerId),
+  );
+  const items = rows.map((row) => {
+    const display = displays.get(row.providerId);
+    if (display === undefined) {
+      // Unreachable in practice: slots.provider_id references users.id.
+      throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+    }
+    return toOwnerSlot(row, display);
+  });
+  return { slots: items, total: totalRows[0]?.value ?? 0 };
 }

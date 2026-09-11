@@ -69,7 +69,152 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 8 complete — Real NIM payment verification done (2026-09-11). Next: Phase 9 — Buyer/provider dashboards (NOT started, awaiting explicit instruction).**
+**Phase 9 complete — Buyer/provider dashboards done (2026-09-11). Next: Phase 10 — Moderation and audit (NOT started, awaiting explicit instruction).**
+
+## Phase 9 implementation results (2026-09-11)
+
+Provider demand views, display-name profiles, and dashboard grouping/cleanup.
+No admin views, no reports/audit UI, no new wallet SDK usage, no
+transactions/signing, no slot deletion, no verification workflow, no
+messaging. No new columns (`provider_profiles.display_name` already exists
+— reported as instructed, nothing to add). No conflict with PROJECT_SPEC.md
+(FR-07/FR-08 history views; provider sees only minimum-necessary buyer
+identifiers per the FR-08 privacy rule).
+
+Backend (`apps/api/src/`):
+
+- `auth/nimiq-address.ts` — `truncateWalletAddress()` (first 4 + '…' +
+  last 4 of the canonical wallet, e.g. 'NQ07…4A2B'). Display-only rule:
+  truncation never throws (unparseable input falls back to the compacted
+  raw string); strict canonicalization stays mandatory on
+  payment/verification paths.
+- `slots/provider-display.ts` (new) — `resolveProviderDisplay()`
+  (display_name preferred, truncated wallet fallback) +
+  `loadProviderDisplayMap()` (batched, no N+1) + `loadProviderDisplay()`
+  (500 on missing provider row — FK invariant).
+- `slots/public-slot.ts` + `owner-slot.ts` — both projections gain required
+  `providerDisplay`; all 15 call sites (`slots/service`, `lifecycle`,
+  `routes/slots`, `claims/service`, `payments/service`) resolve it outside
+  DB transactions (tx-callback sites return rows, project after commit).
+- `claims/service.ts` + `claim-view.ts` — `listSlotClaimsForProvider()`
+  (owner check → 404, never 403; newest first; counts computed in the same
+  pass as the array) with the locked provider shape (id, quantity, status,
+  claimed_at, hold_expires_at, updated_at, buyerDisplay — nothing else).
+- `routes/slots.ts` — `GET /me/slots/:slotId/claims` → `{ claims, counts }`.
+- `provider-profiles/{service,validation}.ts` (new) + `routes/provider.ts`
+  (new, registered in `app.ts`) — `PATCH /me/provider-profile` upsert
+  (display_name trimmed 2–60, case-insensitive link rejection, strict body).
+- `routes/auth.ts` — `GET /me` gains `providerProfile:
+  { displayName } | null` (`hasProviderProfile` retained for existing clients).
+- ARCHITECTURE.md — §13 endpoint docs (claims, profile, providerDisplay on
+  slot detail) + §19 Phase 9 note. No new error codes (401/404/400 cover it).
+
+Frontend (`apps/web/src/`, SDK untouched — no new wallet calls):
+
+- `lib/slots.ts` — `providerDisplay` on `PublicSlot`; `fetchSlotClaims()`,
+  `fetchMe()`, `updateProviderProfile()`; `truncateWalletAddress()` (server
+  format twin); `groupClaimsForBuckets()` (fixed 5-bucket order, pure).
+- `store/auth.ts` — optional `providerProfile` on `AuthUser` (populated by
+  refresh; login keeps working unchanged).
+- `components/RequireAuth.tsx` — preserves the requested route in redirect
+  state; pure `getReturnTo()` honors same-origin relative paths only.
+  `App.tsx` — `/profile` now guarded + `ReturnToHandler` navigates back
+  once after login (Phase 5 dropped the destination; fixed as instructed).
+- `routes/Profile.tsx` — full rewrite (debug placeholder gone): truncated
+  wallet + click-to-copy full, role, display-name show/edit when profiled,
+  "Become a provider" CTA when slot-less, setup form when slots exist
+  without a profile, /sell + /claims links, logout.
+- `routes/ClaimsPage.tsx` — five collapsible buckets (native details,
+  expanded when non-empty) from one fetch; per-bucket empty text; global
+  "You haven't claimed anything yet." + CTA.
+- `routes/Sell.tsx` — Active/Drafts/Sold-out tiles (Active = published, no
+  double-count) from the same `/me/slots` source plus per-card hold counts
+  (provider claims endpoint, shown only when > 0).
+- `test/dashboards.test.ts` (5 tests): return-target matrix, bucket order +
+  empties, truncation format.
+
+Tests (real, passing):
+
+- Unit (`test/provider-unit.test.ts`, 11 tests, no DB): name boundaries +
+  trim + link rejection (any case) + strict-body; truncation shape/spaced/
+  garbage; display preference/fallback.
+- Integration (`test/provider-dashboards.test.ts`, 11 tests, live DB):
+  own-slot 200 with exact claim keys + truncated buyer + zeroed counts;
+  six-buyer status matrix with counts summing to array length; serialized
+  payload contains no full wallet and no tx/intent fields; non-owner 404 +
+  anonymous 401; profile create/update/idempotent/400-matrix; /me null vs
+  populated; public detail display name vs truncated fallback; owner draft
+  detail carries providerDisplay + payout_wallet.
+- Existing `test/slots.test.ts` projection-keys assertion extended with
+  `providerDisplay` (documented contract change).
+
+Verification (actual, via `npm.cmd`; DATABASE_URL loaded from local `.env.txt`
+into the shell, value never printed):
+
+- `run typecheck` → clean, exit 0 (api + web + shared + db).
+- `run lint` → clean, exit 0 (after fixing one unused var in the new test).
+- `run test` (live DB + live network) → api 222 pass (20 files) + web 17
+  pass (3 files) + shared 1 pass, exit 0.
+  (Was 200+12+1; +11 unit, +11 integration, +5 web.)
+- `run build` → clean (api tsc; web vite; shared tsc), exit 0.
+- Manual sequence vs built server (PORT=3109, REAL @nimiq/core wallet
+  signatures through the production verifier, cookies in memory never
+  printed, one-off Temp scripts not committed): provider created + published
+  a slot; PATCH provider-profile 200 (`{"providerProfile":
+  {"displayName":"Manual Bistro"}}`); buyer claimed (active_hold); provider
+  GET /me/slots/:slotId/claims → 200 with one claim
+  (`buyerDisplay: "NQ17…T88F"`, exact seven keys, counts
+  `{active_hold:1, rest 0}` — no full wallet, no tx/intent fields anywhere
+  in the envelope); public slot detail → `providerDisplay: "Manual
+  Bistro"`. Residue removed (intents 0, claims 1, slots 1, profiles 1,
+  sessions 2, users 2, challenges 2); server stopped, 0 node processes left.
+
+IMPLEMENTATION DETAILS — AGENT DECIDED (locked scope preserved):
+
+- Claims list order newest-first (management-view convention, same as
+  my-slots/buyer-claims); tiles count published as Active (sold-out has its
+  own tile); /claims fetch cap stays 50 (pre-existing).
+- `senderData` untouched; `verified` flag never read or written by Phase 9
+  (admin territory); login response shape unchanged (profile arrives via
+  GET /me + refresh).
+- SPEC note (reported, not a conflict): FR-03 lists provider contact/display
+  name among slot fields — the locked Phase 9 brief puts display_name on
+  the provider profile instead; implemented as briefed.
+
+Secret handling: DATABASE_URL and session secrets were NEVER printed in
+outputs, logs, or commits (presence booleans/counts only); `.env.txt`
+stays gitignored; Temp drivers printed envelopes/statuses/counts only.
+
+Files changed (Phase 9): `apps/api/src/{auth/nimiq-address,claims/service,
+claims/claim-view,slots/{public-slot,owner-slot,service,lifecycle},
+routes/{slots,auth},app}.ts` + new `slots/provider-display.ts`,
+`provider-profiles/{service,validation}.ts`, `routes/provider.ts`;
+`apps/api/test/{provider-unit,provider-dashboards}.test.ts` (new),
+`apps/api/test/slots.test.ts` (projection keys); `apps/web/src/lib/slots.ts`,
+`store/auth.ts`, `components/RequireAuth.tsx`, `App.tsx`,
+`routes/{Profile,ClaimsPage,Sell}.tsx`, `test/dashboards.test.ts` (new);
+`ARCHITECTURE.md` (§13 + §19 note), `AI_HANDOFF.md` (this checkpoint).
+
+```text
+CURRENT PHASE: Phase 9 complete
+COMPLETED: provider claims + counts, display-name profiles, providerDisplay,
+  profile/claims/sell dashboards, auth return-to
+TESTS RUN: typecheck clean; lint clean; tests 222 api + 17 web + 1 shared pass
+  (11 unit incl. name/truncation matrix, 11 live incl. shape/privacy/counts/
+  profile/me/display matrix, 5 web incl. return-to/buckets/truncation); build
+  clean; manual: profile 200 → claim 200 → provider claims 200 (truncated
+  buyer, exact counts, no leaks) → detail display name (residue removed)
+RESULT: providers see their own demand with minimum-necessary buyer
+  identifiers; buyers get grouped history and a real profile
+KNOWN ISSUES: none (tiles/claim-counts cap at 50 rows, pre-existing fetch cap)
+SECURITY NOTES: DATABASE_URL/session secrets never printed; non-owned slots
+  404 (never 403); full wallets/tx hashes/intent fields absent from provider
+  payloads (asserted on the serialized envelope); envelopes leak no stacks
+FILES CHANGED: see list above
+GIT COMMIT: feat: phase 9 buyer and provider dashboards
+NEXT TASK: Phase 10 — Moderation and audit (do NOT start automatically)
+BLOCKED BY: none
+```
 
 ## Phase 8 implementation results (2026-09-11)
 

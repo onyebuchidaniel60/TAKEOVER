@@ -180,6 +180,7 @@ describe.skipIf(!isDatabaseConfigured())('public marketplace (live)', () => {
         'id',
         'location_label',
         'price_nim',
+        'providerDisplay',
         'published_at',
         'starts_at',
         'status',

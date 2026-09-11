@@ -3,11 +3,13 @@
 // Quantity is fixed at 1; the schema supports more, the feature is deferred.
 import { and, count, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
-import { claims, slots } from '../../../../db/schema';
+import { claims, slots, users } from '../../../../db/schema';
+import { truncateWalletAddress } from '../auth/nimiq-address';
 import { getClaimHoldTtlSeconds } from '../env';
 import { AppError } from '../http/errors';
+import { loadProviderDisplay } from '../slots/provider-display';
 import { toPublicSlot, type PublicSlot } from '../slots/public-slot';
-import { toClaimView, type ClaimView } from './claim-view';
+import { toClaimView, toProviderSlotClaimView, type ClaimView, type ProviderSlotClaimView } from './claim-view';
 
 type Db = ReturnType<typeof getDb>;
 
@@ -73,7 +75,7 @@ export async function createClaim(
 ): Promise<{ claim: ClaimView; slot: PublicSlot }> {
   const now = options.now ?? new Date();
   const ttlSeconds = options.ttlSeconds ?? getClaimHoldTtlSeconds();
-  return db.transaction(async (tx) => {
+  const decided = await db.transaction(async (tx) => {
     const locked = await tx.select().from(slots).where(eq(slots.id, options.slotId)).for('update');
     const slot = locked[0];
     if (!slot) {
@@ -86,7 +88,7 @@ export async function createClaim(
     );
     const existing = await tx.select().from(claims).where(liveClaimWhere).limit(1);
     if (existing[0]) {
-      return { claim: toClaimView(existing[0]), slot: toPublicSlot(slot) };
+      return { claimRow: existing[0], slotRow: slot };
     }
     if (!isClaimEligible(slot, now)) {
       throw new AppError(409, 'SLOT_UNAVAILABLE', 'This slot is no longer available.');
@@ -112,7 +114,7 @@ export async function createClaim(
         const retry = await tx.select().from(claims).where(liveClaimWhere).limit(1);
         const fresh = await tx.select().from(slots).where(eq(slots.id, options.slotId)).limit(1);
         if (retry[0] && fresh[0]) {
-          return { claim: toClaimView(retry[0]), slot: toPublicSlot(fresh[0]) };
+          return { claimRow: retry[0], slotRow: fresh[0] };
         }
       }
       throw err;
@@ -138,8 +140,15 @@ export async function createClaim(
     if (!updatedSlot) {
       throw new AppError(409, 'SLOT_UNAVAILABLE', 'This slot is no longer available.');
     }
-    return { claim: toClaimView(claim), slot: toPublicSlot(updatedSlot) };
+    return { claimRow: claim, slotRow: updatedSlot };
   });
+  return {
+    claim: toClaimView(decided.claimRow),
+    slot: toPublicSlot(
+      decided.slotRow,
+      await loadProviderDisplay(db, decided.slotRow.providerId),
+    ),
+  };
 }
 
 export interface ExpireHoldsResult {
@@ -220,7 +229,10 @@ export async function getClaimForBuyer(
   if (!slot) {
     return null;
   }
-  return { claim: toClaimView(claim), slot: toPublicSlot(slot) };
+  return {
+    claim: toClaimView(claim),
+    slot: toPublicSlot(slot, await loadProviderDisplay(db, slot.providerId)),
+  };
 }
 
 export type ClaimStatusValue =
@@ -230,6 +242,58 @@ export type ClaimStatusValue =
   | 'paid'
   | 'payment_review'
   | 'cancelled';
+
+/** Per-status demand counts for one slot. Every key is always present (zeros included). */
+export interface SlotClaimCounts {
+  active_hold: number;
+  payment_pending: number;
+  paid: number;
+  payment_review: number;
+  expired: number;
+  cancelled: number;
+}
+
+const EMPTY_SLOT_CLAIM_COUNTS: SlotClaimCounts = {
+  active_hold: 0,
+  payment_pending: 0,
+  paid: 0,
+  payment_review: 0,
+  expired: 0,
+  cancelled: 0,
+};
+
+/**
+ * Phase 9: every claim on one provider-owned slot, newest first, with
+ * truncated buyer identifiers. Non-owned (or missing) slots map to 404 —
+ * never 403, never an existence leak. The counts object is computed in the
+ * same pass over the same rows as the array, so the two always agree.
+ */
+export async function listSlotClaimsForProvider(
+  db: Db,
+  options: { slotId: string; providerId: string },
+): Promise<{ claims: ProviderSlotClaimView[]; counts: SlotClaimCounts }> {
+  const slotRows = await db
+    .select({ id: slots.id })
+    .from(slots)
+    .where(and(eq(slots.id, options.slotId), eq(slots.providerId, options.providerId)))
+    .limit(1);
+  if (!slotRows[0]) {
+    throw new AppError(404, 'NOT_FOUND', 'Slot not found.');
+  }
+  const rows = await db
+    .select({ claim: claims, buyerWallet: users.walletAddress })
+    .from(claims)
+    .innerJoin(users, eq(claims.buyerId, users.id))
+    .where(eq(claims.slotId, options.slotId))
+    .orderBy(desc(claims.claimedAt));
+  const views: ProviderSlotClaimView[] = [];
+  const counts: SlotClaimCounts = { ...EMPTY_SLOT_CLAIM_COUNTS };
+  for (const row of rows) {
+    views.push(toProviderSlotClaimView(row.claim, truncateWalletAddress(row.buyerWallet)));
+    counts[row.claim.status] += 1;
+  }
+  return { claims: views, counts };
+}
 
 export interface ListBuyerClaimsOptions {
   status?: ClaimStatusValue;

@@ -137,3 +137,28 @@ export function deriveNimiqAddress(publicKey: Uint8Array): string {
   const check = String(98 - ibanMod97(body, '00')).padStart(2, '0');
   return `${COUNTRY_CODE}${check}${body}`;
 }
+
+/**
+ * Display-only truncation: first 4 + '…' + last 4 of the canonical wallet
+ * (e.g. 'NQ07…4A2B'). NEVER throws and NEVER substitutes a different
+ * address: unparseable input falls back to truncating the compacted raw
+ * string. Rule: display paths truncate leniently; payment/verification
+ * comparisons always canonicalize strictly (InvalidAddressError → 500 for
+ * corrupt server data, mismatch → review for chain data).
+ */
+export function truncateWalletAddress(input: string): string {
+  const compact = input.replace(/ /g, '').toUpperCase();
+  let body = compact;
+  try {
+    body = canonicalizeNimiqAddress(input);
+  } catch (err) {
+    if (!(err instanceof InvalidAddressError)) {
+      throw err;
+    }
+    body = compact;
+  }
+  if (body.length <= 8) {
+    return body;
+  }
+  return `${body.slice(0, 4)}…${body.slice(-4)}`;
+}

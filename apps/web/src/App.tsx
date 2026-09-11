@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import RequireAuth from './components/RequireAuth';
+import { useEffect, useRef } from 'react';
+import { BrowserRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import RequireAuth, { getReturnTo } from './components/RequireAuth';
 import TopBar from './components/TopBar';
 import ClaimDetailPage from './routes/ClaimDetailPage';
 import ClaimsPage from './routes/ClaimsPage';
@@ -11,6 +11,30 @@ import SellDetail from './routes/SellDetail';
 import SellNew from './routes/SellNew';
 import SlotDetailPage from './routes/SlotDetailPage';
 import { useAuth } from './store/auth';
+
+// After a guest is bounced to "/" and then connects, send them back to the
+// route they originally asked for (once — then the marker is spent).
+function ReturnToHandler() {
+  const status = useAuth((s) => s.status);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const done = useRef(false);
+  useEffect(() => {
+    if (status !== 'authenticated') {
+      done.current = false;
+      return;
+    }
+    if (done.current) {
+      return;
+    }
+    const to = getReturnTo(location.state, location.pathname);
+    if (to) {
+      done.current = true;
+      navigate(to, { replace: true });
+    }
+  }, [status, location, navigate]);
+  return null;
+}
 
 export default function App() {
   const refresh = useAuth((s) => s.refresh);
@@ -23,6 +47,7 @@ export default function App() {
     <BrowserRouter>
       <div className="min-h-screen bg-slate-50 text-slate-900">
         <TopBar />
+        <ReturnToHandler />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/slot/:slotId" element={<SlotDetailPage />} />
@@ -66,7 +91,14 @@ export default function App() {
               </RequireAuth>
             }
           />
-          <Route path="/profile" element={<Profile />} />
+          <Route
+            path="/profile"
+            element={
+              <RequireAuth>
+                <Profile />
+              </RequireAuth>
+            }
+          />
         </Routes>
       </div>
     </BrowserRouter>
