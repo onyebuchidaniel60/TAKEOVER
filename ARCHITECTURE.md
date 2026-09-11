@@ -181,6 +181,21 @@ and moves the claim to `payment_pending` with NO chain verification (Phase 8);
 the tx_hash UNIQUE constraint is the replay guard. `payment_pending` has no
 timeout path yet — known gap, deferred to Phase 8/10.
 
+### Phase 7 completion — SDK return value resolution (2026-09-11, Case A)
+
+`sendBasicTransactionWithData()` returns a transaction hash (64 hex chars, no
+`0x` prefix), passed through unchanged as `tx_hash`. No schema change, no
+endpoint change. Citations: installed
+`node_modules/@nimiq/mini-app-sdk/dist/provider.d.ts:187-193` (signature
+`Promise<string | ErrorResponse>`, stale JSDoc "@returns The serialized
+transaction"); official
+https://nimiq.dev/mini-apps/api-reference/nimiq-provider#sendbasictransactionwithdata
+(Returns `string` — transaction hash); oracle
+`node_modules/@nimiq/core/nodejs/main-wasm/index.js` (`Transaction.hash()`
+"used as its unique identifier on the blockchain" vs `serialize()`/`toHex()`;
+live: hash 64 hex, serialized 139/214 bytes). Frontend SDK path covered by a
+mocked test; a real Nimiq Pay round-trip remains a Phase 14 item.
+
 ### Payment verification
 
 ```text

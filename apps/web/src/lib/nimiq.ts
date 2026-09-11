@@ -63,9 +63,14 @@ export interface PaymentSend {
 
 /**
  * Phase 7: broadcast the intent's exact payment via Nimiq Pay. Returns the
- * wallet's success string, recorded server-side as the tx hash. Wallet
- * rejections (including user cancel) throw with the wallet's message.
- * Used ONLY for this call — no other SDK transaction usage.
+ * wallet's transaction hash (64 hex chars, no 0x prefix), recorded server-side
+ * as tx_hash. Per the official Nimiq Provider API docs
+ * (https://nimiq.dev/mini-apps/api-reference/nimiq-provider#sendbasictransactionwithdata
+ * — Returns `string` — transaction hash), Case A applies: the installed
+ * provider.d.ts JSDoc phrase "The serialized transaction" is stale forwarder
+ * prose, the wallet returns the hash. Wallet rejections (including user
+ * cancel) throw with the wallet's message. Used ONLY for this call — no other
+ * SDK transaction usage.
  */
 export async function sendBasicTransactionWithData(
   provider: NimiqProvider,

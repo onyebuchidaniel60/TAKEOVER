@@ -69,7 +69,134 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 7 complete — NIM payment intents done (2026-09-11). Next: Phase 8 — Real NIM payment verification (NOT started, awaiting explicit instruction).**
+**Phase 7 complete + Phase 7 completion (SDK return value resolution) done (2026-09-11). Next: Phase 8 — Real NIM payment verification (NOT started, awaiting explicit instruction).**
+
+## Phase 7 completion — SDK return value resolution (2026-09-11)
+
+This is a Phase 7 completion task, NOT a new phase. No block added to
+IMPLEMENTATION_PLAN.md, nothing renumbered. No blockchain verification
+(Phase 8), no admin flows (Phase 10), no architecture change beyond the items
+below. No conflict with PROJECT_SPEC.md (FR-06's full verification list
+remains Phase 8 territory; Phase 7 still records without verifying).
+
+Step 1 — what the SDK actually returns (authoritative sources only, no
+inference):
+
+1. Installed types:
+   `node_modules/@nimiq/mini-app-sdk/dist/provider.d.ts:187-193` —
+   `sendBasicTransactionWithData(tx: { recipient: string; value: number;
+   fee?: number; data: string; validityStartHeight?: number; }) =>
+   Promise<string | ErrorResponse>` with JSDoc verbatim `@returns The
+   serialized transaction` (same stale phrase on `sendBasicTransaction` at
+   lines 171-181). The forwarder in
+   `node_modules/@nimiq/mini-app-sdk/dist/provider.js`
+   (`sendBasicTransactionWithData(e){return ...request({method:
+   "sendBasicTransactionWithData",params:e})}`) just passes through whatever
+   string the Nimiq Pay wallet returns.
+2. Official docs:
+   https://nimiq.dev/mini-apps/api-reference/nimiq-provider#sendbasictransactionwithdata
+   — `sendBasicTransactionWithData` Returns `string` — transaction hash, with
+   example `const txHash = await nimiq.sendBasicTransactionWithData({...})`
+   (same "transaction hash" return on `sendBasicTransaction`).
+3. Oracle (`@nimiq/core` 2.21.0, root devDependency):
+   `node_modules/@nimiq/core/nodejs/main-wasm/index.js` — class Transaction:
+   `hash()` "Computes the transaction's hash, which is used as its unique
+   identifier on the blockchain. @returns {string}" vs `serialize()`
+   "@returns {Uint8Array}" and `toHex()` "Serializes the transaction into a
+   HEX string." Live oracle check: `TransactionBuilder.newBasic(...).hash()`
+   is 64 hex chars, no `0x`; `serialize()` is 139 bytes (basic) and 214 bytes
+   for a `TAKEOVER:v1:<claimId>` basic-with-data tx (428 hex chars) — a
+   serialized transaction is NOT a 64-char hash. Supporting: the old
+   https://github.com/nimiq-network/developer-reference/blob/master/chapters/transactions.md
+   "Transaction hash" section (Blake2b over tx fields, proof excluded) and
+   `Transaction.toPlain().transactionHash`.
+
+Step 2 — resolution: Case A applies. The wallet returns a transaction hash
+directly; the provider.d.ts "serialized transaction" phrase is stale
+forwarder prose, contradicted by the current official docs and the
+hash-vs-serialize distinction in the oracle. Format confirmed via the oracle:
+64 chars, hex `[0-9a-fA-F]`, no `0x` prefix (live: lowercase 64-hex; backend
+already accepts either case, rejects `0x`). A serialized transaction (278+ hex
+chars basic, 428 with TAKEOVER data) would not even fit the intent of the
+`txHash hex 1–256` bound for the with-data shape. No schema change, no
+endpoint change. Case B's premise ("hash is Blake2b-256 of the serialized
+bytes") is additionally NOT confirmed — the Rust source
+(`primitives/transaction/src/lib.rs` `SerializeContent for Transaction`) hashes
+content fields excluding proof/type, so no hash computation was added; per the
+brief, guessing was not an option.
+
+Frontend (`apps/web/src/lib/nimiq.ts` doc comment now cites the official URL
+and records Case A; behavior unchanged — passthrough + throw on wallet
+`ErrorResponse`):
+
+- `sendBasicTransactionWithData(provider, {recipient, value, data})` returns
+  the wallet string verbatim; submission posts `{ txHash: <exact string> }`.
+
+Step 3 — frontend payment flow test, mocked SDK (the SDK path was never
+exercised in Phase 7): new `apps/web/test/payment-flow.test.ts` (5 tests,
+vitest, node env; `apps/web/package.json` gains `test: vitest run`,
+`vitest.config.ts` + `tsconfig.json` include mirroring `apps/api` — no new
+dependency, root vitest reused):
+
+- Wallet mock returns known-good 64-hex hash (real `Transaction.hash()` shape,
+  hardcoded so the web suite needs no `@nimiq/core` dep); fetch is stubbed
+  for intent + submission.
+- Passthrough: wrapper returns the hash unchanged; format test pins 64 hex,
+  no `0x`; wallet `ErrorResponse` throws (cancel is never a silent hash).
+- Full Pay click: `createPaymentIntent` → `baseUnitsToSafeNumber` →
+  `sendBasicTransactionWithData` → `submitPayment`; asserts the exact bytes
+  submitted equal the SDK return, `data` is byte-for-byte
+  `TAKEOVER:v1:<claimId>`, `value` is the integer base-unit number (typeof
+  number, `Number.isInteger`, 150000 — never float/string), `recipient` is the
+  canonical intent payout. Imprecise amounts (`>MAX_SAFE_INTEGER`, zero)
+  throw instead of mis-sending.
+
+Step 4 — verification (actual, via `npm.cmd`; DATABASE_URL loaded from local
+`.env.txt` into the shell, value never printed):
+
+- `run typecheck` → clean, exit 0 (api + web + shared + db).
+- `run lint` → clean, exit 0.
+- `run test` (live DB) → api 163 pass (15 files, unchanged) + web 5 pass (1
+  new file) + shared 1 pass, exit 0. No Case B oracle test (Case B did not
+  apply).
+- `run build` → clean (api tsc; web vite 78 modules; shared tsc), exit 0.
+- Step 1 citations above (file paths + lines, URLs). No Step 2 oracle output
+  (Case B only).
+
+Secret handling: DATABASE_URL and session secrets were NEVER printed in
+outputs, logs, or commits (presence booleans only); `.env.txt` stays
+gitignored; no private keys anywhere. The mocked hash is a hardcoded test
+vector, not a secret.
+
+Files changed (Phase 7 completion): `apps/web/test/payment-flow.test.ts`
+(new), `apps/web/vitest.config.ts` (new), `apps/web/package.json` (`test`
+script), `apps/web/tsconfig.json` (include test), `apps/web/src/lib/nimiq.ts`
+(doc comment + citation), `ARCHITECTURE.md` (§6 Case A note + citations),
+`AI_HANDOFF.md` (this checkpoint + resolved note below).
+
+```text
+CURRENT PHASE: Phase 7 completion — SDK return value resolution (NOT a new phase)
+COMPLETED: Case A confirmed (hash, not serialized) + mocked SDK flow test
+TESTS RUN: typecheck clean; lint clean; tests 163 api + 5 web (new passthrough +
+  full intent→SDK→submission incl. byte-for-byte data, integer value, canonical
+  recipient) + 1 shared pass; build clean (web 78 modules)
+RESULT: tx_hash semantics pinned — wallet returns the hash, frontend passes it
+  through verbatim; Phase 8 can verify tx_hash against chain without a shape
+  migration
+KNOWN ISSUES: none new (payment_pending still has no timeout path → Phase 8/10;
+  real Nimiq Pay round-trip still a Phase 14 verification item)
+SECURITY NOTES: DATABASE_URL/session secrets never printed; browser still never
+  decides success; recipient/amount/data still server-issued; replay still
+  guarded by UNIQUE tx_hash; no rawTransaction surface added (Case B rejected)
+FILES CHANGED: see list above
+GIT COMMIT: chore: phase 7 completion — SDK return value resolution
+NEXT TASK: Phase 8 — Real NIM payment verification (do NOT start automatically)
+BLOCKED BY: none
+```
+
+Note: the frontend SDK path is now covered by a mocked test; a real Nimiq Pay
+round-trip (live wallet broadcast + on-chain read) is still a Phase 14
+verification item.
 
 ## Phase 7 implementation results (2026-09-11)
 
@@ -138,6 +265,10 @@ string "the serialized transaction", NOT explicitly a tx hash — Phase 7
 records it verbatim as txHash per the brief, and Phase 8 MUST resolve its
 true semantics against a real wallet before verifying anything. `data` is a
 plain string: the exact binding is passed verbatim, no manual encoding.
+RESOLVED by the Phase 7 completion checkpoint above (Case A): the official
+docs (https://nimiq.dev/mini-apps/api-reference/nimiq-provider#sendbasictransactionwithdata,
+Returns `string` — transaction hash) plus the @nimiq/core hash-vs-serialize
+oracle pin the return as a 64-hex hash, no `0x`; no schema/endpoint change.
 
 Tests (real, passing):
 
