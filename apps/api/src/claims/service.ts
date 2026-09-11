@@ -61,8 +61,10 @@ export interface CreateClaimOptions {
 }
 
 /**
- * Atomically claim one unit: lock the slot row, re-check eligibility and the
- * buyer's live claims, insert the hold, decrement, and flip to sold_out at 0.
+ * Atomically claim one unit: lock the slot row, return the buyer's existing
+ * live claim if there is one (FR-05 idempotent return — no second claim, no
+ * decrement), otherwise re-check eligibility, insert the hold, decrement, and
+ * flip to sold_out at 0.
  */
 export async function createClaim(
   db: Db,
@@ -76,22 +78,17 @@ export async function createClaim(
     if (!slot) {
       throw new AppError(404, 'NOT_FOUND', 'Slot not found.');
     }
+    const liveClaimWhere = and(
+      eq(claims.slotId, options.slotId),
+      eq(claims.buyerId, options.buyerId),
+      inArray(claims.status, [...LIVE_CLAIM_STATUSES]),
+    );
+    const existing = await tx.select().from(claims).where(liveClaimWhere).limit(1);
+    if (existing[0]) {
+      return { claim: toClaimView(existing[0]), slot: toPublicSlot(slot) };
+    }
     if (!isClaimEligible(slot, now)) {
       throw new AppError(409, 'SLOT_UNAVAILABLE', 'This slot is no longer available.');
-    }
-    const existing = await tx
-      .select({ id: claims.id })
-      .from(claims)
-      .where(
-        and(
-          eq(claims.slotId, options.slotId),
-          eq(claims.buyerId, options.buyerId),
-          inArray(claims.status, [...LIVE_CLAIM_STATUSES]),
-        ),
-      )
-      .limit(1);
-    if (existing.length > 0) {
-      throw new AppError(409, 'SLOT_ALREADY_CLAIMED', 'You already hold this opening.');
     }
     let inserted;
     try {
@@ -109,8 +106,13 @@ export async function createClaim(
         .returning();
     } catch (err) {
       // Second defense behind the live-claim check: the partial unique index.
+      // A concurrent same-buyer request won the race — return its claim.
       if (isUniqueViolation(err)) {
-        throw new AppError(409, 'SLOT_ALREADY_CLAIMED', 'You already hold this opening.');
+        const retry = await tx.select().from(claims).where(liveClaimWhere).limit(1);
+        const fresh = await tx.select().from(slots).where(eq(slots.id, options.slotId)).limit(1);
+        if (retry[0] && fresh[0]) {
+          return { claim: toClaimView(retry[0]), slot: toPublicSlot(fresh[0]) };
+        }
       }
       throw err;
     }

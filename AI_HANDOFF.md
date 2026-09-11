@@ -71,6 +71,69 @@ Vercel frontend, Railway API
 
 **Phase 6 complete — Atomic claims done (2026-09-11). Next: Phase 7 — NIM payment intent (NOT started, awaiting explicit instruction).**
 
+## Phase 6 completion — FR-05 reconciliation (2026-09-11)
+
+Small completion change, NOT a new phase. The spec wins on the two flagged
+FR-05 points; no plan renumbering, no architecture change beyond the items
+below. No payments/intents/verification/admin/transaction-sending. Phase 7
+NOT started.
+
+1. Hold TTL 900s → 600s (10 minutes, FR-05): `DEFAULT_CLAIM_HOLD_TTL_SECONDS`
+   in `apps/api/src/env.ts`, `.env.example` comment, unit-test defaults and
+   fallback expectations, integration hold-span bounds (599_999–600_001ms),
+   ARCHITECTURE.md §7 note. Env override (`CLAIM_HOLD_TTL_SECONDS`) and the
+   tolerant getter are unchanged.
+
+2. Duplicate claims idempotent-return instead of 409-reject: POST
+   /api/v1/slots/:slotId/claims now returns 200 with the buyer's existing
+   live claim (active_hold/payment_pending/payment_review) and the current
+   slot state — same shape as a fresh claim, no second row, no decrement.
+   The existing-claim check runs before the eligibility check inside the
+   locked transaction; the unique-violation backstop now re-reads and returns
+   the winner instead of 409ing. SLOT_ALREADY_CLAIMED is removed — it is no
+   longer emitted anywhere (verified by grep; only this historical note and
+   the old Phase 6 section mention it). The Phase 2 partial unique index is
+   untouched and remains the DB-level backstop.
+
+Tests (real, passing):
+
+- Replaced the 409 duplicate test with: second POST → 200, SAME claim ID,
+  status active_hold, same slot shape, available_quantity untouched (4),
+  exactly one claim row.
+- New: pre-inserted payment_pending hold → POST returns 200 with that claim
+  ID and status, stock untouched.
+- New: same buyer, two concurrent POSTs → both 200, same claim ID, exactly
+  one claim row, single decrement.
+- Kept as-is: the N-different-buyers race (exactly one wins) — still passes,
+  proving the lock still serializes distinct buyers.
+
+Verification (actual, via `npm.cmd`; DATABASE_URL loaded from local `.env.txt`
+into the shell, value never printed):
+
+- `run typecheck` → clean, exit 0.
+- `run lint` → clean, exit 0.
+- `run test` (live DB) → api 141 pass (13 files) + shared 1 pass, exit 0.
+  (Was 139+1; +2 net: replaced 1 test with 3.)
+- `run build` → clean (api tsc; web vite; shared tsc), exit 0.
+
+```text
+CURRENT PHASE: Phase 6 completion — FR-05 reconciliation (NOT a new phase)
+COMPLETED: 600s TTL default; idempotent duplicate-claim returns; code removed
+TESTS RUN: typecheck clean; lint clean; tests 141 api + 1 shared pass (same-ID
+  return, no redecrement, payment_pending return, concurrent same-buyer single
+  row, N-buyer race unchanged); build clean
+RESULT: spec FR-05 reconciled — 10-minute holds, duplicates return the hold
+KNOWN ISSUES: none
+SECURITY NOTES: DATABASE_URL/session secrets never printed; no new auth or
+  payment surface; unique index untouched
+FILES CHANGED: apps/api/src/{env.ts,claims/service.ts}, .env.example,
+  apps/api/test/{claims-unit,claims}.test.ts, ARCHITECTURE.md (§7 note),
+  AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: chore: phase 6 completion — FR-05 reconciliation
+NEXT TASK: Phase 7 — NIM payment intent (do NOT start automatically)
+BLOCKED BY: none
+```
+
 ## Phase 6 implementation results (2026-09-11)
 
 Buyers atomically claim published slots; holds expire lazily and restore

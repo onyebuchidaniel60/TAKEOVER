@@ -250,7 +250,9 @@ claim transaction that decrements it to zero; lazy hold expiry flips
 stock returns. Expiry runs on GET /slots/:slotId, POST /slots/:slotId/claims,
 and GET /me/claims — no background workers. The 'expired' slot status is not
 set by any Phase 6 path. Claim holds last CLAIM_HOLD_TTL_SECONDS (default
-900s); claim quantity is fixed at 1.
+600s per FR-05); claim quantity is fixed at 1. Duplicate claims by the same
+buyer are idempotent: POST returns the existing live claim (200), never a
+second row — the partial unique index remains the DB-level backstop.
 
 ## 8. State machines
 

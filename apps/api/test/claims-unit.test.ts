@@ -5,9 +5,9 @@ import { DEFAULT_CLAIM_HOLD_TTL_SECONDS, getClaimHoldTtlSeconds } from '../src/e
 import { isClaimEligible, isHoldExpired } from '../src/claims/service';
 
 describe('getClaimHoldTtlSeconds', () => {
-  it('defaults to 900 seconds (15 minutes)', () => {
-    expect(DEFAULT_CLAIM_HOLD_TTL_SECONDS).toBe(900);
-    expect(getClaimHoldTtlSeconds({})).toBe(900);
+  it('defaults to 600 seconds (10 minutes, FR-05)', () => {
+    expect(DEFAULT_CLAIM_HOLD_TTL_SECONDS).toBe(600);
+    expect(getClaimHoldTtlSeconds({})).toBe(600);
   });
 
   it('returns a configured positive integer', () => {
@@ -15,11 +15,11 @@ describe('getClaimHoldTtlSeconds', () => {
   });
 
   it('falls back on blank or invalid values', () => {
-    expect(getClaimHoldTtlSeconds({ CLAIM_HOLD_TTL_SECONDS: '' })).toBe(900);
-    expect(getClaimHoldTtlSeconds({ CLAIM_HOLD_TTL_SECONDS: 'soon' })).toBe(900);
-    expect(getClaimHoldTtlSeconds({ CLAIM_HOLD_TTL_SECONDS: '0' })).toBe(900);
-    expect(getClaimHoldTtlSeconds({ CLAIM_HOLD_TTL_SECONDS: '-5' })).toBe(900);
-    expect(getClaimHoldTtlSeconds({ CLAIM_HOLD_TTL_SECONDS: '1.5' })).toBe(900);
+    expect(getClaimHoldTtlSeconds({ CLAIM_HOLD_TTL_SECONDS: '' })).toBe(600);
+    expect(getClaimHoldTtlSeconds({ CLAIM_HOLD_TTL_SECONDS: 'soon' })).toBe(600);
+    expect(getClaimHoldTtlSeconds({ CLAIM_HOLD_TTL_SECONDS: '0' })).toBe(600);
+    expect(getClaimHoldTtlSeconds({ CLAIM_HOLD_TTL_SECONDS: '-5' })).toBe(600);
+    expect(getClaimHoldTtlSeconds({ CLAIM_HOLD_TTL_SECONDS: '1.5' })).toBe(600);
   });
 });
 

@@ -175,8 +175,8 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     const holdMs =
       new Date(body.data.claim['hold_expires_at'] as string).getTime() -
       new Date(body.data.claim['claimed_at'] as string).getTime();
-    expect(holdMs).toBeGreaterThanOrEqual(899_999);
-    expect(holdMs).toBeLessThanOrEqual(900_001);
+    expect(holdMs).toBeGreaterThanOrEqual(599_999);
+    expect(holdMs).toBeLessThanOrEqual(600_001);
     expect(body.data.slot['available_quantity']).toBe(3);
     expect(body.data.slot['status']).toBe('published');
     const row = await readSlot(slotId);
@@ -234,14 +234,65 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     expect((res.json() as { error: { code: string } }).error.code).toBe('NOT_FOUND');
   });
 
-  it('rejects a second claim by the same buyer with 409 SLOT_ALREADY_CLAIMED', async () => {
+  it('returns the same claim on a duplicate POST without decrementing again', async () => {
     const cookie = await loginAs(randomWallet());
     const slotId = await makeSlot({ total: 5, available: 5 });
     const first = await postClaim(cookie, slotId);
     expect(first.statusCode).toBe(200);
+    const firstId = (first.json() as { data: { claim: { id: string } } }).data.claim.id;
     const second = await postClaim(cookie, slotId);
-    expect(second.statusCode).toBe(409);
-    expect((second.json() as { error: { code: string } }).error.code).toBe('SLOT_ALREADY_CLAIMED');
+    expect(second.statusCode).toBe(200);
+    const secondBody = second.json() as {
+      data: { claim: { id: string; status: string }; slot: { id: string } };
+      requestId: string;
+    };
+    expect(typeof secondBody.requestId).toBe('string');
+    expect(secondBody.data.claim.id).toBe(firstId);
+    expect(secondBody.data.claim.status).toBe('active_hold');
+    expect(secondBody.data.slot.id).toBe(slotId);
+    expect((await readSlot(slotId)).availableQuantity).toBe(4);
+    expect(await readClaims(slotId)).toHaveLength(1);
+  });
+
+  it('returns an existing payment_pending claim idempotently', async () => {
+    const db = getDb();
+    const wallet = randomWallet();
+    const cookie = await loginAs(wallet);
+    const buyerId = await userIdFor(wallet);
+    const slotId = await makeSlot({ total: 5, available: 5 });
+    const inserted = await db
+      .insert(claims)
+      .values({
+        slotId,
+        buyerId,
+        quantity: 1,
+        status: 'payment_pending',
+        holdExpiresAt: new Date(Date.now() + HOUR),
+      })
+      .returning({ id: claims.id });
+    // One unit is reserved by the pre-existing hold.
+    await db
+      .update(slots)
+      .set({ availableQuantity: 4 })
+      .where(eq(slots.id, slotId));
+    const res = await postClaim(cookie, slotId);
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { data: { claim: { id: string; status: string } } };
+    expect(body.data.claim.id).toBe(inserted[0]?.id);
+    expect(body.data.claim.status).toBe('payment_pending');
+    expect((await readSlot(slotId)).availableQuantity).toBe(4);
+  });
+
+  it('creates exactly one claim row for concurrent same-buyer POSTs', { timeout: 30_000 }, async () => {
+    const cookie = await loginAs(randomWallet());
+    const slotId = await makeSlot({ total: 5, available: 5 });
+    const [a, b] = await Promise.all([postClaim(cookie, slotId), postClaim(cookie, slotId)]);
+    expect(a.statusCode).toBe(200);
+    expect(b.statusCode).toBe(200);
+    const idA = (a.json() as { data: { claim: { id: string } } }).data.claim.id;
+    const idB = (b.json() as { data: { claim: { id: string } } }).data.claim.id;
+    expect(idA).toBe(idB);
+    expect(await readClaims(slotId)).toHaveLength(1);
     expect((await readSlot(slotId)).availableQuantity).toBe(4);
   });
 

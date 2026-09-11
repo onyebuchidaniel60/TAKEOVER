@@ -28,12 +28,12 @@ export function parseEnv(input: Record<string, string | undefined>): Env {
 /** Dev fallback for local Vite (http://localhost:5173). Never used in production. */
 export const DEV_CORS_ORIGIN = 'http://localhost:5173';
 
-/** Default claim hold window: 15 minutes. Overridable via CLAIM_HOLD_TTL_SECONDS. */
-export const DEFAULT_CLAIM_HOLD_TTL_SECONDS = 900;
+/** Default claim hold window: 10 minutes (FR-05). Overridable via CLAIM_HOLD_TTL_SECONDS. */
+export const DEFAULT_CLAIM_HOLD_TTL_SECONDS = 600;
 
 /**
  * Claim hold TTL in seconds. Tolerant by design: missing, blank, or invalid
- * values fall back to the 900s default instead of crashing the claim path.
+ * values fall back to the 600s default instead of crashing the claim path.
  */
 export function getClaimHoldTtlSeconds(
   env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
