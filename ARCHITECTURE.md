@@ -260,12 +260,16 @@ The same transaction cannot verify two successful payment intents.
 
 ## 9. Database model
 
+Reconciled to the implemented Phase 2 schema on 2026-09-11 (follow-up): the Phase 2
+schema is the source of truth. The migration SQL under `db/migrations/` is authoritative
+for DDL; this section describes it.
+
 ### users
 
 - id UUID PK
 - wallet_address TEXT NOT NULL UNIQUE
-- role TEXT NOT NULL DEFAULT `USER` (server-controlled)
-- display_name TEXT NULL
+- role ENUM(user_role: buyer, provider, admin) NOT NULL DEFAULT buyer (server-controlled)
+- status ENUM(user_status: active, disabled) NOT NULL DEFAULT active
 - disabled_at TIMESTAMPTZ NULL
 - created_at TIMESTAMPTZ NOT NULL
 - updated_at TIMESTAMPTZ NOT NULL
@@ -276,7 +280,7 @@ Publicly expose only safe profile fields.
 
 - id UUID PK
 - user_id UUID FK users.id
-- session_hash TEXT NOT NULL UNIQUE
+- token_hash TEXT NOT NULL UNIQUE
 - expires_at TIMESTAMPTZ NOT NULL
 - created_at TIMESTAMPTZ NOT NULL
 - last_seen_at TIMESTAMPTZ NOT NULL
@@ -293,14 +297,10 @@ Publicly expose only safe profile fields.
 
 ### provider_profiles
 
-- user_id UUID PK/FK users.id
-- provider_name TEXT NOT NULL
-- description TEXT NULL
-- city TEXT NULL
-- country_code CHAR(2) NULL
-- latitude NUMERIC(9,6) NULL
-- longitude NUMERIC(9,6) NULL
-- verified_at TIMESTAMPTZ NULL
+- id UUID PK
+- user_id UUID FK users.id UNIQUE NOT NULL
+- display_name TEXT NOT NULL
+- verified BOOLEAN NOT NULL DEFAULT false
 - created_at TIMESTAMPTZ NOT NULL
 - updated_at TIMESTAMPTZ NOT NULL
 
@@ -309,37 +309,30 @@ Publicly expose only safe profile fields.
 - id UUID PK
 - provider_id UUID FK users.id
 - title TEXT NOT NULL
-- category TEXT NOT NULL
-- description TEXT NOT NULL
-- venue_name TEXT NOT NULL
-- venue_address TEXT NOT NULL
-- venue_latitude NUMERIC(9,6) NULL
-- venue_longitude NUMERIC(9,6) NULL
-- start_at TIMESTAMPTZ NOT NULL
-- end_at TIMESTAMPTZ NOT NULL
-- capacity INTEGER NOT NULL
+- description TEXT NULL
+- category TEXT NULL
+- location_label TEXT NULL
+- starts_at TIMESTAMPTZ NOT NULL
+- ends_at TIMESTAMPTZ NULL
+- price_nim BIGINT NOT NULL (integer NIM base units, no floats)
+- total_quantity INTEGER NOT NULL
 - available_quantity INTEGER NOT NULL
-- price_nim_base_units BIGINT NOT NULL
-- payout_wallet_address TEXT NOT NULL
-- status TEXT NOT NULL
+- payout_wallet TEXT NOT NULL
+- status ENUM(slot_status: draft, published, sold_out, cancelled, expired) NOT NULL DEFAULT draft
 - published_at TIMESTAMPTZ NULL
-- created_at TIMESTAMPTZ NOT NULL
-- updated_at TIMESTAMPTZ NOT NULL
 - cancelled_at TIMESTAMPTZ NULL
 - expired_at TIMESTAMPTZ NULL
+- created_at TIMESTAMPTZ NOT NULL
+- updated_at TIMESTAMPTZ NOT NULL
 
 Indexes:
-- status, start_at
-- category, status, start_at
-- provider_id, created_at DESC
-- venue/city fields as useful
+- status, starts_at
 
 Constraints:
-- capacity > 0
+- total_quantity > 0
 - available_quantity >= 0
-- available_quantity <= capacity
-- price_nim_base_units > 0
-- end_at > start_at
+- available_quantity <= total_quantity
+- price_nim > 0
 
 ### claims
 
@@ -347,50 +340,47 @@ Constraints:
 - slot_id UUID FK slots.id
 - buyer_id UUID FK users.id
 - quantity INTEGER NOT NULL DEFAULT 1
-- status TEXT NOT NULL
+- status ENUM(claim_status: active_hold, expired, payment_pending, paid, payment_review, cancelled) NOT NULL DEFAULT active_hold
 - hold_expires_at TIMESTAMPTZ NOT NULL
-- payment_pending_until TIMESTAMPTZ NULL
-- paid_at TIMESTAMPTZ NULL
-- created_at TIMESTAMPTZ NOT NULL
+- claimed_at TIMESTAMPTZ NOT NULL
 - updated_at TIMESTAMPTZ NOT NULL
-- cancelled_at TIMESTAMPTZ NULL
 
 Constraints:
 - quantity > 0
-- partial capacity cannot exceed slot availability
 
 Unique/partial-index requirement:
-- one ACTIVE_HOLD or PAYMENT_PENDING claim per buyer+slot.
+- one live (active_hold, payment_pending, payment_review) claim per buyer+slot.
+  paid, expired, and cancelled rows may repeat, so a buyer can accumulate multiple
+  paid claims on a multi-quantity slot while holding only one live claim at a time.
 
 ### payment_intents
 
 - id UUID PK
 - claim_id UUID FK claims.id UNIQUE
-- buyer_wallet_address TEXT NOT NULL
-- provider_wallet_address TEXT NOT NULL
-- amount_nim_base_units BIGINT NOT NULL
-- transaction_data TEXT NOT NULL
-- status TEXT NOT NULL
-- submitted_tx_hash TEXT NULL
-- verified_tx_hash TEXT NULL UNIQUE
-- verification_attempts INTEGER NOT NULL DEFAULT 0
-- last_verification_error TEXT NULL
+- expected_amount_nim BIGINT NOT NULL (integer NIM base units, no floats)
+- expected_recipient TEXT NOT NULL
+- expected_sender TEXT NOT NULL
+- expected_data TEXT NOT NULL
+- status ENUM(payment_status: created, submitted, verified, rejected, review) NOT NULL DEFAULT created
+- tx_hash TEXT NULL UNIQUE (unique when present: the same on-chain transaction can never settle two claims)
+- submitted_at TIMESTAMPTZ NULL
+- verified_at TIMESTAMPTZ NULL
 - created_at TIMESTAMPTZ NOT NULL
 - updated_at TIMESTAMPTZ NOT NULL
-- verified_at TIMESTAMPTZ NULL
 
 ### reports
 
 - id UUID PK
 - reporter_id UUID FK users.id
 - slot_id UUID FK slots.id NULL
-- reported_user_id UUID FK users.id NULL
-- category TEXT NOT NULL
-- description TEXT NOT NULL
-- status TEXT NOT NULL DEFAULT OPEN
-- resolved_by UUID FK users.id NULL
-- resolved_at TIMESTAMPTZ NULL
+- target_user_id UUID FK users.id NULL
+- reason TEXT NOT NULL
+- details TEXT NULL
+- status ENUM(report_status: open, reviewed, dismissed) NOT NULL DEFAULT open
 - created_at TIMESTAMPTZ NOT NULL
+- reviewed_at TIMESTAMPTZ NULL
+- resolved_by_user_id UUID FK users.id NULL
+- resolution_notes TEXT NULL
 
 ### audit_events
 
@@ -398,9 +388,9 @@ Unique/partial-index requirement:
 - actor_user_id UUID FK users.id NULL
 - event_type TEXT NOT NULL
 - entity_type TEXT NOT NULL
-- entity_id UUID NULL
+- entity_id TEXT NOT NULL
 - request_id TEXT NULL
-- metadata_json JSONB NULL
+- metadata JSONB NULL
 - created_at TIMESTAMPTZ NOT NULL
 
 Audit metadata must never contain secrets, authentication signatures, session cookies, or full sensitive request bodies.

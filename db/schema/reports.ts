@@ -15,4 +15,6 @@ export const reports = pgTable('reports', {
   status: reportStatus('status').notNull().default('open'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  resolvedByUserId: uuid('resolved_by_user_id').references(() => users.id),
+  resolutionNotes: text('resolution_notes'),
 });

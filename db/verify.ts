@@ -27,6 +27,43 @@ async function main(): Promise<void> {
   if (expectEmpty && names.length > 0) {
     throw new Error(`expected an empty database, found ${names.length} table(s)`);
   }
+
+  // Phase 2 follow-up: confirm the additive columns exist.
+  const expectedColumns = [
+    'users.disabled_at',
+    'slots.cancelled_at',
+    'slots.expired_at',
+    'claims.quantity',
+    'reports.resolved_by_user_id',
+    'reports.resolution_notes',
+    'audit_events.request_id',
+  ];
+  const columns = await db.execute<{ table_name: string; column_name: string }>(sql`
+    SELECT table_name, column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+  `);
+  const present = new Set(columns.rows.map((row) => `${row.table_name}.${row.column_name}`));
+  const missing = expectedColumns.filter((col) => !present.has(col));
+  console.log(
+    `follow-up columns ok (${expectedColumns.length - missing.length}/${expectedColumns.length})`,
+  );
+  if (missing.length > 0) {
+    throw new Error(`missing columns: ${missing.join(', ')}`);
+  }
+
+  // Confirm the corrected partial-unique-index predicate (paid must be absent).
+  const indexDef = await db.execute<{ indexdef: string }>(sql`
+    SELECT pg_get_indexdef(indexrelid) AS indexdef
+    FROM pg_index
+    WHERE indexrelid = 'public.claims_one_active_per_buyer_slot'::regclass
+  `);
+  const def = indexDef.rows[0]?.indexdef ?? '(missing)';
+  console.log(`partial index: ${def}`);
+  const wanted = ["'active_hold'", "'payment_pending'", "'payment_review'"];
+  if (!wanted.every((s) => def.includes(s)) || def.includes("'paid'")) {
+    throw new Error('claims partial index predicate does not match the reconciled definition');
+  }
 }
 
 main().catch((err: unknown) => {

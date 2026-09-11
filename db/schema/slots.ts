@@ -23,6 +23,8 @@ export const slots = pgTable(
     payoutWallet: text('payout_wallet').notNull(),
     status: slotStatus('status').notNull().default('draft'),
     publishedAt: timestamp('published_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    expiredAt: timestamp('expired_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

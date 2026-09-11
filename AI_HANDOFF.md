@@ -69,7 +69,67 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 2 complete — Database schema and migrations done (2026-09-11). Next: Phase 3 — Wallet authentication (NOT started, awaiting explicit instruction).**
+**Phase 2 follow-up complete — schema + docs reconciliation done (2026-09-11). ARCHITECTURE.md §9 was reconciled to the Phase 2 schema on this date; the Phase 2 schema is the source of truth. Next: Phase 3 — Wallet authentication (NOT started, awaiting explicit instruction).**
+
+## Phase 2 follow-up results (2026-09-11)
+
+Applied the five accepted resolutions in migration `db/migrations/0001_zippy_shiver_man.sql`
+(+ journal/snapshot), reviewed the SQL before applying, applied it to live Supabase, and
+confirmed via `information_schema` + `pg_get_indexdef`: 9 tables, 7/7 new columns present,
+partial index predicate `status IN (active_hold, payment_pending, payment_review)` with
+`paid` absent. No application logic, no seed data, no API route changes.
+
+- Schema adds: `users.disabled_at`, `slots.cancelled_at`/`expired_at`,
+  `claims.quantity` (INTEGER NOT NULL DEFAULT 1 + `claims_quantity_check`),
+  `reports.resolved_by_user_id` (FK users.id) + `resolution_notes`,
+  `audit_events.request_id`; claims partial index dropped and recreated without `paid`.
+- `db/verify.ts` extended (read-only): reports follow-up column coverage (7/7) and prints
+  + asserts the partial-index predicate on every run.
+- `ARCHITECTURE.md` §9 rewritten to the implemented schema (enums, token_hash,
+  provider_profiles own-PK, slots/claims/payment_intents/reports/audit_events columns,
+  corrected partial-index rule, slots indexes/constraints). No other ARCH sections needed
+  changes (§7/§8/§11/§13/§16 language is generic and consistent).
+- SPEC conflict check: none. FR-05 "active claim" language aligns with the corrected
+  predicate (paid claims are not active); `quantity` aligns with the claim `{quantity: 1}`
+  contract; lifecycle/audit adds align with FR-09/FR-11.
+- Secret handling: `DATABASE_URL` value never printed in outputs, logs, or commits
+  (key name + boolean presence only); `.env.txt` stays gitignored; migration files
+  contain no secrets.
+
+Verification (actual, via `npm.cmd`; node v24.20.0 / npm 11.19.0):
+
+- `run typecheck` → clean, exit 0. `run lint` → clean, exit 0.
+- `run db:migrate` → `migrations applied successfully!`, exit 0.
+- `run db:verify` → `SELECT 1 ok`; `tables (9)`; `follow-up columns ok (7/7)`;
+  `partial index: ... WHERE (status = ANY (ARRAY['active_hold'::claim_status,
+  'payment_pending'::claim_status, 'payment_review'::claim_status]))`, exit 0.
+- `run test` (live DB env) → 9/9 pass, exit 0. `run build` → clean, exit 0.
+  `run format` → clean (after prettier --write on db/verify.ts), exit 0.
+
+## Checkpoint
+
+```text
+CURRENT PHASE: Phase 2 follow-up complete
+COMPLETED: 5 schema resolutions migrated + live-verified; ARCHITECTURE.md s9 reconciled
+TESTS RUN: typecheck clean; lint clean; tests 9/9 pass (incl. live SELECT 1);
+  build clean; format clean; columns 7/7 + corrected index predicate verified live
+RESULT: schema is source of truth; docs match implementation; paid claims no longer
+  block re-hold on multi-quantity slots
+KNOWN ISSUES: none
+SECURITY NOTES: DATABASE_URL never printed; .env.txt gitignored; no secrets in commits
+FILES CHANGED: db/schema/{users,slots,claims,reports,audit-events}.ts, db/verify.ts,
+  db/migrations/0001_*.sql + meta/*, ARCHITECTURE.md (s9), AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: chore: phase 2 follow-up — schema and docs reconciliation
+NEXT TASK: Phase 3 — Wallet authentication (do NOT start automatically)
+BLOCKED BY: none
+```
+
+## Exact next task (Phase 3 — awaiting explicit instruction, DO NOT start)
+
+Phase 3 objective per `IMPLEMENTATION_PLAN.md`: secure wallet-based identity and
+sessions (challenge creation, Nimiq signature verification, session creation, logout,
+current-user endpoint, auth middleware, disabled-user enforcement). STOP — do not
+begin Phase 3 automatically.
 
 ## Phase 2 implementation results (2026-09-11)
 

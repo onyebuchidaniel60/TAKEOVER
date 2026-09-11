@@ -9,6 +9,7 @@ export const auditEvents = pgTable(
     eventType: text('event_type').notNull(),
     entityType: text('entity_type').notNull(),
     entityId: text('entity_id').notNull(),
+    requestId: text('request_id'),
     // Never store secrets, signatures, cookies, or credentials here (ARCHITECTURE.md s9).
     metadata: jsonb('metadata').$type<Record<string, unknown> | null>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
