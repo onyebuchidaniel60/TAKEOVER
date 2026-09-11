@@ -9,6 +9,9 @@ export default function TopBar() {
           <Link to="/" className="text-lg font-bold tracking-tight">
             TAKEOVER
           </Link>
+          <Link to="/sell" className="text-sm text-slate-600">
+            Sell
+          </Link>
           <Link to="/profile" className="text-sm text-slate-600">
             Profile
           </Link>

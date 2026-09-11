@@ -73,3 +73,85 @@ export function fetchSlots(filters: SlotFilters = {}): Promise<SlotsResponse> {
 export function fetchSlot(slotId: string): Promise<{ slot: PublicSlot }> {
   return apiFetch<{ slot: PublicSlot }>(`/api/v1/slots/${encodeURIComponent(slotId)}`);
 }
+
+// Phase 5: owner projection — everything public plus the payout wallet.
+export interface OwnerSlot extends PublicSlot {
+  payout_wallet: string;
+}
+
+export interface MySlotsResponse {
+  slots: OwnerSlot[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface SlotWrite {
+  title: string;
+  description?: string;
+  category?: string;
+  location_label?: string;
+  starts_at: string;
+  ends_at?: string;
+  price_nim: string;
+  total_quantity: number;
+  payout_wallet: string;
+}
+
+/**
+ * Parse a human NIM amount ("1.5") into exact base-unit string ("150000").
+ * At most 5 decimals (1 NIM = 100,000 base units). Throws on garbage.
+ */
+export function parseNimToBaseUnits(input: string): string {
+  const trimmed = input.trim();
+  const match = /^(\d+)(?:\.(\d{1,5}))?$/.exec(trimmed);
+  if (!match) {
+    throw new Error('Enter a price like 1.5 (up to 5 decimals).');
+  }
+  const whole = BigInt(match[1] ?? '0');
+  const frac = (match[2] ?? '').padEnd(5, '0');
+  const value = whole * BigInt(LUNA_PER_NIM) + BigInt(frac);
+  if (value <= 0n) {
+    throw new Error('Price must be more than 0.');
+  }
+  return value.toString();
+}
+
+export function fetchMySlots(params: { status?: string; limit?: number; offset?: number } = {}): Promise<MySlotsResponse> {
+  const query = new URLSearchParams();
+  if (params.status) query.set('status', params.status);
+  if (typeof params.limit === 'number') query.set('limit', String(params.limit));
+  if (typeof params.offset === 'number') query.set('offset', String(params.offset));
+  const suffix = query.toString();
+  return apiFetch<MySlotsResponse>(`/api/v1/me/slots${suffix ? `?${suffix}` : ''}`);
+}
+
+export function fetchOwnerSlot(slotId: string): Promise<{ slot: OwnerSlot }> {
+  return apiFetch<{ slot: OwnerSlot }>(`/api/v1/slots/${encodeURIComponent(slotId)}`);
+}
+
+export function createSlot(body: SlotWrite): Promise<{ slot: OwnerSlot }> {
+  return apiFetch<{ slot: OwnerSlot }>('/api/v1/slots', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateSlot(slotId: string, body: Partial<SlotWrite>): Promise<{ slot: OwnerSlot }> {
+  return apiFetch<{ slot: OwnerSlot }>(`/api/v1/slots/${encodeURIComponent(slotId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export function publishSlot(slotId: string): Promise<{ slot: OwnerSlot }> {
+  return apiFetch<{ slot: OwnerSlot }>(`/api/v1/slots/${encodeURIComponent(slotId)}/publish`, {
+    method: 'POST',
+  });
+}
+
+export function cancelSlot(slotId: string): Promise<{ slot: OwnerSlot }> {
+  return apiFetch<{ slot: OwnerSlot }>(`/api/v1/slots/${encodeURIComponent(slotId)}/cancel`, {
+    method: 'POST',
+  });
+}

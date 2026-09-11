@@ -22,6 +22,7 @@ interface AuthState {
   status: AuthStatus;
   user: AuthUser | null;
   error: string | null;
+  initialized: boolean;
   login: () => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -38,6 +39,7 @@ export const useAuth = create<AuthState>()((set) => ({
   status: 'unauthenticated',
   user: null,
   error: null,
+  initialized: false,
 
   login: async () => {
     set({ status: 'authenticating', error: null });
@@ -53,9 +55,9 @@ export const useAuth = create<AuthState>()((set) => ({
         method: 'POST',
         body: JSON.stringify({ walletAddress, nonce: challenge.nonce, signature, publicKey }),
       });
-      set({ status: 'authenticated', user: verified.user, error: null });
+      set({ status: 'authenticated', user: verified.user, error: null, initialized: true });
     } catch (err) {
-      set({ status: 'unauthenticated', user: null, error: messageOf(err) });
+      set({ status: 'unauthenticated', user: null, error: messageOf(err), initialized: true });
     }
   },
 
@@ -65,15 +67,15 @@ export const useAuth = create<AuthState>()((set) => ({
     } catch {
       // Server already forgot us or unreachable: still reset local state.
     }
-    set({ status: 'unauthenticated', user: null, error: null });
+    set({ status: 'unauthenticated', user: null, error: null, initialized: true });
   },
 
   refresh: async () => {
     try {
       const me = await apiFetch<{ user: AuthUser }>('/api/v1/me');
-      set({ status: 'authenticated', user: me.user, error: null });
+      set({ status: 'authenticated', user: me.user, error: null, initialized: true });
     } catch {
-      set({ status: 'unauthenticated', user: null, error: null });
+      set({ status: 'unauthenticated', user: null, error: null, initialized: true });
     }
   },
 }));

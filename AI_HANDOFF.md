@@ -69,7 +69,148 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 4 complete — Marketplace discovery done (2026-09-11). Next: Phase 5 — Provider slot creation and lifecycle (NOT started, awaiting explicit instruction).**
+**Phase 5 complete — Provider slot lifecycle done (2026-09-11). Next: Phase 6 — Claims and concurrency (NOT started, awaiting explicit instruction).**
+
+## Phase 5 implementation results (2026-09-11)
+
+Authenticated providers can create drafts, edit drafts, publish, cancel, and
+list their own slots. No claims/payment/admin logic beyond reading claim
+statuses for the cancel gate; no transaction sending. No architecture change.
+Public Phase 4 discovery preserved (its suite still passes unmodified).
+Phase 6 NOT started.
+
+Backend (`apps/api/src/`):
+
+- `slots/owner-slot.ts` — locked owner projection: public fields +
+  payout_wallet (never provider_id or internals).
+- `slots/validation.ts` — strict Zod bodies (create required, patch partial,
+  me/slots query, uuid params); pure `validatePublishable()` (per-field
+  failures); `canonicalizePayoutWallet()` (400 incl. bad checksum); pure state
+  guards `requireDraftForEdit` (409 SLOT_NOT_EDITABLE),
+  `requireDraftForPublish` (409 SLOT_NOT_PUBLISHABLE),
+  `requireCancellableStatus` (409 SLOT_NOT_CANCELLABLE).
+- `slots/lifecycle.ts` — createSlot (draft, available=total, role untouched),
+  updateDraftSlot (draft-only, conditional write), publishSlot (re-validates
+  stored row, conditional draft→published in tx), cancelSlot (blocks on
+  payment_pending/paid/payment_review claims; releases active_hold→cancelled
+  and cancels the slot in one tx), listOwnSlots (owner-scoped, created DESC).
+  Non-owned access → 404 everywhere; no session → 401.
+- `routes/slots.ts` — POST /slots (201), PATCH /slots/:slotId,
+  POST /slots/:slotId/publish, POST /slots/:slotId/cancel, GET /me/slots
+  (status/limit/offset); GET /slots/:slotId extended: public projection when
+  published+future, else owner projection for the authenticated owner, else
+  404 (anonymous draft still 404 — Phase 4 test untouched and passing).
+
+MVP restriction (stricter than ARCH "commercial fields immutable"): published
+slots cannot be edited at all — PATCH on any non-draft is 409. Cancel needs
+draft/published plus no blocking claims. `expired` is never set in Phase 5
+(public list already excludes past starts_at); `sold_out` is never set in
+Phase 5 (Phase 6 owns it when available hits 0). No cron/workers.
+
+Seed fixture note: `NQ00 SEEDPAYOUT…` / `NQ00 SEEDFIXTURE…` are NOT valid
+Nimiq addresses (broken checksum by design) and CANNOT be used with the
+create/publish API — 400 INVALID_INPUT, proven by test. They exist only as
+Phase 4 seed data.
+
+Frontend (`apps/web/src/`, no Nimiq SDK in any Phase 5 file):
+
+- `lib/slots.ts` — OwnerSlot, my-slots + create/patch/publish/cancel clients,
+  `parseNimToBaseUnits()` (NIM decimal ≤5dp → exact base-unit string).
+- Components: SlotForm (draft create/edit, NIM price entry, inline +
+  server errors), StatusBadge, PublishButton, CancelConfirmDialog,
+  RequireAuth (waits for first session check, guests → `/`).
+- Routes: `/sell` (own slots, all statuses, status filter, create entry),
+  `/sell/new` (create → lands on `/sell/:id`), `/sell/:slotId` (draft: edit
+  + publish + cancel; published: read-only + payout line + cancel; others:
+  read-only). `store/auth` gained an `initialized` flag (no other behavior
+  change). TopBar gained a Sell link. Mobile-first, consumer language.
+
+Tests (real, passing):
+
+- Unit (`test/slots-lifecycle-unit.test.ts`, 8 tests, no DB): each publish
+  field failing alone; SEED payout rejected with 400/INVALID_INPUT, valid
+  address canonicalized; edit/publish/cancel guards across all five statuses.
+- Integration (`test/slots-lifecycle.test.ts`, 18 tests, live DB, stub-verifier
+  auth flow, per-run tags, batched cleanup): 401 without auth; create → draft
+  + available==total + published_at null + role stays buyer; bad payout → 400;
+  patch own draft ok; patch other's → 404; patch published → 409; publish ok
+  (status + published_at); re-publish → 409; publish other's → 404; cancel
+  draft ok; cancel published releases active_hold→cancelled; paid claim → 409;
+  payment_pending claim → 409; cancel other's → 404; me/slots isolation +
+  payout_wallet present; owner draft detail 200 with payout_wallet; anonymous
+  draft detail 404.
+
+Verification (actual, via `npm.cmd`; DATABASE_URL loaded from local `.env.txt`
+into the shell, value never printed):
+
+- `run typecheck` → clean, exit 0.
+- `run lint` → clean, exit 0.
+- `run test` (live DB) → api 111 pass (11 files) + shared 1 pass, exit 0.
+  (Was 85+1; +8 unit, +18 integration. Phase 4 suites unmodified, passing.)
+- `run build` → clean (api tsc; web vite 71 modules; shared tsc), exit 0.
+- Manual HTTP sequence vs built server (PORT=3104; auth via a REAL
+  @nimiq/core wallet signature through the production verifier; session cookie
+  held in memory, never printed; one-off Temp scripts, not committed):
+  POST /slots → 201 draft envelope (available 2/2, published_at null,
+  payout owner wallet); PATCH → 200 (title edited); POST publish → 200
+  (published + published_at); PATCH → 409
+  `{"error":{"code":"SLOT_NOT_EDITABLE","message":"Only draft slots can be edited."},"requestId":"…"}`;
+  POST cancel → 200 (cancelled). Residue removed afterwards
+  (slots removed: 1, users removed: 1); server stopped, port free, no node
+  residue.
+
+IMPLEMENTATION DETAILS — AGENT DECIDED (locked scope preserved):
+
+- POST /slots returns 201 (other POSTs in this codebase use 200; create uses
+  REST 201 — asserted in tests).
+- Create/patch validate shapes only (draft is a scratchpad); semantic gates
+  run at publish against the stored row. Malformed UUID → 400.
+- PATCH total_quantity on a draft resets available_quantity = total (drafts
+  hold no demand). Empty PATCH body is a no-op 200.
+- Publish 400 names failing fields (`invalid starts_at, …`).
+- State changes use conditional WHERE writes inside transactions so races
+  fail closed (second publisher/canceller gets 409, not a silent overwrite).
+- me/slots sorts created_at DESC (management view, newest first).
+- No rate limits added to the new endpoints (same standing note as Phase 4:
+  deferred to the Phase 12 security pass).
+- SPEC note (reported, not a conflict): FR-03 sketches broader required
+  fields and DRAFT-or-PUBLISHED creation; the locked Phase 5 brief governs —
+  create takes the five required fields and always yields draft, and publish
+  enforces completeness (title, future start, ends-after-start, price, qty,
+  valid payout). Category/description stay optional per the locked brief.
+
+Secret handling: DATABASE_URL and session secrets were NEVER printed in
+outputs, logs, or commits (key names + boolean presence/counts only);
+`.env.txt` stays gitignored; seed fixtures remain auth-rejected.
+
+Files changed (Phase 5): `apps/api/src/slots/{owner-slot,validation,
+lifecycle}.ts` (new), `apps/api/src/routes/slots.ts`,
+`apps/api/test/{slots-lifecycle-unit,slots-lifecycle}.test.ts` (new),
+`apps/web/src/lib/slots.ts`, `apps/web/src/store/auth.ts`,
+`apps/web/src/components/{SlotForm,StatusBadge,PublishButton,
+CancelConfirmDialog,RequireAuth}.tsx` (new),
+`apps/web/src/routes/{Sell,SellNew,SellDetail}.tsx` (new),
+`apps/web/src/{App.tsx,components/TopBar.tsx}`, `AI_HANDOFF.md` (this
+checkpoint).
+
+```text
+CURRENT PHASE: Phase 5 complete
+COMPLETED: draft create/edit, publish, cancel, owner detail + my-slots, sell UI
+TESTS RUN: typecheck clean; lint clean; tests 111 api + 1 shared pass (8 unit
+  incl. per-field publish + SEED rejection + all-status guards, 18 live
+  lifecycle incl. 401/404/409s, cancel gates, isolation); build clean;
+  manual sequence: 201 draft → 200 patch → 200 publish → 409 patch →
+  200 cancel (real-signature auth, envelopes captured, residue removed)
+RESULT: providers own their full draft→published→cancelled loop; buyers see
+  no change; no unpublished/private data leaks
+KNOWN ISSUES: none functional (rate limits deferred to Phase 12, noted above)
+SECURITY NOTES: DATABASE_URL/session secrets never printed; non-owned slots
+  404 (never 403); LIKE escaping retained; envelopes leak no stacks
+FILES CHANGED: see list above
+GIT COMMIT: feat: phase 5 provider slot lifecycle
+NEXT TASK: Phase 6 — Claims and concurrency (do NOT start automatically)
+BLOCKED BY: none
+```
 
 ## Phase 4 implementation results (2026-09-11)
 

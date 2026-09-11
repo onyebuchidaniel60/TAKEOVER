@@ -1,0 +1,273 @@
+// Phase 5: provider slot form (create + draft edit). Consumer language only.
+// Price is entered in NIM ("1.5"); the parent converts nothing — this form
+// emits exact base units via parseNimToBaseUnits.
+import { useState } from 'react';
+import { parseNimToBaseUnits, type OwnerSlot, type SlotWrite } from '../lib/slots';
+import { formatNim } from '../lib/slots';
+
+export interface SlotFormValues {
+  title: string;
+  description: string;
+  category: string;
+  location_label: string;
+  starts_at: string;
+  ends_at: string;
+  price: string;
+  total_quantity: string;
+  payout_wallet: string;
+}
+
+const inputClass =
+  'min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900';
+
+const labelClass = 'mb-1 block text-xs font-medium text-slate-600';
+
+function isoToInput(value: string | null): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function inputToIso(value: string): string | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function baseUnitsToNim(priceNim: string): string {
+  try {
+    return formatNim(priceNim).replace(/ NIM$/, '');
+  } catch {
+    return '';
+  }
+}
+
+export function initialValues(slot?: OwnerSlot): SlotFormValues {
+  return {
+    title: slot?.title ?? '',
+    description: slot?.description ?? '',
+    category: slot?.category ?? '',
+    location_label: slot?.location_label ?? '',
+    starts_at: isoToInput(slot?.starts_at ?? null),
+    ends_at: isoToInput(slot?.ends_at ?? null),
+    price: slot ? baseUnitsToNim(slot.price_nim) : '',
+    total_quantity: slot ? String(slot.total_quantity) : '',
+    payout_wallet: slot?.payout_wallet ?? '',
+  };
+}
+
+export default function SlotForm({
+  initial,
+  submitLabel,
+  submitting,
+  serverError,
+  onSubmit,
+}: {
+  initial: SlotFormValues;
+  submitLabel: string;
+  submitting: boolean;
+  serverError: string | null;
+  onSubmit: (body: SlotWrite) => void;
+}) {
+  const [values, setValues] = useState<SlotFormValues>(initial);
+  const [fieldError, setFieldError] = useState<string | null>(null);
+
+  const set =
+    (key: keyof SlotFormValues) =>
+    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setValues((prev) => ({ ...prev, [key]: event.target.value }));
+    };
+
+  const handleSubmit = (event: React.FormEvent): void => {
+    event.preventDefault();
+    if (!values.title.trim()) {
+      setFieldError('Give your opening a title.');
+      return;
+    }
+    const startsAt = inputToIso(values.starts_at);
+    if (!startsAt) {
+      setFieldError('Pick a valid start date and time.');
+      return;
+    }
+    let priceNim: string;
+    try {
+      priceNim = parseNimToBaseUnits(values.price);
+    } catch (err) {
+      setFieldError(err instanceof Error ? err.message : 'Enter a valid price.');
+      return;
+    }
+    const totalQuantity = Number(values.total_quantity);
+    if (!Number.isInteger(totalQuantity) || totalQuantity < 1) {
+      setFieldError('Spots must be a whole number of 1 or more.');
+      return;
+    }
+    if (!values.payout_wallet.trim()) {
+      setFieldError('Enter the wallet address that should receive payment.');
+      return;
+    }
+    setFieldError(null);
+    const endsAt = inputToIso(values.ends_at);
+    onSubmit({
+      title: values.title.trim(),
+      description: values.description.trim() || undefined,
+      category: values.category.trim() || undefined,
+      location_label: values.location_label.trim() || undefined,
+      starts_at: startsAt,
+      ...(endsAt ? { ends_at: endsAt } : {}),
+      price_nim: priceNim,
+      total_quantity: totalQuantity,
+      payout_wallet: values.payout_wallet.trim(),
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4">
+      <div>
+        <label htmlFor="slot-title" className={labelClass}>
+          Title *
+        </label>
+        <input
+          id="slot-title"
+          type="text"
+          className={inputClass}
+          placeholder="Table for two — tonight"
+          value={values.title}
+          onChange={set('title')}
+          maxLength={200}
+        />
+      </div>
+      <div>
+        <label htmlFor="slot-description" className={labelClass}>
+          Description
+        </label>
+        <textarea
+          id="slot-description"
+          className={`${inputClass} min-h-[88px]`}
+          placeholder="What should guests expect?"
+          value={values.description}
+          onChange={set('description')}
+          maxLength={5000}
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="slot-category" className={labelClass}>
+            Category
+          </label>
+          <input
+            id="slot-category"
+            type="text"
+            className={inputClass}
+            placeholder="dining, fitness, sports…"
+            value={values.category}
+            onChange={set('category')}
+            maxLength={100}
+          />
+        </div>
+        <div>
+          <label htmlFor="slot-location" className={labelClass}>
+            Area
+          </label>
+          <input
+            id="slot-location"
+            type="text"
+            className={inputClass}
+            placeholder="Mitte, Kreuzberg…"
+            value={values.location_label}
+            onChange={set('location_label')}
+            maxLength={200}
+          />
+        </div>
+        <div>
+          <label htmlFor="slot-starts" className={labelClass}>
+            Starts *
+          </label>
+          <input
+            id="slot-starts"
+            type="datetime-local"
+            className={inputClass}
+            value={values.starts_at}
+            onChange={set('starts_at')}
+          />
+        </div>
+        <div>
+          <label htmlFor="slot-ends" className={labelClass}>
+            Ends
+          </label>
+          <input
+            id="slot-ends"
+            type="datetime-local"
+            className={inputClass}
+            value={values.ends_at}
+            onChange={set('ends_at')}
+          />
+        </div>
+        <div>
+          <label htmlFor="slot-price" className={labelClass}>
+            Price (NIM) *
+          </label>
+          <input
+            id="slot-price"
+            type="text"
+            inputMode="decimal"
+            className={inputClass}
+            placeholder="1.5"
+            value={values.price}
+            onChange={set('price')}
+          />
+        </div>
+        <div>
+          <label htmlFor="slot-qty" className={labelClass}>
+            Spots *
+          </label>
+          <input
+            id="slot-qty"
+            type="number"
+            min={1}
+            step={1}
+            className={inputClass}
+            placeholder="2"
+            value={values.total_quantity}
+            onChange={set('total_quantity')}
+          />
+        </div>
+      </div>
+      <div>
+        <label htmlFor="slot-payout" className={labelClass}>
+          Payout wallet *
+        </label>
+        <input
+          id="slot-payout"
+          type="text"
+          className={inputClass}
+          placeholder="NQ…"
+          value={values.payout_wallet}
+          onChange={set('payout_wallet')}
+          maxLength={64}
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <p className="mt-1 text-xs text-slate-500">Buyers pay this address directly.</p>
+      </div>
+      {fieldError ? (
+        <p className="text-sm font-medium text-red-800" role="alert">
+          {fieldError}
+        </p>
+      ) : null}
+      {serverError ? (
+        <p className="text-sm font-medium text-red-800" role="alert">
+          {serverError}
+        </p>
+      ) : null}
+      <button
+        type="submit"
+        disabled={submitting}
+        className="min-h-[44px] rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+      >
+        {submitting ? 'Saving…' : submitLabel}
+      </button>
+    </form>
+  );
+}
