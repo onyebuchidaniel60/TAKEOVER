@@ -156,6 +156,53 @@ export function cancelSlot(slotId: string): Promise<{ slot: OwnerSlot }> {
   });
 }
 
+// Phase 7: buyer payment-intent projection. Mirrors the locked backend shape:
+// expectedAmountNim is a STRING; expected_sender is never exposed.
+export interface PaymentIntent {
+  id: string;
+  claimId: string;
+  expectedAmountNim: string;
+  expectedRecipient: string;
+  expectedData: string;
+  status: string;
+  txHash: string | null;
+  submittedAt: string | null;
+  createdAt: string;
+}
+
+/**
+ * Exact base-unit string → SDK number. The SDK types value as number, so
+ * amounts above MAX_SAFE_INTEGER are rejected rather than sent imprecisely.
+ */
+export function baseUnitsToSafeNumber(baseUnits: string): number {
+  const value = BigInt(baseUnits);
+  if (value <= 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error('This amount cannot be sent from the browser wallet.');
+  }
+  return Number(value);
+}
+
+export function createPaymentIntent(claimId: string): Promise<{
+  intent: PaymentIntent;
+  claim: ClaimView;
+  slot: PublicSlot;
+}> {
+  return apiFetch(`/api/v1/claims/${encodeURIComponent(claimId)}/payment-intent`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export function submitPayment(
+  claimId: string,
+  txHash: string,
+): Promise<{ intent: PaymentIntent; claim: ClaimView }> {
+  return apiFetch(`/api/v1/claims/${encodeURIComponent(claimId)}/payment-submission`, {
+    method: 'POST',
+    body: JSON.stringify({ txHash }),
+  });
+}
+
 // Phase 6: buyer claim views (snake_case). No payment fields in this phase.
 export interface ClaimView {
   id: string;

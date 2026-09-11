@@ -7,12 +7,14 @@ import { parseCorsOrigins } from './env';
 import { AppError, errorBody } from './http/errors';
 import { authRoutes, type AuthRouteOptions } from './routes/auth';
 import { claimRoutes } from './routes/claims';
+import { paymentRoutes, type PaymentRouteOptions } from './routes/payments';
 import { slotRoutes } from './routes/slots';
 
-export type AppOptions = AuthRouteOptions & {
-  /** Explicit CORS allowlist override (tests). Defaults to parseCorsOrigins(). */
-  corsOrigins?: string[];
-};
+export type AppOptions = AuthRouteOptions &
+  PaymentRouteOptions & {
+    /** Explicit CORS allowlist override (tests). Defaults to parseCorsOrigins(). */
+    corsOrigins?: string[];
+  };
 
 export function buildApp(opts: AppOptions = {}): FastifyInstance {
   const app = Fastify({
@@ -53,13 +55,14 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
   // Infrastructure health: plain shape, no DB, no session work.
   app.get('/health', async () => ({ status: 'ok' }));
 
-  // Versioned API: enveloped JSON, session resolution, auth + slot + claim routes.
+  // Versioned API: enveloped JSON, session resolution, auth + slot + claim + payment routes.
   void app.register(
     async (api) => {
       api.addHook('onRequest', sessionMiddleware);
       await api.register(authRoutes, opts);
       await api.register(slotRoutes);
       await api.register(claimRoutes);
+      await api.register(paymentRoutes, opts);
     },
     { prefix: '/api/v1' },
   );

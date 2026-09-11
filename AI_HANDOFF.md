@@ -69,14 +69,159 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 6 complete — Atomic claims done (2026-09-11). Next: Phase 7 — NIM payment intent (NOT started, awaiting explicit instruction).**
+**Phase 7 complete — NIM payment intents done (2026-09-11). Next: Phase 8 — Real NIM payment verification (NOT started, awaiting explicit instruction).**
+
+## Phase 7 implementation results (2026-09-11)
+
+Buyers create a payment intent per claim and broadcast the exact NIM payment
+through Nimiq Pay; the backend records the submitted hash with NO chain
+verification (Phase 8). No verify-payment route (not even a stub), no admin
+flows. Phase 8 NOT started.
+
+Backend (`apps/api/src/`):
+
+- `payments/intent-view.ts` — locked buyer projection: id, claimId,
+  expectedAmountNim (STRING), expectedRecipient, expectedData, status, txHash,
+  submittedAt, createdAt. No sender field anywhere in the response.
+- `payments/amounts.ts` — pure `nimToBaseUnits()` (exact BigInt math).
+- `payments/service.ts` — `expectedDataForClaim()` (`TAKEOVER:v1:<claimId>`,
+  verbatim); `createPaymentIntent()` (payable = active_hold/payment_pending
+  else 409 CLAIM_NOT_PAYABLE; existing intent returned as-is; snapshots
+  amount/recipient/sender + data; unique-race backstop returns the winner);
+  `submitPayment()` (expired → 409 CLAIM_EXPIRED; cancelled/other →
+  CLAIM_NOT_PAYABLE; paid → CLAIM_ALREADY_PAID; no intent →
+  PAYMENT_INTENT_REQUIRED; same hash → idempotent 200; different hash →
+  PAYMENT_ALREADY_SUBMITTED; fresh hash stored + claim active_hold→
+  payment_pending in one tx; cross-claim hash reuse caught via the UNIQUE
+  index → 409). All buyer-scoped (foreign → 404); claim row locked.
+- `payments/validation.ts` — strict empty intent body; txHash hex 1–256 chars.
+- `routes/payments.ts` — the two POST endpoints with per-IP limiters (10/60s
+  each, same mechanism as auth; overridable via AppOptions for tests).
+- `app.ts` — AppOptions extended, paymentRoutes registered. `isUniqueViolation`
+  exported from claims/service for reuse.
+- ARCHITECTURE.md — §6 Phase 7 note + three new §15 codes (two codes from the
+  brief already existed).
+
+KNOWN GAP (deferred to Phase 8/10): a payment_pending claim with a submitted
+tx hash has no timeout path — the Phase 6 sweeper only touches active_hold.
+Recorded here and in ARCHITECTURE.md; no worker added per scope.
+
+expected_sender note: intentionally absent from every buyer response — it is
+server-side reconciliation data only. The buyer sees amount, recipient, and
+binding data; nothing else is needed to pay.
+
+Frontend (`apps/web/src/`, SDK used ONLY for sendBasicTransactionWithData):
+
+- `lib/nimiq.ts` — `sendBasicTransactionWithData(provider, {recipient,
+  value, data})` wrapper (wallet errors throw; nothing else added).
+- `lib/slots.ts` — PaymentIntent type, intent/submission clients,
+  `baseUnitsToSafeNumber()` (rejects > MAX_SAFE_INTEGER instead of
+  mis-sending).
+- `components/PaymentPanel.tsx` — intent-first screen (exact amount +
+  destination before the wallet opens) → broadcast → record → refresh.
+  Cancel → inline retry; CLAIM_EXPIRED → message + re-claim CTA;
+  PAYMENT_ALREADY_SUBMITTED → refresh into pending; any post-broadcast
+  recording failure → persistent "broadcast but not recorded, do not retry"
+  warning (never auto-retries payment).
+- `routes/ClaimDetailPage.tsx` — active_hold → panel + countdown; pending →
+  submitted box (hash via idempotent intent read, frozen deadline,
+  later-phase note); expired → hold-ended + re-claim CTA; paid → verified
+  placeholder.
+
+SDK report (verified against installed @nimiq/mini-app-sdk/dist/provider.d.ts,
+NOT improvised): `sendBasicTransactionWithData({recipient, value, fee?,
+data, validityStartHeight?}) => Promise<string | ErrorResponse>` — the
+assumed call shape matches. Two deviations recorded: (1) `value` is typed
+`number`, so the exact base-unit string is validated with BigInt then guarded
+to a safe integer before the call; (2) the doc comment calls the returned
+string "the serialized transaction", NOT explicitly a tx hash — Phase 7
+records it verbatim as txHash per the brief, and Phase 8 MUST resolve its
+true semantics against a real wallet before verifying anything. `data` is a
+plain string: the exact binding is passed verbatim, no manual encoding.
+
+Tests (real, passing):
+
+- Unit (`test/payments-unit.test.ts`, 8 tests, no DB): exact data format +
+  case/whitespace; NIM→base exact incl. 0.00001→1 and >2^53 (plus invalid
+  shapes); txHash accept/reject matrix incl. unknown-field rejection.
+- Integration (`test/payments.test.ts`, 14 tests, live DB, stub-verifier auth,
+  per-run tags, batched cleanup): intent create (claim untouched) + repeat
+  same-id + 401 + foreign-404 + expired-409; submit 200 (submitted + pending)
+  + no-intent 409 + same-hash idempotent + cross-claim reuse 409 (UNIQUE
+  enforced) + different-hash 409 + expired/paid/auth/foreign branches +
+  locked projection keys with string amount, exact data, no sender field.
+
+Verification (actual, via `npm.cmd`; DATABASE_URL loaded from local `.env.txt`
+into the shell, value never printed):
+
+- `run typecheck` → clean, exit 0.
+- `run lint` → clean, exit 0.
+- `run test` (live DB) → api 163 pass (15 files) + shared 1 pass, exit 0.
+  (Was 141+1; +8 unit, +14 integration.)
+- `run build` → clean (api tsc; web vite; shared tsc), exit 0.
+- Manual sequence vs built server (PORT=3106; REAL @nimiq/core wallet
+  signatures through the production verifier; cookies in memory, never
+  printed; one-off Temp scripts, not committed): provider created + published
+  a slot; buyer claimed; POST payment-intent → 200 with
+  `expectedData: 'TAKEOVER:v1:<claimId>'`, `expectedAmountNim: "150000"`,
+  claim still active_hold; POST payment-submission with an unverified fake
+  64-hex hash → 200 (record-only, as designed); GET claim → payment_pending.
+  Residue removed afterwards (users removed: 2); server stopped, port free,
+  no node residue.
+
+IMPLEMENTATION DETAILS — AGENT DECIDED (locked scope preserved):
+
+- Missing slot on intent/submit → 404 NOT_FOUND (existing convention);
+  missing/foreign claim reads → 404 CLAIM_NOT_FOUND (the locked home).
+- Amount-math tests live in the api suite: apps/web has no test runner, so
+  the web sell-form helper keeps its identical logic untested while the
+  tested reference lives in `payments/amounts.ts`. Shared package left as
+  placeholder-only per the fixed architecture.
+- Corrupt stored payout/sender (fails canonicalization) → 500: client did
+  nothing wrong, server data invariant broke. Seed fixture payouts would hit
+  this — seed data is disposable and never runs in prod.
+- Duplicate-claim check on the submission path is unnecessary: submission
+  requires one specific claim id.
+- No rate limits invented beyond the brief's per-IP parity with auth (10/60s
+  defaults; tests override).
+- SPEC note (reported, not a conflict): FR-06's full verification list is
+  Phase 8 territory; Phase 7 records without verifying, exactly as briefed.
+
+Secret handling: DATABASE_URL and session secrets were NEVER printed in
+outputs, logs, or commits (key names + boolean presence/counts only);
+`.env.txt` stays gitignored; Temp drivers printed envelopes/statuses only.
+
+Files changed (Phase 7): `apps/api/src/payments/{intent-view,amounts,service,
+validation}.ts` (new), `apps/api/src/routes/payments.ts` (new),
+`apps/api/src/{app.ts,claims/service.ts}` (export + wiring),
+`apps/api/test/{payments-unit,payments}.test.ts` (new),
+`ARCHITECTURE.md` (§6 note + §15 codes), `apps/web/src/lib/{slots,nimiq}.ts`,
+`apps/web/src/components/PaymentPanel.tsx` (new),
+`apps/web/src/routes/ClaimDetailPage.tsx`, `AI_HANDOFF.md` (this checkpoint).
+
+```text
+CURRENT PHASE: Phase 7 complete
+COMPLETED: intent creation (idempotent, exact binding) + record-only submission
+  + real Nimiq Pay broadcast UI with broadcast-loss guard
+TESTS RUN: typecheck clean; lint clean; tests 163 api + 1 shared pass (8 unit
+  incl. exact data/BigInt math/hash matrix, 14 live incl. idempotency, replay
+  guard, all 409 branches, locked projection); build clean; manual sequence:
+  intent 200 (exact binding, string amount) → fake-hash submit 200 (record-only)
+  → claim payment_pending (residue removed)
+RESULT: buyers see exact server-generated payment terms and can broadcast;
+  nothing is verified yet — that is Phase 8
+KNOWN ISSUES/GAPS: payment_pending has no timeout path (→ Phase 8/10); SDK
+  return-string semantics unresolved until a real wallet is exercised (→ Phase 8)
+SECURITY NOTES: DATABASE_URL/session secrets never printed; browser never
+  decides success; recipient/amount/data always server-issued; replay guarded
+  by UNIQUE tx_hash; envelopes leak no stacks
+FILES CHANGED: see list above
+GIT COMMIT: feat: phase 7 payment intents and submission
+NEXT TASK: Phase 8 — Real NIM payment verification (do NOT start automatically)
+BLOCKED BY: none
+```
 
 ## Phase 6 completion — FR-05 reconciliation (2026-09-11)
-
-Small completion change, NOT a new phase. The spec wins on the two flagged
-FR-05 points; no plan renumbering, no architecture change beyond the items
-below. No payments/intents/verification/admin/transaction-sending. Phase 7
-NOT started.
 
 1. Hold TTL 900s → 600s (10 minutes, FR-05): `DEFAULT_CLAIM_HOLD_TTL_SECONDS`
    in `apps/api/src/env.ts`, `.env.example` comment, unit-test defaults and

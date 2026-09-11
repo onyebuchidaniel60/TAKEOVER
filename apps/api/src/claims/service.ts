@@ -44,7 +44,8 @@ export function isHoldExpired(
   return claim.status === 'active_hold' && claim.holdExpiresAt.getTime() < now.getTime();
 }
 
-function isUniqueViolation(err: unknown): boolean {
+/** Postgres unique-violation code — shared replay-guard detector (Phase 7 reuses it). */
+export function isUniqueViolation(err: unknown): boolean {
   return (
     typeof err === 'object' &&
     err !== null &&

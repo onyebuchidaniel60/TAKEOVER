@@ -1,5 +1,5 @@
-// Phase 6: one held opening. Live countdown while the hold is live;
-// payment arrives in the next step — no payment UI here.
+// Phase 6: one held opening. Live countdown while the hold is live.
+// Phase 7: real payment panel for active holds; submitted/expired/paid states.
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import ClaimStatusBadge from '../components/ClaimStatusBadge';
@@ -7,10 +7,16 @@ import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import HoldCountdown from '../components/HoldCountdown';
 import LoadingSkeleton from '../components/LoadingSkeleton';
+import PaymentPanel from '../components/PaymentPanel';
 import PriceDisplay from '../components/PriceDisplay';
 import TimeBadge from '../components/TimeBadge';
 import { ApiError } from '../lib/api';
-import { fetchClaim, type ClaimView, type PublicSlot } from '../lib/slots';
+import {
+  createPaymentIntent,
+  fetchClaim,
+  type ClaimView,
+  type PublicSlot,
+} from '../lib/slots';
 
 type State =
   | { kind: 'loading' }
@@ -50,6 +56,8 @@ export default function ClaimDetailPage() {
     };
   }, [claimId, retryKey]);
 
+  const refresh = (): void => setRetryKey((k) => k + 1);
+
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
       <Link to="/claims" className="inline-block min-h-[44px] py-2 text-sm font-medium text-slate-600">
@@ -59,7 +67,7 @@ export default function ClaimDetailPage() {
         {state.kind === 'loading' ? (
           <LoadingSkeleton rows={1} />
         ) : state.kind === 'error' ? (
-          <ErrorState message={state.message} onRetry={() => setRetryKey((k) => k + 1)} />
+          <ErrorState message={state.message} onRetry={refresh} />
         ) : state.kind === 'not-found' ? (
           <EmptyState
             title="Hold not found"
@@ -74,29 +82,97 @@ export default function ClaimDetailPage() {
             }
           />
         ) : (
-          <article className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <div className="p-5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <ClaimStatusBadge status={state.claim.status} />
-                {state.claim.status === 'active_hold' ? (
-                  <HoldCountdown holdExpiresAt={state.claim.hold_expires_at} />
-                ) : null}
-              </div>
-              <h1 className="mt-3 text-2xl font-bold tracking-tight">{state.slot.title}</h1>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <TimeBadge startsAt={state.slot.starts_at} endsAt={state.slot.ends_at} />
-              </div>
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <PriceDisplay priceNim={state.slot.price_nim} large />
-              </div>
-              <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-                Your spot is held while the timer runs. Payment coming in the next step — nothing
-                to pay yet.
-              </p>
-            </div>
-          </article>
+          <ClaimBody claim={state.claim} slot={state.slot} onSubmitted={refresh} />
         )}
       </div>
     </main>
+  );
+}
+
+function ClaimBody({
+  claim,
+  slot,
+  onSubmitted,
+}: {
+  claim: ClaimView;
+  slot: PublicSlot;
+  onSubmitted: () => void;
+}) {
+  return (
+    <article className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <ClaimStatusBadge status={claim.status} />
+          {claim.status === 'active_hold' ? (
+            <HoldCountdown holdExpiresAt={claim.hold_expires_at} />
+          ) : null}
+        </div>
+        <h1 className="mt-3 text-2xl font-bold tracking-tight">{slot.title}</h1>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <TimeBadge startsAt={slot.starts_at} endsAt={slot.ends_at} />
+        </div>
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <PriceDisplay priceNim={slot.price_nim} large />
+        </div>
+        {claim.status === 'active_hold' ? (
+          <div className="mt-4">
+            <PaymentPanel claim={claim} slot={slot} onSubmitted={onSubmitted} />
+          </div>
+        ) : null}
+        {claim.status === 'payment_pending' ? <PendingBox claim={claim} /> : null}
+        {claim.status === 'expired' ? (
+          <div className="mt-4 rounded-lg bg-slate-50 p-3">
+            <p className="text-sm font-medium text-slate-700">Hold expired</p>
+            <Link to={`/slot/${slot.id}`} className="mt-1 inline-block text-sm underline">
+              Claim again
+            </Link>
+          </div>
+        ) : null}
+        {claim.status === 'paid' ? (
+          <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+            Payment verified.
+          </p>
+        ) : null}
+        {claim.status !== 'active_hold' &&
+        claim.status !== 'payment_pending' &&
+        claim.status !== 'expired' &&
+        claim.status !== 'paid' ? (
+          <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+            This hold is no longer active.
+          </p>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+// Submitted state: shows the recorded hash. The intent endpoint is idempotent,
+// so reading it here creates nothing new.
+function PendingBox({ claim }: { claim: ClaimView }) {
+  const [txHash, setTxHash] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void createPaymentIntent(claim.id)
+      .then(({ intent }) => {
+        if (!cancelled) setTxHash(intent.txHash);
+      })
+      .catch(() => {
+        if (!cancelled) setTxHash(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [claim.id]);
+
+  return (
+    <div className="mt-4 rounded-lg bg-amber-50 p-3">
+      <p className="text-sm font-medium text-amber-900">Payment submitted. Awaiting confirmation.</p>
+      {txHash ? <p className="mt-1 break-all text-xs text-amber-800">{txHash}</p> : null}
+      <p className="mt-1 text-xs text-amber-800">
+        Hold deadline was {new Date(claim.hold_expires_at).toLocaleString()}. Confirmation is
+        coming in a later phase — nothing more to do right now.
+      </p>
+    </div>
   );
 }

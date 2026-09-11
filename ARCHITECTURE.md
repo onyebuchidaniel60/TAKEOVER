@@ -171,6 +171,16 @@ A payment intent is a server record created for exactly one claim. It contains:
 
 The intent is immutable after issuance except for verification fields.
 
+### Phase 7 implementation note (2026-09-11)
+
+Intents are created per claim with `expected_data = 'TAKEOVER:v1:<claim-id>'`
+and snapshots of amount/recipient/sender; repeat calls return the existing
+intent. The buyer-facing projection omits `expected_sender` (server-side
+reconciliation data). Payment submission records the client-supplied tx hash
+and moves the claim to `payment_pending` with NO chain verification (Phase 8);
+the tx_hash UNIQUE constraint is the replay guard. `payment_pending` has no
+timeout path yet — known gap, deferred to Phase 8/10.
+
 ### Payment verification
 
 ```text
@@ -721,7 +731,10 @@ Minimum stable codes:
 - SLOT_CANCELLED
 - CLAIM_EXPIRED
 - CLAIM_NOT_PAYABLE
+- CLAIM_ALREADY_PAID
 - PAYMENT_INTENT_EXISTS
+- PAYMENT_INTENT_REQUIRED
+- PAYMENT_ALREADY_SUBMITTED
 - PAYMENT_INVALID_TX
 - PAYMENT_NOT_FOUND
 - PAYMENT_NOT_CONFIRMED
