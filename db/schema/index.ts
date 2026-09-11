@@ -1,3 +1,10 @@
-// Phase 1: empty schema placeholder. Domain tables land in Phase 2
-// (see ARCHITECTURE.md section 9). This module intentionally exports nothing yet.
-export {};
+// Phase 2: complete MVP relational model (tables only — no application logic yet).
+export * from './enums';
+export * from './users';
+export * from './auth';
+export * from './provider-profiles';
+export * from './slots';
+export * from './claims';
+export * from './payment-intents';
+export * from './reports';
+export * from './audit-events';

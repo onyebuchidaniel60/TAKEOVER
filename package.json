@@ -20,7 +20,10 @@
     "lint": "eslint .",
     "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit -p db",
     "test": "npm run test --workspaces --if-present",
-    "format": "prettier --check ."
+    "format": "prettier --check .",
+    "db:generate": "drizzle-kit generate --config=db/drizzle.config.ts",
+    "db:migrate": "drizzle-kit migrate --config=db/drizzle.config.ts",
+    "db:verify": "tsx db/verify.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.14.0",

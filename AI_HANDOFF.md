@@ -69,7 +69,101 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 1 complete — Foundation and environment done (2026-09-11). Next: Phase 2 — Database schema and migrations (NOT started, awaiting explicit instruction).**
+**Phase 2 complete — Database schema and migrations done (2026-09-11). Next: Phase 3 — Wallet authentication (NOT started, awaiting explicit instruction).**
+
+## Phase 2 implementation results (2026-09-11)
+
+Implemented the 9-table MVP relational model exactly per the Phase 2 brief, generated
+migration `db/migrations/0000_futuristic_the_hunter.sql` (+ journal/snapshot), applied it
+to the live Supabase database (was confirmed empty: 0 tables), and confirmed 9 tables
+via `information_schema`. No application logic, no seed data, no API route changes
+(`/health` untouched and still DB-independent).
+
+- Schema: `db/schema/` — `enums.ts` (6 pgEnums) + one module per table
+  (`users`, `auth`, `provider-profiles`, `slots`, `claims`, `payment-intents`,
+  `reports`, `audit-events`) + barrel `index.ts`. All brief-required UNIQUEs,
+  the 3 slots CHECKs, the partial unique claims index, and the 4 listed indexes
+  verified present in the generated SQL before applying.
+- Scripts: `db:generate`, `db:migrate` (drizzle-kit with `--config=db/drizzle.config.ts`),
+  `db:verify` (`tsx db/verify.ts` — `SELECT 1` + `information_schema` table list).
+- Connectivity: `apps/api/test/db-connectivity.test.ts` runs live `SELECT 1` via
+  `getDb()` when `DATABASE_URL` is set, else `skipIf` so `npm run test` stays green offline.
+- Secret handling: env source is local `.env.txt` (contains only `DATABASE_URL`);
+  values were loaded into the shell and NEVER printed — outputs/logs/commits contain
+  only key names and boolean presence. `.env.txt` added to `.gitignore` (it was
+  previously unignored — secret-leak risk closed). No `.env` file created. Migration
+  SQL, journal, and snapshot contain no secrets.
+- REPORTED (not decided) — Phase 2 brief vs `ARCHITECTURE.md` s9 naming/content deltas.
+  Implemented the brief exactly; `ARCHITECTURE.md` s9 was NOT edited (needs owner call):
+  users `role` enum(buyer/provider/admin, dflt buyer) vs TEXT DEFAULT USER + `disabled_at`
+  (brief: `status` enum, no `display_name`); sessions `token_hash` vs `session_hash`;
+  provider_profiles own-`id` PK + `display_name`/`verified` bool vs `user_id` PK/FK +
+  `provider_name`/geo/`verified_at`; slots `starts_at`/`ends_at` (nullable),
+  `total_quantity`, `price_nim`, `payout_wallet`, nullable description/category/location
+  vs `start_at`/`end_at NOT NULL`, `capacity`, `price_nim_base_units`,
+  `payout_wallet_address`, `venue_* NOT NULL`, `cancelled_at`/`expired_at`;
+  claims `claimed_at`, NO `quantity` column (multi-unit claims would then always be 1 —
+  flag for Phase 6), no `payment_pending_until`/`paid_at`/`cancelled_at`;
+  payment_intents `expected_*` naming + single nullable-unique `tx_hash` + `submitted_at`
+  vs `submitted/verified_tx_hash` split + `verification_attempts`/`last_verification_error`;
+  reports `reason`/`details`/`reviewed_at` vs `category`/`description`/`resolved_by`/`resolved_at`;
+  audit_events `metadata` jsonb + `entity_id` TEXT NOT NULL vs `metadata_json` +
+  `entity_id` UUID NULL + `request_id`. Note: claims partial index includes `paid` and
+  `payment_review` — stricter than ARCH s9 ("one ACTIVE_HOLD or PAYMENT_PENDING per
+  buyer+slot"); a buyer with a paid claim cannot hold the same slot again (matters for
+  multi-quantity slots in Phase 6). None of the deltas break the AGENTS.md business-rule
+  invariants at schema level (replay guards, tx uniqueness, inventory CHECKs present).
+
+IMPLEMENTATION DETAILS — AGENT DECIDED:
+
+- `created_at`/`updated_at`/`claimed_at`/`last_seen_at` (all NOT NULL per brief) get
+  `DEFAULT now()`; `updated_at` has no DB trigger — app sets it explicitly (later phases).
+- FKs use drizzle defaults (`ON DELETE/UPDATE no action`); no cascades invented.
+- Drizzle table/column naming: camelCase JS keys with explicit snake_case DB names.
+- `db/migrations/.gitkeep` removed (real migration files now stage the directory).
+
+Verification (actual, via `npm.cmd`; node v24.20.0 / npm 11.19.0):
+
+- `run typecheck` → clean (api+web+shared+db), exit 0 (re-run after prettier fix).
+- `run lint` → clean, exit 0 (re-run after prettier fix).
+- `run db:verify -- --expect-empty` (pre-migration) → `SELECT 1 ok`, `tables (0): (none)`, exit 0.
+- `run db:generate` → 9 tables detected, `0000_futuristic_the_hunter.sql` created, exit 0.
+- `run db:migrate` → `migrations applied successfully!`, exit 0.
+- `run db:verify` (post-migration) → `SELECT 1 ok`, `tables (9): audit_events,
+  auth_challenges, claims, payment_intents, provider_profiles, reports, sessions,
+  slots, users`, exit 0.
+- `run test` (with live DB env) → 9/9 pass (api 5 env + 2 health + 1 live
+  connectivity; shared 1 smoke), exit 0.
+- `run build` → clean all 3 workspaces, exit 0. `run format` → clean, exit 0.
+
+## Checkpoint
+
+```text
+CURRENT PHASE: Phase 2 complete
+COMPLETED: 9-table schema + migration applied to live Supabase (was empty, now 9 tables)
+TESTS RUN: typecheck clean; lint clean; tests 9/9 pass (incl. live SELECT 1);
+  build clean; format clean; pre/post-migration information_schema verified (0 -> 9)
+RESULT: clean database migrates from zero; constraints/indexes/FKs live;
+  no domain logic yet; /health still DB-independent
+KNOWN ISSUES: none functional. Brief-vs-ARCHITECTURE-s9 deltas reported above —
+  ARCHITECTURE.md s9 needs owner reconciliation before/at Phase 3.
+SECURITY NOTES: DATABASE_URL never printed (key name + boolean presence only);
+  .env.txt gitignored; migration files contain no secrets; no seed data; no API
+  routes touch the DB
+FILES CHANGED: .gitignore, package.json, db/schema/* (9 new + index.ts),
+  db/tsconfig.json, db/verify.ts, db/migrations/0000_*.sql + meta/*,
+  apps/api/test/db-connectivity.test.ts, AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: chore: phase 2 database schema and migrations
+NEXT TASK: Phase 3 — Wallet authentication (do NOT start automatically)
+BLOCKED BY: none
+```
+
+## Exact next task (Phase 3 — awaiting explicit instruction, DO NOT start)
+
+Phase 3 objective per `IMPLEMENTATION_PLAN.md`: secure wallet-based identity and
+sessions (challenge creation, Nimiq signature verification, session creation, logout,
+current-user endpoint, auth middleware, disabled-user enforcement). STOP — do not
+begin Phase 3 automatically.
 
 ## Phase 1 implementation results (2026-09-11)
 
