@@ -735,8 +735,10 @@ Buyer history.
 Auth: session.
 
 Creates abuse report. Body: `{ slotId?, targetUserId?, reason, details? }`
-with `reason` in `spam|fraud|misleading|inappropriate|other`; at least one
-target required; self-reports rejected (400); missing slot/user → 404.
+with `reason` in the PROJECT_SPEC.md FR-10 categories
+(`misleading_listing|unauthorized_listing|prohibited_content|payment_issue|other`,
+snake_case stored value and API field); at least one target required;
+self-reports rejected (400); missing slot/user → 404.
 Rate limit: 5 creations per hour per user → 429 `REPORT_RATE_LIMITED`.
 Responds 201 with the open report and writes `report.created`.
 

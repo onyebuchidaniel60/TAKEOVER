@@ -16,8 +16,24 @@ export function isAdminUser(user: { role: string } | null | undefined): boolean 
   return user?.role === 'admin';
 }
 
-export const REPORT_REASONS = ['spam', 'fraud', 'misleading', 'inappropriate', 'other'] as const;
+// PROJECT_SPEC.md FR-10 categories (snake_case stored value and API field).
+export const REPORT_REASONS = [
+  'misleading_listing',
+  'unauthorized_listing',
+  'prohibited_content',
+  'payment_issue',
+  'other',
+] as const;
 export type ReportReason = (typeof REPORT_REASONS)[number];
+
+/** Human labels for the report dialog (values stay snake_case on the wire). */
+export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
+  misleading_listing: 'Misleading listing',
+  unauthorized_listing: 'Unauthorized listing',
+  prohibited_content: 'Prohibited content',
+  payment_issue: 'Payment issue',
+  other: 'Other',
+};
 
 export function createReport(body: {
   slotId?: string;

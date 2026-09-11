@@ -2,7 +2,7 @@
 // check (single place both the guard and the nav read) and the locked
 // report-reason set mirrored from the API contract.
 import { describe, expect, it } from 'vitest';
-import { isAdminUser, REPORT_REASONS } from '../src/lib/admin';
+import { isAdminUser, REPORT_REASON_LABELS, REPORT_REASONS } from '../src/lib/admin';
 import { KNOWN_EVENT_TYPES } from '../src/routes/admin/AdminAudit';
 
 describe('isAdminUser', () => {
@@ -16,10 +16,26 @@ describe('isAdminUser', () => {
 });
 
 describe('REPORT_REASONS', () => {
-  it('mirrors the locked API reason set', () => {
+  it('mirrors the spec (FR-10) reason set', () => {
     expect([...REPORT_REASONS].sort()).toEqual(
-      ['fraud', 'inappropriate', 'misleading', 'other', 'spam'].sort(),
+      [
+        'misleading_listing',
+        'unauthorized_listing',
+        'prohibited_content',
+        'payment_issue',
+        'other',
+      ].sort(),
     );
+  });
+
+  it('labels every reason for the dialog', () => {
+    expect(REPORT_REASON_LABELS).toEqual({
+      misleading_listing: 'Misleading listing',
+      unauthorized_listing: 'Unauthorized listing',
+      prohibited_content: 'Prohibited content',
+      payment_issue: 'Payment issue',
+      other: 'Other',
+    });
   });
 });
 

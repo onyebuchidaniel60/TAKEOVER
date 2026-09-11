@@ -233,7 +233,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
       method: 'POST',
       url: '/api/v1/reports',
       headers: { cookie },
-      payload: { slotId, reason: 'spam' },
+      payload: { slotId, reason: 'misleading_listing' },
     });
     expect(res.statusCode).toBe(201);
     const body = res.json() as {
@@ -242,7 +242,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     };
     expect(typeof body.requestId).toBe('string');
     expect(body.data.report['status']).toBe('open');
-    expect(body.data.report['reason']).toBe('spam');
+    expect(body.data.report['reason']).toBe('misleading_listing');
     const audits = await auditRows(body.data.report['id'] as string, 'report.created');
     expect(audits).toHaveLength(1);
   });
@@ -252,7 +252,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/reports',
-      payload: { slotId, reason: 'spam' },
+      payload: { slotId, reason: 'misleading_listing' },
     });
     expect(res.statusCode).toBe(401);
   });
@@ -265,7 +265,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
         method: 'POST',
         url: '/api/v1/reports',
         headers: { cookie },
-        payload: { slotId, reason: 'spam', details: `report ${i}` },
+        payload: { slotId, reason: 'prohibited_content', details: `report ${i}` },
       });
       expect(res.statusCode).toBe(201);
     }
@@ -273,7 +273,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
       method: 'POST',
       url: '/api/v1/reports',
       headers: { cookie },
-      payload: { slotId, reason: 'spam' },
+      payload: { slotId, reason: 'prohibited_content' },
     });
     expect(blocked.statusCode).toBe(429);
     expect((blocked.json() as { error: { code: string } }).error.code).toBe('REPORT_RATE_LIMITED');
@@ -287,28 +287,28 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
       method: 'POST',
       url: '/api/v1/reports',
       headers: { cookie },
-      payload: { targetUserId: ownId, reason: 'fraud' },
+      payload: { targetUserId: ownId, reason: 'payment_issue' },
     });
     expect(selfTarget.statusCode).toBe(400);
     const noTarget = await app.inject({
       method: 'POST',
       url: '/api/v1/reports',
       headers: { cookie },
-      payload: { reason: 'fraud' },
+      payload: { reason: 'payment_issue' },
     });
     expect(noTarget.statusCode).toBe(400);
     const missing = await app.inject({
       method: 'POST',
       url: '/api/v1/reports',
       headers: { cookie },
-      payload: { slotId: randomUUID(), reason: 'fraud' },
+      payload: { slotId: randomUUID(), reason: 'payment_issue' },
     });
     expect(missing.statusCode).toBe(404);
     const missingUser = await app.inject({
       method: 'POST',
       url: '/api/v1/reports',
       headers: { cookie },
-      payload: { targetUserId: randomUUID(), reason: 'fraud' },
+      payload: { targetUserId: randomUUID(), reason: 'payment_issue' },
     });
     expect(missingUser.statusCode).toBe(404);
   });
@@ -348,7 +348,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
       method: 'POST',
       url: '/api/v1/reports',
       headers: { cookie: reporterCookie },
-      payload: { slotId, reason: 'misleading' },
+      payload: { slotId, reason: 'unauthorized_listing' },
     });
     expect(created.statusCode).toBe(201);
     const reportId = (created.json() as { data: { report: { id: string } } }).data.report.id;

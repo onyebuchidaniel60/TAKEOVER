@@ -11,9 +11,15 @@ import {
 } from '../src/reports/validation';
 
 describe('report reason enum', () => {
-  it('accepts exactly the five locked reasons', () => {
+  it('accepts exactly the five spec (FR-10) reasons', () => {
     expect([...reportReasonValues].sort()).toEqual(
-      ['fraud', 'inappropriate', 'misleading', 'other', 'spam'].sort(),
+      [
+        'misleading_listing',
+        'unauthorized_listing',
+        'prohibited_content',
+        'payment_issue',
+        'other',
+      ].sort(),
     );
     for (const reason of reportReasonValues) {
       const parsed = reportCreateBodySchema.safeParse({ reason });
@@ -29,13 +35,16 @@ describe('report reason enum', () => {
   });
 
   it('rejects unknown reasons and unknown fields', () => {
-    const bad = reportCreateBodySchema.safeParse({
-      reason: 'unauthorized_listing',
-      slotId: '11111111-1111-4111-8111-111111111111',
-    });
-    expect(bad.success).toBe(false);
+    // Pre-reconciliation values are no longer valid reasons.
+    for (const reason of ['spam', 'fraud', 'misleading', 'inappropriate']) {
+      const bad = reportCreateBodySchema.safeParse({
+        reason,
+        slotId: '11111111-1111-4111-8111-111111111111',
+      });
+      expect(bad.success).toBe(false);
+    }
     const extra = reportCreateBodySchema.safeParse({
-      reason: 'spam',
+      reason: 'other',
       slotId: '11111111-1111-4111-8111-111111111111',
       role: 'admin',
     });

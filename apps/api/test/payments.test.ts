@@ -353,7 +353,9 @@ describe.skipIf(!isDatabaseConfigured())('payment intents and submission (live)'
     expect(foreign.statusCode).toBe(404);
   });
 
-  it('exposes the locked buyer projection (string amount, exact data, no sender)', async () => {
+  // Explicit timeout: login + slot + claim + intent chain against remote
+  // Postgres exceeds the 5s default under full-suite parallel load.
+  it('exposes the locked buyer projection (string amount, exact data, no sender)', { timeout: 30_000 }, async () => {
     const wallet = randomWallet();
     const cookie = await loginAs(wallet);
     const payout = validPayout();

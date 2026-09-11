@@ -69,7 +69,37 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 10 complete — Moderation and audit done (2026-09-11). Next: Phase 11 — UX hardening and accessibility (NOT started, awaiting explicit instruction).**
+**Phase 10 complete — Moderation and audit done (2026-09-11), plus the FR-10 reconciliation below. Next: Phase 11 — UX hardening and accessibility (NOT started, awaiting explicit instruction).**
+
+## Phase 10 completion — FR-10 reconciliation (2026-09-11)
+
+This is a completion task, NOT a new phase: nothing added to
+IMPLEMENTATION_PLAN.md, nothing renumbered. The spec wins: the report
+`reason` enum now matches PROJECT_SPEC.md FR-10 exactly (snake_case stored
+value and API field) —
+`misleading_listing|unauthorized_listing|prohibited_content|payment_issue|other`
+— replacing the briefed
+`spam|fraud|misleading|inappropriate|other`. This resolves the conflict
+reported in the Phase 10 checkpoint above in favor of the spec. No DB
+migration (`reports.reason` is unconstrained `text`, no production data
+exists, old values appeared only in Phase 10 tests and were replaced
+there). Frontend `ReportDialog` shows the human labels ("Misleading
+listing", "Unauthorized listing", "Prohibited content", "Payment issue",
+"Other") while the wire value stays snake_case. ARCHITECTURE.md §13 now
+points at the FR-10 categories.
+
+Changed: `apps/api/src/reports/validation.ts` (enum),
+`apps/web/src/lib/admin.ts` (`REPORT_REASONS` + new
+`REPORT_REASON_LABELS`), `apps/web/src/components/ReportDialog.tsx`
+(default + labels), `apps/api/test/{moderation-unit,moderation}.test.ts`
+(new values throughout; invalid-value guard now pins the four retired
+values as rejected), `apps/web/test/moderation.test.ts` (new set + label
+map), `ARCHITECTURE.md` (§13), `AI_HANDOFF.md` (this checkpoint).
+
+Verification (actual): typecheck clean; lint clean; full test clean (api +
+web + shared); build clean; grep confirms no `spam`/`fraud`/`misleading`/
+`inappropriate` reason values remain outside this historical note. No
+conflict with PROJECT_SPEC.md remains.
 
 ## Phase 10 implementation results (2026-09-11)
 

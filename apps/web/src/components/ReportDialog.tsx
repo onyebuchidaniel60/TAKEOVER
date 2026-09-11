@@ -3,7 +3,7 @@
 // reviews them later.
 import { useState } from 'react';
 import { ApiError } from '../lib/api';
-import { createReport, REPORT_REASONS, type ReportReason } from '../lib/admin';
+import { createReport, REPORT_REASON_LABELS, REPORT_REASONS, type ReportReason } from '../lib/admin';
 
 export default function ReportDialog({
   slotId,
@@ -14,7 +14,7 @@ export default function ReportDialog({
   onClose: () => void;
   onReported: () => void;
 }) {
-  const [reason, setReason] = useState<ReportReason>('misleading');
+  const [reason, setReason] = useState<ReportReason>('misleading_listing');
   const [details, setDetails] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -65,7 +65,7 @@ export default function ReportDialog({
         >
           {REPORT_REASONS.map((r) => (
             <option key={r} value={r}>
-              {r}
+              {REPORT_REASON_LABELS[r]}
             </option>
           ))}
         </select>
