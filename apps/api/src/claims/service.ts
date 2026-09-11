@@ -6,6 +6,7 @@ import { getDb } from '../../../../db/client';
 import { claims, slots, users } from '../../../../db/schema';
 import { truncateWalletAddress } from '../auth/nimiq-address';
 import { getClaimHoldTtlSeconds } from '../env';
+import { writeAuditEvent } from '../audit/events';
 import { AppError } from '../http/errors';
 import { loadProviderDisplay } from '../slots/provider-display';
 import { toPublicSlot, type PublicSlot } from '../slots/public-slot';
@@ -61,6 +62,7 @@ export interface CreateClaimOptions {
   buyerId: string;
   now?: Date;
   ttlSeconds?: number;
+  requestId?: string | null;
 }
 
 /**
@@ -140,6 +142,16 @@ export async function createClaim(
     if (!updatedSlot) {
       throw new AppError(409, 'SLOT_UNAVAILABLE', 'This slot is no longer available.');
     }
+    // Fresh claim only: idempotent re-returns (existing live claim, or the
+    // unique-violation backstop winner) do NOT write audit events.
+    await writeAuditEvent(tx, {
+      actorUserId: options.buyerId,
+      eventType: 'claim.created',
+      entityType: 'claim',
+      entityId: claim.id,
+      requestId: options.requestId ?? null,
+      metadata: { slotId: options.slotId, quantity: CLAIM_QUANTITY },
+    });
     return { claimRow: claim, slotRow: updatedSlot };
   });
   return {

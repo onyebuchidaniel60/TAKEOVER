@@ -10,7 +10,7 @@ import { buildApp } from '../src/app';
 import { deriveNimiqAddress } from '../src/auth/nimiq-address';
 import type { VerifySignatureFn } from '../src/auth/nimiq-verify';
 import { getDb, isDatabaseConfigured } from '../../../db/client';
-import { authChallenges, claims, sessions, slots, users } from '../../../db/schema';
+import { auditEvents, authChallenges, claims, sessions, slots, users } from '../../../db/schema';
 
 describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () => {
   const stubVerifier: VerifySignatureFn = () => true;
@@ -108,6 +108,8 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
         .where(inArray(users.walletAddress, wallets));
       const userIds = found.map((u) => u.id);
       if (userIds.length > 0) {
+        // Phase 10 audit rows reference their actor: remove them first.
+        await db.delete(auditEvents).where(inArray(auditEvents.actorUserId, userIds));
         await db.delete(sessions).where(inArray(sessions.userId, userIds));
         await db.delete(users).where(inArray(users.id, userIds));
       }
@@ -270,7 +272,9 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     expect(typeof body.data.slot).toBe('object');
   });
 
-  it('cancels a published slot with no claims and releases active holds', async () => {
+  // Explicit timeout: six sequential live-DB round trips against remote
+  // Postgres (plus the Phase 10 cancel audit write) exceed the 5s default.
+  it('cancels a published slot with no claims and releases active holds', { timeout: 30_000 }, async () => {
     const db = getDb();
     const ownerWallet = randomWallet();
     const ownerCookie = await loginAs(ownerWallet);
@@ -299,7 +303,8 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     expect(leftovers[0]?.status).toBe('cancelled');
   });
 
-  it('blocks cancellation with 409 when a paid claim exists', async () => {
+  // Explicit timeout: same sequential live-DB chain as above.
+  it('blocks cancellation with 409 when a paid claim exists', { timeout: 30_000 }, async () => {
     const db = getDb();
     const ownerCookie = await loginAs(randomWallet());
     const id = await createDraft(ownerCookie, `P5 ${tag} paidblock`);

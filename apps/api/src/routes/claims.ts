@@ -41,6 +41,7 @@ export async function claimRoutes(app: FastifyInstance): Promise<void> {
       buyerId: user.id,
       now,
       ttlSeconds: getClaimHoldTtlSeconds(),
+      requestId: request.id,
     });
     return successBody(request, { claim, slot });
   });

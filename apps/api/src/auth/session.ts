@@ -16,6 +16,8 @@ export interface AuthUser {
 declare module 'fastify' {
   interface FastifyRequest {
     user?: AuthUser;
+    /** Set when the session is otherwise valid but the user is disabled. */
+    accountDisabled?: boolean;
   }
 }
 
@@ -43,11 +45,15 @@ export function sessionCookieOptions(): {
 
 /**
  * Resolves the takeover_session cookie into req.user. Never throws for
- * missing/invalid sessions — it just leaves req.user undefined. Disabled users
- * are treated as unauthenticated (their disabled status is admin-only data).
+ * missing/invalid sessions — it just leaves req.user undefined. A session
+ * whose user is disabled sets req.accountDisabled (belt-and-suspenders with
+ * the revoked-sessions delete on disable): requireAuth maps that to
+ * 401 ACCOUNT_DISABLED so a disabled user is told why, instead of a bare
+ * unauthenticated. Disabled status remains admin-only data elsewhere.
  */
 export async function sessionMiddleware(request: FastifyRequest): Promise<void> {
   request.user = undefined;
+  request.accountDisabled = false;
   const raw = request.cookies?.[SESSION_COOKIE_NAME];
   const parsed = parseSessionToken(raw);
   if (!parsed) {
@@ -60,7 +66,7 @@ export async function sessionMiddleware(request: FastifyRequest): Promise<void> 
     .where(eq(sessions.id, parsed.sessionId))
     .limit(1);
   const session = sessionRows[0];
-  if (!session || session.revokedAt !== null || session.expiresAt.getTime() <= Date.now()) {
+  if (!session) {
     return;
   }
   if (!sessionHashMatches(session.tokenHash, parsed.secret)) {
@@ -68,7 +74,17 @@ export async function sessionMiddleware(request: FastifyRequest): Promise<void> 
   }
   const userRows = await db.select().from(users).where(eq(users.id, session.userId)).limit(1);
   const user = userRows[0];
-  if (!user || user.status !== 'active' || user.disabledAt !== null) {
+  if (!user) {
+    return;
+  }
+  // Disabled check comes before revoked/expiry: a disabled user hears
+  // ACCOUNT_DISABLED even when their session row was already revoked (the
+  // disable path revokes sessions AND this flag covers any surviving row).
+  if (user.status !== 'active' || user.disabledAt !== null) {
+    request.accountDisabled = true;
+    return;
+  }
+  if (session.revokedAt !== null || session.expiresAt.getTime() <= Date.now()) {
     return;
   }
   request.user = {
@@ -83,6 +99,9 @@ export async function sessionMiddleware(request: FastifyRequest): Promise<void> 
 
 export async function requireAuth(request: FastifyRequest): Promise<AuthUser> {
   if (!request.user) {
+    if (request.accountDisabled === true) {
+      throw new AppError(401, 'ACCOUNT_DISABLED', 'This account is disabled.');
+    }
     throw new AppError(401, 'UNAUTHENTICATED', 'Authentication required.');
   }
   return request.user;

@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
 import { claims, paymentIntents, slots, users } from '../../../../db/schema';
 import { canonicalizeNimiqAddress, InvalidAddressError } from '../auth/nimiq-address';
+import { writeAuditEvent } from '../audit/events';
 import { isUniqueViolation } from '../claims/service';
 import { toClaimView, type ClaimView } from '../claims/claim-view';
 import { AppError } from '../http/errors';
@@ -120,7 +121,7 @@ export async function createPaymentIntent(
 
 export async function submitPayment(
   db: Db,
-  options: { claimId: string; buyerId: string; txHash: string; now?: Date },
+  options: { claimId: string; buyerId: string; txHash: string; now?: Date; requestId?: string | null },
 ): Promise<{ intent: PaymentIntentView; claim: ClaimView }> {
   const now = options.now ?? new Date();
   return db.transaction(async (tx) => {
@@ -217,6 +218,15 @@ export async function submitPayment(
         freshClaim = moved[0];
       }
     }
+    // Fresh submission only: idempotent same-hash re-returns do NOT log.
+    await writeAuditEvent(tx, {
+      actorUserId: options.buyerId,
+      eventType: 'payment.submitted',
+      entityType: 'claim',
+      entityId: claim.id,
+      requestId: options.requestId ?? null,
+      metadata: { intentId: submitted.id, from: claim.status, to: freshClaim.status },
+    });
     return { intent: toPaymentIntentView(submitted), claim: toClaimView(freshClaim) };
   });
 }

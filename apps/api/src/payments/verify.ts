@@ -9,6 +9,7 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
 import { claims, paymentIntents } from '../../../../db/schema';
 import { canonicalizeNimiqAddress, InvalidAddressError } from '../auth/nimiq-address';
+import { writeAuditEvent } from '../audit/events';
 import { getPaymentReviewTimeoutSeconds } from '../env';
 import { AppError } from '../http/errors';
 import { toClaimView, type ClaimView } from '../claims/claim-view';
@@ -150,7 +151,7 @@ function auditBase(
 
 export async function verifyPayment(
   db: Db,
-  options: { claimId: string; buyerId: string; rpc: NimiqRpcClient; now?: Date },
+  options: { claimId: string; buyerId: string; rpc: NimiqRpcClient; now?: Date; requestId?: string | null },
 ): Promise<VerifyPaymentResult> {
   const now = options.now ?? new Date();
   const loaded = await db.transaction(async (tx) => {
@@ -309,6 +310,21 @@ export async function verifyPayment(
         .returning();
       const finalIntent = updatedIntent[0] ?? freshIntent;
       const finalClaim = updatedClaim[0] ?? fresh;
+      if (updatedClaim[0]) {
+        await writeAuditEvent(tx, {
+          actorUserId: options.buyerId,
+          eventType: 'payment.verified',
+          entityType: 'claim',
+          entityId: fresh.id,
+          requestId: options.requestId ?? null,
+          metadata: {
+            intentId: freshIntent.id,
+            from: 'payment_pending',
+            to: 'paid',
+            confirmations: assessment.confirmations,
+          },
+        });
+      }
       return {
         claim: toClaimView(finalClaim),
         intent: toPaymentIntentView(finalIntent),
@@ -337,6 +353,21 @@ export async function verifyPayment(
       .returning();
     const finalIntent = updatedIntent[0] ?? freshIntent;
     const finalClaim = updatedClaim[0] ?? fresh;
+    if (updatedClaim[0]) {
+      await writeAuditEvent(tx, {
+        actorUserId: options.buyerId,
+        eventType: 'payment.review',
+        entityType: 'claim',
+        entityId: fresh.id,
+        requestId: options.requestId ?? null,
+        metadata: {
+          intentId: freshIntent.id,
+          from: 'payment_pending',
+          to: 'payment_review',
+          reason,
+        },
+      });
+    }
     return {
       claim: toClaimView(finalClaim),
       intent: toPaymentIntentView(finalIntent),

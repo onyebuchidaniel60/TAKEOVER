@@ -1,7 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { BrowserRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import RequireAdmin from './components/RequireAdmin';
 import RequireAuth, { getReturnTo } from './components/RequireAuth';
 import TopBar from './components/TopBar';
+import AdminAudit from './routes/admin/AdminAudit';
+import AdminDashboard from './routes/admin/AdminDashboard';
+import AdminPaymentReviews from './routes/admin/AdminPaymentReviews';
+import AdminReports from './routes/admin/AdminReports';
+import AdminSlots from './routes/admin/AdminSlots';
+import AdminUsers from './routes/admin/AdminUsers';
 import ClaimDetailPage from './routes/ClaimDetailPage';
 import ClaimsPage from './routes/ClaimsPage';
 import Home from './routes/Home';
@@ -97,6 +104,54 @@ export default function App() {
               <RequireAuth>
                 <Profile />
               </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <RequireAdmin>
+                <AdminDashboard />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/reports"
+            element={
+              <RequireAdmin>
+                <AdminReports />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/payment-reviews"
+            element={
+              <RequireAdmin>
+                <AdminPaymentReviews />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <RequireAdmin>
+                <AdminUsers />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/slots"
+            element={
+              <RequireAdmin>
+                <AdminSlots />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/audit"
+            element={
+              <RequireAdmin>
+                <AdminAudit />
+              </RequireAdmin>
             }
           />
         </Routes>

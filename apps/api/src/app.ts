@@ -6,7 +6,9 @@ import { sessionMiddleware } from './auth/session';
 import { parseCorsOrigins } from './env';
 import { AppError, errorBody } from './http/errors';
 import { authRoutes, type AuthRouteOptions } from './routes/auth';
+import { adminRoutes } from './routes/admin';
 import { claimRoutes } from './routes/claims';
+import { reportRoutes } from './routes/reports';
 import { paymentRoutes, type PaymentRouteOptions } from './routes/payments';
 import { providerRoutes } from './routes/provider';
 import { slotRoutes } from './routes/slots';
@@ -65,6 +67,8 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
       await api.register(claimRoutes);
       await api.register(paymentRoutes, opts);
       await api.register(providerRoutes);
+      await api.register(reportRoutes);
+      await api.register(adminRoutes);
     },
     { prefix: '/api/v1' },
   );

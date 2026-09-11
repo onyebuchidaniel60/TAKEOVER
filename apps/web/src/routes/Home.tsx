@@ -1,7 +1,7 @@
 // Phase 4: marketplace feed. Filters live in the URL query params so any
 // filtered view is deep-linkable. Public and read-only.
 import { useCallback, useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -27,6 +27,11 @@ function inputToIso(value: string): string | undefined {
 }
 
 export default function Home() {
+  const location = useLocation();
+  const notice =
+    location.state && typeof location.state === 'object' && 'notice' in location.state
+      ? String((location.state as { notice: unknown }).notice)
+      : null;
   const [searchParams, setSearchParams] = useSearchParams();
   const [slots, setSlots] = useState<PublicSlot[]>([]);
   const [total, setTotal] = useState(0);
@@ -128,6 +133,11 @@ export default function Home() {
       <p className="mt-1 text-sm text-slate-500">
         Last-minute openings near you. Claim one before it’s gone.
       </p>
+      {notice ? (
+        <p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+          {notice}
+        </p>
+      ) : null}
       <div className="mt-4">
         <SearchFilters values={values} onChange={handleChange} onClear={handleClear} />
       </div>

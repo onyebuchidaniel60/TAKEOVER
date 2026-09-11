@@ -94,6 +94,7 @@ export async function paymentRoutes(app: FastifyInstance, opts: PaymentRouteOpti
         claimId: params.data.claimId,
         buyerId: user.id,
         txHash: body.data.txHash,
+        requestId: request.id,
       });
       return successBody(request, result);
     },
@@ -139,6 +140,7 @@ export async function paymentRoutes(app: FastifyInstance, opts: PaymentRouteOpti
           claimId: params.data.claimId,
           buyerId: user.id,
           rpc,
+          requestId: request.id,
         });
       } catch (err) {
         // Transport/RPC failure: no state changed — tell the client to retry.

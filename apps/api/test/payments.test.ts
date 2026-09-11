@@ -10,7 +10,7 @@ import { buildApp } from '../src/app';
 import { deriveNimiqAddress } from '../src/auth/nimiq-address';
 import type { VerifySignatureFn } from '../src/auth/nimiq-verify';
 import { getDb, isDatabaseConfigured } from '../../../db/client';
-import { authChallenges, claims, paymentIntents, sessions, slots, users } from '../../../db/schema';
+import { auditEvents, authChallenges, claims, paymentIntents, sessions, slots, users } from '../../../db/schema';
 
 describe.skipIf(!isDatabaseConfigured())('payment intents and submission (live)', () => {
   const stubVerifier: VerifySignatureFn = () => true;
@@ -171,6 +171,8 @@ describe.skipIf(!isDatabaseConfigured())('payment intents and submission (live)'
         .where(inArray(users.walletAddress, wallets));
       const userIds = found.map((u) => u.id);
       if (userIds.length > 0) {
+        // Phase 10 audit rows reference their actor: remove them first.
+        await db.delete(auditEvents).where(inArray(auditEvents.actorUserId, userIds));
         await db.delete(sessions).where(inArray(sessions.userId, userIds));
         await db.delete(users).where(inArray(users.id, userIds));
       }

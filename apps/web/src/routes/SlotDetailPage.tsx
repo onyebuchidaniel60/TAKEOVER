@@ -6,7 +6,9 @@ import ClaimButton from '../components/ClaimButton';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
+import ReportDialog from '../components/ReportDialog';
 import SlotDetail from '../components/SlotDetail';
+import { isAdminUser } from '../lib/admin';
 import { ApiError } from '../lib/api';
 import { fetchSlot, type PublicSlot } from '../lib/slots';
 import { useAuth } from '../store/auth';
@@ -29,8 +31,11 @@ function isClaimable(slot: PublicSlot): boolean {
 export default function SlotDetailPage() {
   const { slotId } = useParams<{ slotId: string }>();
   const authenticated = useAuth((s) => s.status === 'authenticated');
+  const user = useAuth((s) => s.user);
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [retryKey, setRetryKey] = useState(0);
+  const [reporting, setReporting] = useState(false);
+  const [reported, setReported] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +100,30 @@ export default function SlotDetailPage() {
                 </p>
               ) : null}
             </div>
+            {authenticated && !isAdminUser(user) && !('payout_wallet' in state.slot) ? (
+              <div className="mt-2">
+                {reported ? (
+                  <p role="status" className="text-sm text-slate-600">
+                    Thanks — an admin will review this opening.
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setReporting(true)}
+                    className="min-h-[44px] text-sm font-medium text-slate-500 underline"
+                  >
+                    Report this opening
+                  </button>
+                )}
+              </div>
+            ) : null}
+            {reporting ? (
+              <ReportDialog
+                slotId={state.slot.id}
+                onClose={() => setReporting(false)}
+                onReported={() => setReported(true)}
+              />
+            ) : null}
           </>
         )}
       </div>

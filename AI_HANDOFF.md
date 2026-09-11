@@ -69,7 +69,231 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 9 complete — Buyer/provider dashboards done (2026-09-11). Next: Phase 10 — Moderation and audit (NOT started, awaiting explicit instruction).**
+**Phase 10 complete — Moderation and audit done (2026-09-11). Next: Phase 11 — UX hardening and accessibility (NOT started, awaiting explicit instruction).**
+
+## Phase 10 implementation results (2026-09-11)
+
+Admin moderation surfaces plus a working audit trail. Admin actions are the
+only new write surface; retrofitted audit logging changes no existing
+endpoint behavior (status codes and response shapes untouched — six older
+suites needed only audit-aware test cleanup, see below). No security
+hardening pass (Phase 12), no refunds/fund movement/reversals, no
+architecture change beyond this section. Phase 11 NOT started.
+
+SPEC conflict reported (not decided, implemented per locked Phase 10
+brief): PROJECT_SPEC.md FR-10 lists report categories "misleading listing,
+unauthorized listing, prohibited content, payment issue, other" while the
+locked brief pins the reason enum to
+`spam|fraud|misleading|inappropriate|other`. Implemented exactly as briefed;
+only `misleading`/`other` overlap. No other SPEC conflict: FR-11
+(report/disable/audit) matches. No new columns were needed — the
+implemented `audit_events` schema already carries every Phase 10 field —
+so nothing was added (per instruction).
+
+Backend (`apps/api/src/`):
+
+- `auth/admin.ts` (new) — `parseAdminWallets()` (comma-separated canonical
+  allowlist, invalid entries ignored, empty when unset),
+  `isAdminWallet()`, `requireAdmin()` (after `requireAuth`: anonymous →
+  401, non-admin → 403 FORBIDDEN, never 404).
+- `auth/session.ts` — disabled-session handling: the middleware now loads
+  the user before checking revoked/expiry and sets `request.accountDisabled`
+  for disabled users; `requireAuth` maps that to 401 ACCOUNT_DISABLED.
+  Revoked/expired sessions for active users still read UNAUTHENTICATED.
+- `routes/auth.ts` — POST /auth/verify promotes allowlisted wallets to
+  `role='admin'` (insert path sets it, existing path upgrades, never
+  demotes) and writes `user.created` on first-time upsert only, inside the
+  same transaction as the user row.
+- `audit/events.ts` (new) — `writeAuditEvent(tx, …)` helper inserting one
+  `audit_events` row on the caller's transaction handle. Audit and action
+  succeed/fail together; never a side write. Metadata rule enforced by all
+  callers: IDs, prior/new states, reason strings only — no wallets, tx
+  hashes, tokens, or PII.
+- Retrofitted (same-transaction writes, idempotent re-returns never log):
+  `slot.published` (`slots/lifecycle.ts` publish), `slot.cancelled`
+  (cancel, with prior status + released-hold count), `claim.created`
+  (`claims/service.ts`, fresh insert only), `payment.submitted`
+  (`payments/service.ts`, fresh submission only), `payment.verified` +
+  `payment.review` (`payments/verify.ts`, only when the state actually
+  flips — races/no-ops do not log).
+- `reports/{validation,service}.ts` + `reports/rate-limit.ts` (new) +
+  `routes/reports.ts` (new) — POST /reports → 201 open report; per-user
+  5/hour budget (successful creations only) → 429 REPORT_RATE_LIMITED;
+  self-report (own user id or own listing) → 400; missing slot/user → 404.
+- `admin/service.ts` + `routes/admin.ts` (new, all behind `requireAdmin`,
+  no per-IP limiter — documented here and in code):
+  - GET /admin/reports (status/limit/offset, created_at DESC, truncated
+    wallets) + POST resolve (reviewed|dismissed + 5–1000 notes, no auto
+    action) → `report.resolved`.
+  - POST /admin/slots/:id/disable (draft/published only else 409
+    SLOT_NOT_DISABLEABLE; one tx: holds→cancelled, pendings→review, paid
+    untouched, slot cancelled + available 0; intents deliberately untouched
+    per the locked effects list) → `slot.disabled_by_admin` + response
+    `{ slot, migratedClaims, cancelledClaims, warning }`.
+  - POST /admin/users/:id/disable (one tx: status + sessions revoked;
+    slots/claims untouched; self → 409 CANNOT_DISABLE_SELF) →
+    `user.disabled`.
+  - GET /admin/payment-reviews (payment_review claims, updated_at DESC,
+    full buyer wallet + slot price/payout + complete intent terms) + POST
+    resolve (confirm_paid = override, no chain re-check; reject restores
+    stock unless the slot is cancelled + sold_out→published flip;
+    non-review → 409 CLAIM_NOT_IN_REVIEW) → `payment_review.resolved`.
+  - GET /admin/audit-events (eventType/entityType/entityId/actorUserId/
+    since/until/limit/offset, created_at DESC, truncated actor).
+- `app.ts` — registers `reportRoutes` + `adminRoutes`.
+- ARCHITECTURE.md — §13 documents all eight Phase 10 endpoints, §15 gains
+  five codes (REPORT_RATE_LIMITED, SLOT_NOT_DISABLEABLE,
+  CANNOT_DISABLE_SELF, CLAIM_NOT_IN_REVIEW, ACCOUNT_DISABLED), §19 gains
+  the admin routes + Phase 10 note.
+
+Frontend (`apps/web/src/`, no new wallet SDK usage, no transactions):
+
+- `lib/admin.ts` — typed clients for reports + all admin reads/writes,
+  `isAdminUser()` (pure, tested), locked `REPORT_REASONS`.
+- `components/RequireAdmin.tsx` — authenticated admin passes; guests keep
+  the return target; non-admins land on `/` with a notice (rendered by
+  `Home.tsx`).
+- New shared: `AdminTable`, `AdminTile`, `ResolveDialog` (reports +
+  payment reviews, with the confirm_paid override warning),
+  `DisableDialog` (users + slots), `ReportDialog` (slot page).
+- `routes/admin/` — Dashboard (tiles: open reports, payment reviews,
+  disabled-user/listing audit totals), Reports (status filter + resolve),
+  PaymentReviews (full-context table + resolve), Users (report-surfaced
+  people, wallet-prefix search, disable by row or direct id — no dedicated
+  directory endpoint exists in the locked surface, documented on the page),
+  Slots (moderation-surfaced listings, status filter, disable by row or
+  direct id — same note), Audit (event/entity/date filters, pagination,
+  metadata details).
+- `App.tsx` (six `/admin*` routes behind the guard), `TopBar` (Admin link
+  for admins only), `SlotDetailPage` (report button for authenticated
+  non-admin viewers of the public projection only — owners see the
+  `payout_wallet` field and never get the button; confirmation note after
+  reporting).
+- `test/moderation.test.ts` (3 tests): admin-role matrix, reason-set
+  mirror, audit-type coverage.
+
+Tests (real, passing):
+
+- Unit (`test/moderation-unit.test.ts`, 10 tests, no DB): five locked
+  reasons accepted / unknown + unknown-field rejected; notes 4/5/1000/1001
+  bounds + trim; target guard (neither/slot/user/both); allowlist parse
+  (empty/blank/case+spaces/invalid-ignored) + membership.
+- Integration (`test/moderation.test.ts`, 24 tests, live DB, stub-verifier
+  auth, fake RPC, fresh fixtures): report 201 + audit; anonymous 401;
+  5+1 rate-limit 429; self/no-target 400 + missing 404s; admin list
+  401/403/200; report resolve + audit; slot disable matrix (holds
+  cancelled, pendings reviewed, paid kept, avail 0, warning, audit) +
+  cancelled→409; user disable (status, sessions revoked, next call 401
+  ACCOUNT_DISABLED, audit) + self→409; reviews list full context (36-char
+  buyer wallet, string price, payout, hash, data); reject (cancelled/
+  rejected, stock 0→1, sold_out→published, audit) and confirm_paid
+  (paid/verified, no chain call); non-review→409; one test per retrofitted
+  type (all 7); rollback (forced tx failure → zero audit rows);
+  idempotent claim + resubmit write exactly one audit each; audit list
+  401/403/shape/eventType-filter/truncation.
+- Maintenance from the retrofit (behavior unchanged, cleanup only): six
+  older suites now delete `audit_events` by actor before users
+  (`auth.test.ts` per-wallet loop; `claims`, `payments`,
+  `verify-payments`, `provider-dashboards`, `slots-lifecycle` afterAll).
+  Four live-DB tests gained explicit 30s timeouts (two `slots-lifecycle`
+  cancel tests, two `claims` sweep tests): six sequential remote-Postgres
+  round trips plus the new audit statement exceed the 5s default — proven
+  latency-only (18/18 lifecycle green with `--testTimeout=30000` before
+  the per-test edit).
+
+Verification (actual; DATABASE_URL loaded from local `.env.txt` into the
+shell, value never printed):
+
+- `run typecheck` → clean, exit 0 (api + web + shared + db).
+- `run lint` → clean, exit 0.
+- `run test` (live DB) → api 256 pass (22 files) + web 20 pass (4 files)
+  + shared 1 pass, exit 0. (Was 222+17+1; +10 unit, +24 integration, +3 web.)
+- `run build` → clean (api tsc; web vite 91 modules; shared tsc), exit 0.
+- Manual sequence A vs built server (PORT=3111, default public RPC, REAL
+  @nimiq/core wallet signatures through the production verifier, cookies in
+  memory never printed, one-off driver deleted afterwards): provider
+  created + published a 1-unit slot; buyer claimed (active_hold); intent
+  200; fake-hash submission 200 (payment_pending); verify → 200 pending;
+  submission aged 2000s via SQL → verify → 200 review/timeout
+  (payment_review); admin payment-reviews → 200 total 1 with 36-char buyer
+  wallet; admin resolve reject → 200 (claim cancelled, intent rejected);
+  public slot → 200 avail 1 published (inventory restored); admin
+  audit-events for the claim → submitted + review + resolved present
+  (4 events incl. claim.created). Residue removed (slots 0); server
+  stopped, 0 node processes left.
+- Manual sequence B vs same server: admin disabled the victim → victim
+  GET /me → 401 `{"error":{"code":"ACCOUNT_DISABLED","message":"This
+  account is disabled."},"requestId":"…"}` (envelope with request id).
+  Residue removed with sequence A.
+
+IMPLEMENTATION DETAILS — AGENT DECIDED (locked scope preserved):
+
+- Report `details` capped at 2000 chars (shape-only bound; the brief sets
+  no bound — validation failures never consume rate budget).
+- Report budget counts successful creations only (bad requests do not lock
+  a user out); the limiter is a module singleton reset only by process
+  restart (tests isolate by fresh users).
+- Re-resolving an already-resolved report is allowed (no 409 specified).
+- Re-disabling an already-disabled user is a no-op 200 without a second
+  audit event.
+- Payment-review list sorts `updated_at` DESC (most recently moved first).
+- Slot-disable leaves payment intents untouched (locked effects list names
+  claims/slot only); admin review-resolve updates intents by id without a
+  status predicate so both paths resolve.
+- Disabled-session check precedes revoked/expiry checks, so a revoked
+  session on a disabled account still reads ACCOUNT_DISABLED.
+- Admin Slot/User pages note their data source limits on-page (no
+  invented directory endpoints).
+
+Secret handling: DATABASE_URL, session secrets, and admin wallet addresses
+were NEVER printed in outputs, logs, or commits (presence booleans/counts
+and redacted envelopes only); `.env.txt` stays gitignored; Temp drivers
+and cleanup scripts printed statuses/counts only and were deleted before
+committing; audit metadata carries no wallets, hashes, tokens, or PII
+(asserted in tests).
+
+Files changed (Phase 10): `apps/api/src/{app.ts,auth/{session,admin},
+audit/events.ts,reports/{validation,service,rate-limit}.ts,
+routes/{reports,admin}.ts,routes/auth.ts,routes/{claims,payments,slots}.ts,
+slots/lifecycle.ts,claims/service.ts,payments/{service,verify}.ts}` (new:
+`auth/admin.ts`, `audit/`, `reports/`, `admin/service.ts`,
+`routes/{reports,admin}.ts`); `apps/api/test/{moderation-unit,
+moderation}.test.ts` (new) + audit-aware cleanup in six older suites +
+30s timeouts on four live tests; `apps/web/src/{App.tsx,
+components/{TopBar,RequireAdmin,AdminTable,AdminTile,ResolveDialog,
+DisableDialog,ReportDialog}.tsx,lib/admin.ts,routes/{Home,
+SlotDetailPage}.tsx,routes/admin/*.tsx}` (new: guard, four shared
+components, lib, six pages); `apps/web/test/moderation.test.ts` (new);
+`ARCHITECTURE.md` (§13 + §15 + §19 notes), `AI_HANDOFF.md` (this
+checkpoint).
+
+```text
+CURRENT PHASE: Phase 10 complete
+COMPLETED: admin identity/allowlist + ACCOUNT_DISABLED + same-tx audit
+  helper + 7 retrofitted events + reports/rate-limit + 8 admin endpoints +
+  admin UI (dashboard/reports/reviews/users/slots/audit + report button)
+TESTS RUN: typecheck clean; lint clean; tests 256 api + 20 web + 1 shared
+  pass (10 unit incl. reason/notes/target/allowlist matrix, 24 live incl.
+  201/401/429/400/404/403/report-resolve/disable-matrix/user-disable/
+  review-resolve/7-retrofit/rollback/idempotent/audit-list, 3 web incl.
+  role/reasons/event-types); build clean (web 91 modules); manual A:
+  slot→claim→fake-tx→pending→aged→review→reject→stock restored + audits
+  present (15/15 driver checks, real signatures, residue removed); manual B:
+  disable→401 ACCOUNT_DISABLED envelope (residue removed)
+RESULT: admins contain listings/users and clear payment reviews without DB
+  access; every sensitive action leaves an immutable same-transaction trail
+KNOWN ISSUES: none functional (report reason set differs from SPEC FR-10
+  wording — reported above, briefed behavior implemented)
+SECURITY NOTES: DATABASE_URL/session secrets/admin wallets never printed;
+  admin 403 (never 404), anon 401; full wallets+intents admin-only
+  (asserted absent from buyer/provider payloads); metadata carries no
+  wallets/hashes/tokens (asserted); paid claims untouched by slot disable;
+  user disable never cascades to slots/claims
+FILES CHANGED: see list above
+GIT COMMIT: feat: phase 10 moderation and audit
+NEXT TASK: Phase 11 — UX hardening and accessibility (do NOT start automatically)
+BLOCKED BY: none
+```
 
 ## Phase 9 implementation results (2026-09-11)
 

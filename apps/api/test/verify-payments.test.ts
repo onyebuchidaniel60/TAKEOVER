@@ -12,7 +12,7 @@ import { deriveNimiqAddress } from '../src/auth/nimiq-address';
 import type { VerifySignatureFn } from '../src/auth/nimiq-verify';
 import { RpcUnavailableError, type NimiqRpcClient, type TxRecord } from '../src/payments/rpc';
 import { getDb, isDatabaseConfigured } from '../../../db/client';
-import { authChallenges, claims, paymentIntents, sessions, slots, users } from '../../../db/schema';
+import { auditEvents, authChallenges, claims, paymentIntents, sessions, slots, users } from '../../../db/schema';
 
 describe.skipIf(!isDatabaseConfigured())('verify-payment against the chain (live DB, fake RPC)', () => {
   const stubVerifier: VerifySignatureFn = () => true;
@@ -231,6 +231,8 @@ describe.skipIf(!isDatabaseConfigured())('verify-payment against the chain (live
         .where(inArray(users.walletAddress, wallets));
       const userIds = found.map((u) => u.id);
       if (userIds.length > 0) {
+        // Phase 10 audit rows reference their actor: remove them first.
+        await db.delete(auditEvents).where(inArray(auditEvents.actorUserId, userIds));
         await db.delete(sessions).where(inArray(sessions.userId, userIds));
         await db.delete(users).where(inArray(users.id, userIds));
       }

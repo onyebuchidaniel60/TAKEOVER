@@ -734,25 +734,88 @@ Buyer history.
 
 Auth: session.
 
-Creates abuse report.
+Creates abuse report. Body: `{ slotId?, targetUserId?, reason, details? }`
+with `reason` in `spam|fraud|misleading|inappropriate|other`; at least one
+target required; self-reports rejected (400); missing slot/user → 404.
+Rate limit: 5 creations per hour per user → 429 `REPORT_RATE_LIMITED`.
+Responds 201 with the open report and writes `report.created`.
 
 ### GET /api/v1/admin/reports
 
+Auth: admin (anonymous → 401, non-admin → 403 `FORBIDDEN`, never 404).
+
+Query: `status` (open|reviewed|dismissed), `limit`, `offset`. Sort
+`created_at` DESC. Reports carry truncated reporter/target wallets plus slot
+info — never full wallets.
+
+### POST /api/v1/admin/reports/:reportId/resolve
+
 Auth: admin.
 
-Admin-only.
+Body: `{ action: 'reviewed' | 'dismissed', resolutionNotes (5–1000 chars) }`.
+Records the outcome only; takes no automatic further action. Writes
+`report.resolved`.
 
 ### POST /api/v1/admin/slots/:slotId/disable
 
 Auth: admin.
 
-Disables listing and records audit event.
+Body: `{ reason (5–1000 chars) }`. Allowed on `draft`/`published` only,
+otherwise 409 `SLOT_NOT_DISABLEABLE`. In ONE transaction: `active_hold`
+claims → `cancelled`, `payment_pending` claims → `payment_review`, paid
+claims untouched, slot → `cancelled` with `available_quantity = 0`. Writes
+`slot.disabled_by_admin`. Response carries `migratedClaims` plus a warning
+when any payment moved to review.
 
 ### POST /api/v1/admin/users/:userId/disable
 
 Auth: admin.
 
-Disables user from authenticated actions.
+Body: `{ reason (5–1000 chars) }`. In ONE transaction: user → `disabled`
+with `disabled_at`, all active sessions revoked. Slots and claims are NOT
+touched. Self-disable → 409 `CANNOT_DISABLE_SELF`. Writes `user.disabled`.
+A disabled user hears 401 `ACCOUNT_DISABLED` on any authenticated request,
+even when a session row survives (belt-and-suspenders with the revocation).
+
+### GET /api/v1/admin/payment-reviews
+
+Auth: admin (401/403 as above).
+
+Query: `limit`, `offset`. Claims in `payment_review` with full
+reconciliation context (full buyer wallet, slot price/payout, complete
+intent terms) — deliberately more than buyers/providers ever see.
+
+### POST /api/v1/admin/payment-reviews/:claimId/resolve
+
+Auth: admin.
+
+Body: `{ action: 'confirm_paid' | 'reject', resolutionNotes (5–1000) }`.
+`confirm_paid` is an override (no chain re-check): intent → `verified`,
+claim → `paid`. `reject`: intent → `rejected`, claim → `cancelled`, and
+stock returns unless the slot itself is cancelled. Non-review claims →
+409 `CLAIM_NOT_IN_REVIEW`. Writes `payment_review.resolved`.
+
+### GET /api/v1/admin/audit-events
+
+Auth: admin (401/403 as above).
+
+Query: `eventType`, `entityType`, `entityId`, `actorUserId`, `since`,
+`until`, `limit`, `offset`. Sort `created_at` DESC. Actors are truncated
+wallets; metadata holds IDs/states/reasons only — never wallets, tx
+hashes, or credentials.
+
+### Phase 10 implementation note (2026-09-11)
+
+Admin identity is `ADMIN_WALLET_ADDRESSES` (comma-separated canonical
+wallets): allowlisted wallets are promoted to `admin` on
+POST /auth/verify and never auto-demoted (re-authentication picks up env
+changes). Audit rows are written INSIDE the same DB transaction as the
+action they describe (retrofitted: `user.created`, `slot.published`,
+`slot.cancelled`, `claim.created`, `payment.submitted`, `payment.verified`,
+`payment.review`; new: `report.created`, `report.resolved`,
+`slot.disabled_by_admin`, `user.disabled`, `payment_review.resolved`).
+Idempotent re-returns never log. Admin endpoints carry no per-IP rate
+limit beyond admin auth; only POST /reports is rate-limited.
 
 ## 14. Rate limiting
 
@@ -800,6 +863,11 @@ Minimum stable codes:
 - CLAIM_NOT_IN_PAYMENT_PENDING
 - VERIFY_RATE_LIMITED
 - RPC_UNAVAILABLE
+- REPORT_RATE_LIMITED
+- SLOT_NOT_DISABLEABLE
+- CANNOT_DISABLE_SELF
+- CLAIM_NOT_IN_REVIEW
+- ACCOUNT_DISABLED
 - CONFLICT
 - RATE_LIMITED
 - INTERNAL_ERROR
@@ -942,8 +1010,24 @@ Public/user routes:
 Admin:
 - `/admin`
 - `/admin/reports`
+- `/admin/payment-reviews`
 - `/admin/users`
 - `/admin/slots`
+- `/admin/audit`
+
+### Phase 10 implementation note (2026-09-11)
+
+Admin pages add no new wallet SDK usage and no transactions. `RequireAdmin`
+passes only authenticated `role='admin'` users; others return to `/` with a
+notice. The dashboard tiles read live totals from the locked admin lists
+(open reports, payment reviews) and audit-event totals for disabled users
+and listings (no re-enable endpoints exist). `/admin/users` and
+`/admin/slots` work from moderation-surfaced people/listings plus direct-id
+disable forms — no dedicated admin directory endpoints were added (locked
+API surface). New shared components: `AdminTable`, `AdminTile`,
+`ResolveDialog`, `DisableDialog`; plus `ReportDialog` behind the report
+button on `/slot/:slotId` (authenticated non-admin viewers only, never the
+listing's own provider, never admins).
 
 ### Shared components
 

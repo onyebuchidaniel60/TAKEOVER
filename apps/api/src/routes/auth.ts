@@ -8,6 +8,8 @@ import { canonicalizeNimiqAddress, InvalidAddressError } from '../auth/nimiq-add
 import { createSessionToken } from '../auth/session-token';
 import type { VerifySignatureFn } from '../auth/nimiq-verify';
 import { verifyNimiqSignature } from '../auth/nimiq-verify';
+import { isAdminWallet } from '../auth/admin';
+import { writeAuditEvent } from '../audit/events';
 import { clearSessionCookie, requireAuth, setSessionCookie } from '../auth/session';
 import { AppError, successBody } from '../http/errors';
 import {
@@ -136,17 +138,46 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): 
         throw new AppError(401, 'UNAUTHENTICATED', 'Invalid or expired challenge.');
       }
 
-      const inserted = await db
-        .insert(users)
-        .values({ walletAddress })
-        .onConflictDoNothing()
-        .returning();
-      const user =
-        inserted[0] ??
-        (await db.select().from(users).where(eq(users.walletAddress, walletAddress)).limit(1))[0];
-      if (!user) {
-        throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
-      }
+      // Admin promotion (Phase 10): an allowlisted wallet becomes admin on
+      // verify. Never auto-demote — a non-listed wallet keeps its stored role.
+      const allowlisted = isAdminWallet(walletAddress);
+      const authResult = await db.transaction(async (tx) => {
+        const inserted = await tx
+          .insert(users)
+          .values({ walletAddress, role: allowlisted ? 'admin' : 'buyer' })
+          .onConflictDoNothing()
+          .returning();
+        const fresh = inserted[0];
+        if (fresh) {
+          // First-time upsert only: audit user.created inside the same
+          // transaction as the user row (succeed or fail together).
+          await writeAuditEvent(tx, {
+            actorUserId: fresh.id,
+            eventType: 'user.created',
+            entityType: 'user',
+            entityId: fresh.id,
+            requestId: request.id,
+            metadata: { role: fresh.role },
+          });
+          return { user: fresh, created: true as const };
+        }
+        const existing =
+          (await tx.select().from(users).where(eq(users.walletAddress, walletAddress)).limit(1))[0];
+        if (!existing) {
+          throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+        }
+        if (allowlisted && existing.role !== 'admin') {
+          const promoted = await tx
+            .update(users)
+            .set({ role: 'admin', updatedAt: new Date() })
+            .where(eq(users.id, existing.id))
+            .returning();
+          const row = promoted[0] ?? existing;
+          return { user: row, created: false as const };
+        }
+        return { user: existing, created: false as const };
+      });
+      const user = authResult.user;
       if (user.status !== 'active' || user.disabledAt !== null) {
         throw new AppError(403, 'USER_DISABLED', 'This account is disabled.');
       }

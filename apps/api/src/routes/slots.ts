@@ -121,7 +121,7 @@ export async function slotRoutes(app: FastifyInstance): Promise<void> {
       throw new AppError(400, 'INVALID_INPUT', 'Invalid slot id.');
     }
     const db = getDb();
-    const slot = await publishSlot(db, user.id, params.data.slotId);
+    const slot = await publishSlot(db, user.id, params.data.slotId, { requestId: request.id });
     return successBody(request, { slot });
   });
 
@@ -132,7 +132,7 @@ export async function slotRoutes(app: FastifyInstance): Promise<void> {
       throw new AppError(400, 'INVALID_INPUT', 'Invalid slot id.');
     }
     const db = getDb();
-    const slot = await cancelSlot(db, user.id, params.data.slotId);
+    const slot = await cancelSlot(db, user.id, params.data.slotId, { requestId: request.id });
     return successBody(request, { slot });
   });
 

@@ -5,6 +5,7 @@
 import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
 import { claims, slots } from '../../../../db/schema';
+import { writeAuditEvent } from '../audit/events';
 import { AppError } from '../http/errors';
 import { toOwnerSlot, type OwnerSlot } from './owner-slot';
 import { loadProviderDisplay, loadProviderDisplayMap } from './provider-display';
@@ -106,7 +107,12 @@ export async function updateDraftSlot(
   return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
 }
 
-export async function publishSlot(db: Db, ownerId: string, slotId: string): Promise<OwnerSlot> {
+export async function publishSlot(
+  db: Db,
+  ownerId: string,
+  slotId: string,
+  audit?: { requestId?: string | null },
+): Promise<OwnerSlot> {
   const row = await db.transaction(async (tx) => {
     const rows = await tx
       .select()
@@ -142,12 +148,25 @@ export async function publishSlot(db: Db, ownerId: string, slotId: string): Prom
     if (!row) {
       throw new AppError(409, 'SLOT_NOT_PUBLISHABLE', 'Only draft slots can be published.');
     }
+    await writeAuditEvent(tx, {
+      actorUserId: ownerId,
+      eventType: 'slot.published',
+      entityType: 'slot',
+      entityId: row.id,
+      requestId: audit?.requestId ?? null,
+      metadata: { from: 'draft', to: 'published' },
+    });
     return row;
   });
   return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
 }
 
-export async function cancelSlot(db: Db, ownerId: string, slotId: string): Promise<OwnerSlot> {
+export async function cancelSlot(
+  db: Db,
+  ownerId: string,
+  slotId: string,
+  audit?: { requestId?: string | null },
+): Promise<OwnerSlot> {
   const row = await db.transaction(async (tx) => {
     const rows = await tx
       .select()
@@ -174,11 +193,13 @@ export async function cancelSlot(db: Db, ownerId: string, slotId: string): Promi
       );
     }
     const now = new Date();
+    const priorStatus = current.status;
     // Release soft holds; paid/verified demand would have blocked above.
-    await tx
+    const released = await tx
       .update(claims)
       .set({ status: 'cancelled', updatedAt: now })
-      .where(and(eq(claims.slotId, slotId), eq(claims.status, 'active_hold')));
+      .where(and(eq(claims.slotId, slotId), eq(claims.status, 'active_hold')))
+      .returning({ id: claims.id });
     const updated = await tx
       .update(slots)
       .set({ status: 'cancelled', cancelledAt: now, updatedAt: now })
@@ -193,6 +214,14 @@ export async function cancelSlot(db: Db, ownerId: string, slotId: string): Promi
     if (!row) {
       throw new AppError(409, 'SLOT_NOT_CANCELLABLE', 'This slot can no longer be cancelled.');
     }
+    await writeAuditEvent(tx, {
+      actorUserId: ownerId,
+      eventType: 'slot.cancelled',
+      entityType: 'slot',
+      entityId: row.id,
+      requestId: audit?.requestId ?? null,
+      metadata: { from: priorStatus, to: 'cancelled', releasedHolds: released.length },
+    });
     return row;
   });
   return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));

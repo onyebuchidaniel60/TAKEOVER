@@ -10,7 +10,7 @@ import { buildApp } from '../src/app';
 import { deriveNimiqAddress } from '../src/auth/nimiq-address';
 import type { VerifySignatureFn } from '../src/auth/nimiq-verify';
 import { getDb, isDatabaseConfigured } from '../../../db/client';
-import { authChallenges, claims, sessions, slots, users } from '../../../db/schema';
+import { auditEvents, authChallenges, claims, sessions, slots, users } from '../../../db/schema';
 
 describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
   const stubVerifier: VerifySignatureFn = () => true;
@@ -148,6 +148,8 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
         .where(inArray(users.walletAddress, wallets));
       const userIds = found.map((u) => u.id);
       if (userIds.length > 0) {
+        // Phase 10 audit rows reference their actor: remove them first.
+        await db.delete(auditEvents).where(inArray(auditEvents.actorUserId, userIds));
         await db.delete(sessions).where(inArray(sessions.userId, userIds));
         await db.delete(users).where(inArray(users.id, userIds));
       }
@@ -388,7 +390,9 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     expect((res.json() as { data: { slot: { status: string } } }).data.slot.status).toBe('published');
   });
 
-  it('restores exactly once across repeated sweeps', async () => {
+  // Explicit timeout: claim + forced expiry + repeated detail sweeps against
+  // remote Postgres exceed the 5s default (plus the Phase 10 claim audit write).
+  it('restores exactly once across repeated sweeps', { timeout: 30_000 }, async () => {
     const cookie = await loginAs(randomWallet());
     const slotId = await makeSlot({ total: 2, available: 2 });
     await postClaim(cookie, slotId);
@@ -400,7 +404,8 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     expect((await readClaims(slotId))[0]?.status).toBe('expired');
   });
 
-  it('restores exactly once under concurrent sweeps', async () => {
+  // Explicit timeout: same sequential live-DB chain as above.
+  it('restores exactly once under concurrent sweeps', { timeout: 30_000 }, async () => {
     const cookie = await loginAs(randomWallet());
     const slotId = await makeSlot({ total: 1, available: 1 });
     await postClaim(cookie, slotId);

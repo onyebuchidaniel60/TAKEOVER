@@ -5,7 +5,7 @@ import { buildApp } from '../src/app';
 import type { VerifySignatureFn } from '../src/auth/nimiq-verify';
 import { deriveNimiqAddress } from '../src/auth/nimiq-address';
 import { getDb, isDatabaseConfigured } from '../../../db/client';
-import { authChallenges, sessions, users } from '../../../db/schema';
+import { auditEvents, authChallenges, sessions, users } from '../../../db/schema';
 
 // Live integration + security suite for wallet authentication.
 // The signature verifier is injected (mutable stub) so every state transition
@@ -41,6 +41,8 @@ describe.skipIf(!isDatabaseConfigured())('wallet auth (live)', () => {
     for (const wallet of wallets) {
       const found = await db.select().from(users).where(eq(users.walletAddress, wallet)).limit(1);
       if (found[0]) {
+        // Phase 10 audit rows reference their actor: remove them first.
+        await db.delete(auditEvents).where(eq(auditEvents.actorUserId, found[0].id));
         await db.delete(sessions).where(eq(sessions.userId, found[0].id));
         await db.delete(authChallenges).where(eq(authChallenges.walletAddress, wallet));
         await db.delete(users).where(eq(users.id, found[0].id));
