@@ -196,6 +196,24 @@ https://nimiq.dev/mini-apps/api-reference/nimiq-provider#sendbasictransactionwit
 live: hash 64 hex, serialized 139/214 bytes). Frontend SDK path covered by a
 mocked test; a real Nimiq Pay round-trip remains a Phase 14 item.
 
+### Phase 8 implementation note (2026-09-11)
+
+`POST /claims/:claimId/verify-payment` (buyer-only) reads the submitted hash
+against the Nimiq JSON-RPC `getTransactionByHash` endpoint (default
+`https://rpc.nimiqwatch.com`, overridable via `NIMIQ_RPC_URL`; raw fetch, 5s
+timeout, no `@nimiq/core` in production). Only `payment_pending` triggers a
+chain lookup; `paid`/`payment_review` return 200 no-ops. Mapping: tx not
+found or confirmations < 3 → pending (never rejected); field mismatch
+(sender/recipient/amount/data, BigInt-exact, byte-for-byte) → intent
+`review` + claim `payment_review` with a generic client reason and
+field-specific server log; confirmations >= 3 and all checks pass →
+intent `verified` + claim `paid`. A still-pending verification older than
+`PAYMENT_REVIEW_TIMEOUT_SECONDS` (default 1800) ages to `payment_review`
+instead. `rejected` is admin-only (Phase 10) and is never emitted here.
+Inventory is never restored on review or timeout. Per-claim rate limit (1 per
+5s → 429 `VERIFY_RATE_LIMITED` + `Retry-After`); RPC failure → 503
+`RPC_UNAVAILABLE` with no state change.
+
 ### Payment verification
 
 ```text
@@ -758,6 +776,9 @@ Minimum stable codes:
 - PAYMENT_RECIPIENT_MISMATCH
 - PAYMENT_DATA_MISMATCH
 - PAYMENT_REPLAY
+- CLAIM_NOT_IN_PAYMENT_PENDING
+- VERIFY_RATE_LIMITED
+- RPC_UNAVAILABLE
 - CONFLICT
 - RATE_LIMITED
 - INTERNAL_ERROR

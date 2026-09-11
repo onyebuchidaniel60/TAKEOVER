@@ -20,3 +20,9 @@ export const txHashSchema = z
   .regex(/^[0-9a-fA-F]+$/, { message: 'Transaction hash must be hex.' });
 
 export const paymentSubmissionBodySchema = z.object({ txHash: txHashSchema }).strict();
+
+// Phase 8: verify-payment takes no fields (unknown fields still rejected).
+export const paymentVerifyBodySchema = z.preprocess(
+  (value: unknown) => (value === undefined ? {} : value),
+  z.object({}).strict(),
+);

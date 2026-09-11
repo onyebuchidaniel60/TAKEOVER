@@ -203,6 +203,55 @@ export function submitPayment(
   });
 }
 
+// Phase 8: verification result projection. Mirrors the locked backend shape:
+// status is verified|pending|review; confirmations appears when the chain
+// reported it; reason is a client-generic code (sender/recipient/amount/data
+// mismatch or timeout) — specifics stay server-side.
+export interface VerificationResult {
+  status: 'verified' | 'pending' | 'review';
+  confirmations?: number;
+  reason?: string;
+}
+
+export function verifyPayment(claimId: string): Promise<{
+  intent: PaymentIntent;
+  claim: ClaimView;
+  verification: VerificationResult;
+}> {
+  return apiFetch(`/api/v1/claims/${encodeURIComponent(claimId)}/verify-payment`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+// Phase 8: pure poll-scheduling helper for the payment_pending screen.
+// Returns the next auto-poll delay in ms, or null to stop polling.
+export const VERIFY_POLL_INTERVAL_MS = 5_000;
+export const VERIFY_POLL_MAX_ATTEMPTS = 60;
+export const VERIFY_POLL_RPC_BACKOFF_MS = 15_000;
+export const VERIFY_POLL_RATE_LIMIT_BACKOFF_MS = 10_000;
+
+export type VerifyPollOutcome = 'verified' | 'review' | 'pending' | 'rpc-unavailable' | 'rate-limited';
+
+export function nextVerifyPollDelayMs(
+  outcome: VerifyPollOutcome,
+  retryAfterMs?: number,
+): number | null {
+  switch (outcome) {
+    case 'verified':
+    case 'review':
+      return null;
+    case 'pending':
+      return VERIFY_POLL_INTERVAL_MS;
+    case 'rpc-unavailable':
+      return VERIFY_POLL_RPC_BACKOFF_MS;
+    case 'rate-limited':
+      return typeof retryAfterMs === 'number' && Number.isFinite(retryAfterMs) && retryAfterMs >= 0
+        ? retryAfterMs
+        : VERIFY_POLL_RATE_LIMIT_BACKOFF_MS;
+  }
+}
+
 // Phase 6: buyer claim views (snake_case). No payment fields in this phase.
 export interface ClaimView {
   id: string;

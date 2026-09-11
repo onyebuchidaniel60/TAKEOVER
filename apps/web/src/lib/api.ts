@@ -10,14 +10,31 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly requestId?: string;
+  /** Milliseconds from a `Retry-After` response header (seconds form), if present. */
+  readonly retryAfterMs?: number;
 
-  constructor(status: number, code: string, message: string, requestId?: string) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    requestId?: string,
+    retryAfterMs?: number,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.requestId = requestId;
+    this.retryAfterMs = retryAfterMs;
   }
+}
+
+function parseRetryAfterMs(res: Response): number | undefined {
+  const raw = res.headers.get('retry-after');
+  if (raw === null) return undefined;
+  const seconds = Number(raw.trim());
+  if (!Number.isFinite(seconds) || seconds < 0) return undefined;
+  return seconds * 1000;
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -40,6 +57,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       err?.code ?? 'UNKNOWN',
       err?.message ?? `Request failed (${res.status}).`,
       requestId,
+      parseRetryAfterMs(res),
     );
   }
   return (body as { data: T }).data;

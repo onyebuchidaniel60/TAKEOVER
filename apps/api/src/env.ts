@@ -16,6 +16,10 @@ const envSchema = z.object({
     emptyToUndefined,
     z.coerce.number().int().positive().optional(),
   ),
+  PAYMENT_REVIEW_TIMEOUT_SECONDS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().positive().optional(),
+  ),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -46,6 +50,28 @@ export function getClaimHoldTtlSeconds(
     }
   }
   return DEFAULT_CLAIM_HOLD_TTL_SECONDS;
+}
+
+/** Default payment_pending window before a still-pending verification ages to review (FR-05: 30 minutes). */
+export const DEFAULT_PAYMENT_REVIEW_TIMEOUT_SECONDS = 1800;
+
+/**
+ * Payment_pending → payment_review timeout in seconds. Tolerant by design:
+ * missing, blank, or invalid values fall back to the 1800s default instead of
+ * crashing the verify path. Inventory is NEVER restored on this transition
+ * (Phase 10 decides); the buyer might have paid.
+ */
+export function getPaymentReviewTimeoutSeconds(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): number {
+  const raw = env.PAYMENT_REVIEW_TIMEOUT_SECONDS;
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const parsed = Number(raw);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return DEFAULT_PAYMENT_REVIEW_TIMEOUT_SECONDS;
 }
 
 /**

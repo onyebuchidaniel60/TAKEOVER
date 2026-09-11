@@ -69,7 +69,207 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 7 complete + Phase 7 completion (SDK return value resolution) done (2026-09-11). Next: Phase 8 — Real NIM payment verification (NOT started, awaiting explicit instruction).**
+**Phase 8 complete — Real NIM payment verification done (2026-09-11). Next: Phase 9 — Buyer/provider dashboards (NOT started, awaiting explicit instruction).**
+
+## Phase 8 implementation results (2026-09-11)
+
+Server-side verification of submitted NIM payments against the Nimiq chain.
+The blockchain is authoritative from here: client-supplied state is no longer
+trusted for payment outcomes. No admin flows (Phase 10), no refunds or fund
+movement, no schema change, no new production dependency. No conflict with
+PROJECT_SPEC.md (FR-05 30-minute pending window and FR-06 verification list
+are implemented exactly as specified).
+
+Backend (`apps/api/src/payments/`):
+
+- `rpc.ts` (new) — `NimiqRpcClient { getTransactionByHash(hash):
+  Promise<TxRecord | null> }` (+ `getBlockNumber()` for the confirmations
+  fallback) with a raw-fetch production implementation: JSON-RPC
+  `getTransactionByHash`, 5s abort timeout, fixed endpoint only (never user
+  input). Chain "not found" arrives as JSON-RPC error `-32603` with
+  `data: 'Transaction not found: <hash>'` (HTTP 200!) and maps to `null`
+  (pending); the match requires the adjacent phrase "transaction not found"
+  so `Method not found` can never masquerade as pending. Anything else
+  (network/timeout/5xx/other RPC errors/malformed shape) throws
+  `RpcUnavailableError` → 503 with no state change. Normalization:
+  `from`→sender, `to`→recipient (null allowed — contract creation),
+  value→decimal string via BigInt (never floats), `recipientData` hex→UTF-8
+  message (senderData is `''` for basic→basic with-data payments and is not
+  part of the binding — documented choice), `confirmations`/`blockNumber`
+  numbers or null. `getNimiqRpcUrl()` = `NIMIQ_RPC_URL` when set, else the
+  public default below. `@nimiq/core` is never imported by production code.
+- `verify.ts` (new) — pure `assessTransaction(tx, expected)` in the locked
+  order (exists → sender → recipient → BigInt amount → byte-for-byte data →
+  confirmations >= 3 → hash assert): (2)-(5)/(7) fail → review with a
+  field-level reason code, (6) fail → pending, (1) null → pending. Null
+  confirmations = no evidence → pending (money is never verified on
+  incomplete data). Pure `isPaymentPendingTimedOut()` (strictly older than
+  the window; null submittedAt never times out). `verifyPayment()`:
+  buyer-scoped load; `paid`/`payment_review` → 200 no-op without chain calls;
+  other non-pending → 409 CLAIM_NOT_IN_PAYMENT_PENDING; missing intent →
+  409 PAYMENT_INTENT_REQUIRED; RPC outside any DB transaction; effective
+  confirmations = tx value, else head-minus-block fallback, else pending;
+  pending past the timeout → review instead; verified/review applied in one
+  locked transaction with conditional writes (concurrent verifiers fail
+  closed into the winner's state). Client reasons are generic codes
+  (`sender_mismatch`, `recipient_mismatch`, `amount_mismatch`,
+  `data_mismatch`, `hash_mismatch`, `timeout`); specifics (expected vs
+  actual) go to the server structured log only — persistent `audit_events`
+  writes remain Phase 10 territory (no audit pipeline built here).
+- `verify-rate-limit.ts` (new) — per-claim fixed window, 1 per 5s, with
+  whole-second `Retry-After` (min 1). In-memory (same single-region standing
+  note as the auth limiters). Checked only on the `payment_pending` path.
+- `routes/payments.ts` — `POST /claims/:claimId/verify-payment` (buyer auth,
+  strict empty body, NO per-IP limiter): advisory status pre-read scopes the
+  per-claim check (state re-validated authoritatively inside the service);
+  `RpcUnavailableError` → 503 RPC_UNAVAILABLE; response
+  `{ data: { claim, intent, verification: { status, confirmations?, reason? } },
+  requestId }`. `AppOptions` gains `rpcClient` (fake injection) and
+  `rateLimit.verifyPayment` (named to avoid the auth `verify` key).
+- `env.ts` + `.env.example` — `PAYMENT_REVIEW_TIMEOUT_SECONDS` (default
+  1800, tolerant getter mirroring the hold TTL).
+- ARCHITECTURE.md — §6 Phase 8 note + three §15 codes
+  (CLAIM_NOT_IN_PAYMENT_PENDING, VERIFY_RATE_LIMITED, RPC_UNAVAILABLE).
+
+RPC endpoint choice: primary `https://rpc.nimiqwatch.com` (free
+rate-limited mainnet History node, `getTransactionByHash` verified live
+2026-09-11: head ~61350304, known tx `51756c…b58b6e` returned with
+`confirmations: 13`, direct `confirmations` field present). Why: documented
+public access, method allowlisted, no credentials needed. Documented
+fallback: set `NIMIQ_RPC_URL` to a self-hosted node (default used when
+unset); on any RPC failure the server returns 503 with zero state change and
+the frontend backs off — verified live below. Confirmations are taken
+DIRECTLY from the RPC `confirmations` field and echoed in the response; the
+head-minus-block computation exists only for the never-observed case of a
+confirmation-less response (and a head-fetch failure there is also 503).
+
+Timeout behavior: a `payment_pending` claim whose `submittedAt` is strictly
+older than 1800s and whose verification would otherwise be pending moves to
+`payment_review` (intent `review`) instead. Inventory is NOT restored on
+review or timeout — the buyer might have paid; Phase 10 decides.
+
+`rejected` is admin-only (Phase 10) and is NOT emitted by any Phase 8 path.
+Non-pending claims 409; foreign claims 404; anonymous 401.
+
+Frontend (`apps/web/src/`):
+
+- `lib/api.ts` — `ApiError` carries `retryAfterMs` parsed from the
+  `Retry-After` (seconds) header.
+- `lib/slots.ts` — `verifyPayment()` client + `VerificationResult` type +
+  pure `nextVerifyPollDelayMs()` (pending→5s, rpc-down→15s, rate-limited→
+  Retry-After else 10s, verified/review→stop) with the 5s/60/15s/10s
+  constants exported for tests.
+- `routes/ClaimDetailPage.tsx` — `payment_pending` runs a status-only poll:
+  immediate first check, then 5s cadence up to 60 auto attempts;
+  `Awaiting confirmation (N/3)` when confirmations present else `Awaiting
+  confirmation.`; verified/review refresh the parent (`paid` shows `Payment
+  verified.`); review also shows `Payment under review. We'll be in touch.`
+  (plus a dedicated `payment_review` box after reload); RPC outage shows a
+  retrying notice at 15s cadence; 429 follows `Retry-After`; after 60
+  attempts `Still pending. Tap to check again.` A manual `Check status`
+  button is always present. The broadcast path is never retouched.
+
+Tests (real, passing):
+
+- Unit (`test/verify-unit.test.ts`, 21 tests, no DB): predicate per failing
+  check incl. case/whitespace data and spaced-vs-canonical addresses;
+  BigInt past 2^53 (equal verifies, off-by-one reviews); 2→pending,
+  3/100→verified, null→pending; hash assert + case-insensitivity; timeout
+  old/young/boundary/null; limiter allow/deny/header/other-claim/window;
+  wire normalization incl. live-shape decode (`99847`, `You mined NIM on
+  Nimiq.Space!`) and garbage→`RpcUnavailableError`; RPC URL default/override.
+- Integration (`test/verify-payments.test.ts`, 14 tests, live DB, fake RPC):
+  verified happy path (intent verified, claim paid, confirmations echoed);
+  not-found→pending; sender/recipient/amount/data mismatch→review with
+  reason codes; 2 confirmations→pending; paid/review→200 no-op with zero
+  RPC calls; active_hold→409 CLAIM_NOT_IN_PAYMENT_PENDING; foreign→404 +
+  anonymous→401; RPC throw→503 RPC_UNAVAILABLE with state unchanged;
+  immediate second call→429 VERIFY_RATE_LIMITED + `retry-after` header;
+  forced-old `submitted_at` + not-found→review with reason `timeout`.
+- Live smoke (`test/nimiq-rpc-live.test.ts`, 2 tests, real network against
+  the default public endpoint): known settled hash parses to the exact
+  TxRecord (hash/sender/recipient/`99847`/decoded message/block 61350291/
+  confirmations >= 3); head height past the known block. Passes (1.2s).
+
+Verification (actual, via `npm.cmd`; DATABASE_URL loaded from local `.env.txt`
+into the shell, value never printed):
+
+- `run typecheck` → clean, exit 0 (api + web + shared + db).
+- `run lint` → clean, exit 0.
+- `run test` (live DB + live network) → api 200 pass (18 files) + web 12
+  pass (2 files) + shared 1 pass, exit 0.
+  (Was 163+5+1; +21 unit, +14 integration, +2 live smoke, +7 web poll.)
+- `run build` → clean (api tsc; web vite 78 modules; shared tsc), exit 0.
+- Live RPC smoke output: 2/2 pass (646ms + 534ms).
+- Manual sequence vs built server (PORT=3108, default public RPC, REAL
+  @nimiq/core wallet signatures through the production verifier, cookies in
+  memory never printed, one-off Temp scripts not committed): provider
+  created + published a slot; buyer claimed; intent 200
+  (`expectedAmountNim: "150000"`, `expectedData: 'TAKEOVER:v1:<claimId>'`,
+  claim active_hold); fake-hash submission 200 (payment_pending); POST
+  verify-payment → 200 `verification: { status: 'pending' }` (fake hash
+  absent on chain — real RPC default path); immediate second verify → 429
+  `{"error":{"code":"VERIFY_RATE_LIMITED","message":"Verification was just
+  requested. Please try again shortly."},"requestId":"…"}` with
+  `retry-after=4`. Residue removed (intents 1, claims 1, slots 1, sessions
+  2, users 2, challenges 2; re-query slots 0); server stopped, 0 node
+  processes left.
+
+IMPLEMENTATION DETAILS — AGENT DECIDED (locked scope preserved):
+
+- Verify body is strict-empty like payment-intent (unknown fields 400).
+- `senderData` is not part of the binding (wallet with-data payments carry
+  the message in `recipientData`; observed live). `to: null`
+  (contract-creation) is a recipient mismatch → review, not a 500.
+- A pending claim with a created-but-unsubmitted intent returns pending
+  without an RPC call (defensive; no evidence of anything wrong).
+- Rate budget is consumed before the RPC call even if the RPC then fails
+  (simpler, safe direction).
+- Missing `confirmations` + missing `blockNumber` → pending (never verify
+  without evidence); head-fetch failure during fallback → 503.
+- `retry-after` is whole seconds (min 1); fractional/HTTP-date forms are
+  ignored by the web client (server always sends seconds).
+- SPEC note (reported, not a conflict): ARCH s13 already listed
+  verify-payment with the same semantics — implemented as specified.
+
+Secret handling: DATABASE_URL, session secrets, and RPC credentials (none —
+public endpoint, no auth) were NEVER printed in outputs, logs, or commits
+(presence booleans/counts only); `.env.txt` stays gitignored; Temp drivers
+printed envelopes/statuses/counts only; the audit log carries
+claim/intent/tx hashes, addresses, amounts, and data (operational payment
+facts, server-side only — never signatures, cookies, or keys).
+
+Files changed (Phase 8): `apps/api/src/payments/{rpc,verify,
+verify-rate-limit}.ts` (new), `apps/api/src/routes/payments.ts`,
+`apps/api/src/{env.ts,payments/validation.ts}`,
+`apps/api/test/{verify-unit,verify-payments,nimiq-rpc-live}.test.ts` (new),
+`apps/web/src/lib/{api,slots}.ts`, `apps/web/src/routes/ClaimDetailPage.tsx`,
+`apps/web/test/verify-poll.test.ts` (new), `.env.example`
+(PAYMENT_REVIEW_TIMEOUT_SECONDS + RPC fallback comment), `ARCHITECTURE.md`
+(§6 note + §15 codes), `AI_HANDOFF.md` (this checkpoint).
+
+```text
+CURRENT PHASE: Phase 8 complete
+COMPLETED: chain-authoritative verify-payment (pending/review/verified) +
+  30-min timeout to review + per-claim rate limit + polling UI
+TESTS RUN: typecheck clean; lint clean; tests 200 api + 12 web + 1 shared pass
+  (21 unit incl. per-check predicate/BigInt/threshold/timeout/limiter/wire,
+  14 live incl. happy-path/review-matrix/no-ops/401/404/409/429/503/timeout,
+  2 live-RPC smoke, 7 web poll); build clean; manual: intent 200 → submit 200
+  → verify 200 pending (real RPC) → verify 429 + retry-after (residue removed)
+RESULT: only a real confirmed on-chain payment flips a claim to paid; the UI
+  never declares success before backend verification
+KNOWN ISSUES: public RPC has no uptime guarantee (→ 503 + backoff, documented
+  fallback via NIMIQ_RPC_URL); real Nimiq Pay round-trip still Phase 14
+SECURITY NOTES: DATABASE_URL/session/RPC secrets never printed; browser never
+  decides success; amount/recipient/sender/data always server-issued +
+  chain-checked; replay guarded by UNIQUE tx_hash + claim binding; envelopes
+  leak no stacks
+FILES CHANGED: see list above
+GIT COMMIT: feat: phase 8 payment verification against Nimiq chain
+NEXT TASK: Phase 9 — Buyer/provider dashboards (do NOT start automatically)
+BLOCKED BY: none
+```
 
 ## Phase 7 completion — SDK return value resolution (2026-09-11)
 
