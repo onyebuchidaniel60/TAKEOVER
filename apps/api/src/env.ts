@@ -11,6 +11,7 @@ const envSchema = z.object({
   ADMIN_WALLET_ADDRESSES: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   SENTRY_DSN: z.preprocess(emptyToUndefined, z.string().url().optional()),
   PORT: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().optional()),
+  CORS_ORIGINS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -18,6 +19,29 @@ export type Env = z.infer<typeof envSchema>;
 // Pure parser: throws a ZodError on invalid values (used by tests and later phases).
 export function parseEnv(input: Record<string, string | undefined>): Env {
   return envSchema.parse(input);
+}
+
+/** Dev fallback for local Vite (http://localhost:5173). Never used in production. */
+export const DEV_CORS_ORIGIN = 'http://localhost:5173';
+
+/**
+ * Explicit CORS allowlist for the locked Vercel (frontend) -> Railway (backend)
+ * cross-origin topology. Read from CORS_ORIGINS (comma-separated).
+ * Dev default: http://localhost:5173. Production: from env only (empty when
+ * unset — fail closed, no wildcard, no credentials to unlisted origins).
+ */
+export function parseCorsOrigins(input: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env): string[] {
+  const raw = input.CORS_ORIGINS;
+  if (typeof raw === 'string' && raw.trim().length > 0) {
+    return raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }
+  if (process.env.NODE_ENV === 'production') {
+    return [];
+  }
+  return [DEV_CORS_ORIGIN];
 }
 
 // Phase 1 policy: warn but never hard-fail the API when optional

@@ -69,7 +69,136 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 3 complete — Wallet authentication and sessions done (2026-09-11). Next: Phase 4 — Marketplace read path (NOT started, awaiting explicit instruction).**
+**Phase 3 completion — auth verification + cookie/CORS done (2026-09-11). Phase 3 is now complete. Next: Phase 4 — Marketplace read path (NOT started, awaiting explicit instruction).**
+
+## Phase 3 completion results (2026-09-11)
+
+This is a Phase 3 completion checkpoint — NOT a new phase. No slot lifecycle,
+claims, payments, admin, or Nimiq transaction sending was added. No
+architecture change beyond the items below. Phase 4 NOT started.
+
+Step 1 outcome: CONFIRMED (with two corrections to the uncommitted partial work;
+the test was NOT weakened — it remains non-circular: all keys, addresses,
+hashes, and oracle signatures are produced by @nimiq/core; production code
+only consumes/verifies them).
+
+- Step 0: `npm.cmd install` ok; oracle initially FAILED (2 defects in partial
+  work), then fixed:
+  1. Syntax typo `expect(HUB_PREFIX).to haveLength(23)` → `toHaveLength(23)`.
+  2. Reverse cross-check used non-existent `new Signature(bytes)` (the real
+     @nimiq/core v2.21.0 `Signature` has no byte constructor — it exposes
+     `static create/deserialize`) causing `null pointer passed to rust` in
+     `PublicKey.verify`. Fixed ambient typing
+     (`apps/api/src/types/nimiq-core.d.ts`) to `static deserialize` and test to
+     `Signature.deserialize(mine)`. Forward direction
+     (`Signature.create` → `verifyNimiqSignature`) already passed.
+  Result after fix: `test/nimiq-oracle.test.ts` 4/4 pass.
+- Citation (verified 2026-09-11, both confirmed):
+  URL: https://nimiq.github.io/api-reference/sign-message — "Prefixing and
+  Hashing" defines `sign( sha256( '\x16Nimiq Signed Message:\n' +
+  message.length + message ) )`; "Verification" points at the core library.
+  File paths in the installed oracle (@nimiq/core 2.21.0):
+  `node_modules/@nimiq/core/nodejs/main-wasm/index.js` (`Signature.create` /
+  `PublicKey.verify(signature, data)` / `Hash.computeSha256` /
+  `KeyPair.generate`, `PublicKey` byte constructor, `toAddress`) and
+  `node_modules/@nimiq/core/lib/node/index.js` (`BufferUtils.fromUtf8`).
+  Note: the envelope literal itself lives only in the Hub docs
+  (`HubApi.MSG_PREFIX`); @nimiq/core provides the oracle primitives, not the
+  literal — no `Nimiq Signed Message` string exists in @nimiq/core.
+- Envelope: `sha256('\x16Nimiq Signed Message:\n' + len + message)`, 23-byte
+  prefix pinned byte-for-byte. Production verification is tweetnacl +
+  @noble/hashes + Node crypto only; @nimiq/core is a root devDependency used
+  exclusively as the test oracle (`apps/api/test/nimiq-oracle.test.ts`),
+  never imported by production code. Documented in ARCHITECTURE.md s4.5.
+- Also removed stray `apisrctypesnimiq-core.d.ts` (contained git-diff text,
+  broke `npm run lint`).
+
+Cookie config (locked Vercel frontend → Railway backend, cross-origin;
+`apps/api/src/auth/session.ts` `sessionCookieOptions()`, no bearer fallback):
+
+- Dev (`NODE_ENV !== 'production'`): `HttpOnly=true, Secure=false,
+  SameSite=Lax` (local HTTP + Vite `/api` proxy stay first-party).
+- Production: `HttpOnly=true, Secure=true, SameSite=None` (cross-site HTTPS
+  with `credentials: 'include'`).
+- Frontend: all authenticated fetches use `credentials: 'include'`
+  (`apps/web/src/lib/api.ts` `apiFetch`; `Profile.tsx` debug fetch); Vite dev
+  proxy unchanged. Explained in `apps/web/README.md`.
+
+CORS allowlist mechanism (`@fastify/cors`, `credentials: true`, never `*`):
+
+- `apps/api/src/app.ts` registers `@fastify/cors` with an explicit-allowlist
+  callback: no `Origin` → allow (same-origin/curl); listed origin → echo it;
+  unlisted → `cb(null, false)` (no `access-control-allow-origin`, fail closed).
+- Allowlist source: `CORS_ORIGINS` (comma-separated) via
+  `parseCorsOrigins()` in `apps/api/src/env.ts`. Dev default when unset:
+  `http://localhost:5173`. Production: from env only (empty when unset).
+- `.env.example` documents `CORS_ORIGINS=` (placeholder, no secret).
+
+Tests (new `apps/api/test/auth-cookie-cors.test.ts`, 8 tests, all pass):
+
+- Dev cookie attributes (Lax/false/HttpOnly); prod attributes (None/true/HttpOnly).
+- `parseCorsOrigins`: dev default, comma-separated parsing, prod-empty fail-closed.
+- Allowlisted origin succeeds (`access-control-allow-origin` echoes,
+  `allow-credentials: true`, never `*`); non-allowlisted origin gets no
+  `access-control-allow-origin`; preflight never emits `*`.
+- Oracle still 4/4 pass (Step 1 command).
+
+Verification (actual, via `npm.cmd`; DATABASE_URL loaded from local `.env.txt`
+into the shell, value never printed):
+
+- `run typecheck` → clean, exit 0.
+- `run lint` → clean after stray-file removal, exit 0.
+- `run test` (live DB) → api 66 pass + shared 1 pass (7 api files incl. 18 live
+  auth, 8 cookie/CORS, 4 oracle, 28 crypto, 5 env, 2 health, 1 connectivity),
+  exit 0.
+- `run build` → clean (api tsc; web vite 51 modules; shared tsc), exit 0.
+- Step 1 oracle command
+  (`npm.cmd run test --workspace takeover-api -- test/nimiq-oracle.test.ts`) →
+  1 file / 4 tests pass, exit 0.
+- Citation: URL + file paths as above.
+
+npm audit note (reported only; NO `audit fix`, NO dependency changes in this phase):
+9 total — 6 moderate, 2 high, 1 critical. Packages: drizzle-orm (high: SQL
+injection via identifiers GHSA-gpj5-g38j-94v9); vite (high: path traversal in
+optimized-deps .map handling); vitest (critical: arbitrary file read/exec
+when Vitest UI server listening); moderate: esbuild (dev-server request
+forgery), vite-node (via vite), drizzle-kit (via esbuild-kit/esbuild),
+@esbuild-kit/core-utils, @esbuild-kit/esm-loader, @vitest/mocker (path
+traversal). Production-only (`--omit=dev`): 1 high (drizzle-orm).
+
+Secret handling: DATABASE_URL and session secrets were NEVER printed in
+outputs, logs, or commits (key names + boolean presence/length only);
+`.env.txt` stays gitignored; raw session tokens only in set-cookie/test
+memory, SHA-256 hashes at rest; no private keys anywhere.
+
+Files changed (Phase 3 completion): `package.json` + `package-lock.json`
+(@nimiq/core dev oracle from partial work + @fastify/cors),
+`apps/api/package.json` (@fastify/cors),
+`apps/api/src/types/nimiq-core.d.ts` (new: test-only ambient typing, fixed to
+`Signature.deserialize`), `apps/api/test/nimiq-oracle.test.ts` (new: fixed
+syntax + deserialize + verified citation comment),
+`apps/api/src/{app,env}.ts`, `apps/api/src/auth/session.ts`, `.env.example`,
+`apps/web/README.md` (new), `apps/api/test/auth-cookie-cors.test.ts` (new),
+`ARCHITECTURE.md` (s4.5), `IMPLEMENTATION_PLAN.md` (Phase 3 clarification),
+`AI_HANDOFF.md` (this checkpoint). Deleted stray `apisrctypesnimiq-core.d.ts`.
+
+```text
+CURRENT PHASE: Phase 3 completion (NOT a new phase)
+COMPLETED: signature scheme proven vs @nimiq/core oracle; cookie/CORS for
+  Vercel/Railway cross-origin; auth-specific tests incl. CORS
+TESTS RUN: typecheck clean; lint clean; tests 66 api + 1 shared pass (18 live
+  auth incl. replay/forge/expiry/revoke/rate-limit; 8 cookie/CORS; 4 oracle);
+  build clean; oracle command 4/4 pass
+RESULT: Phase 3 complete — only a valid wallet signature authenticates; cookies
+  + CORS correct for the locked cross-origin topology
+KNOWN ISSUES: npm audit 9 vulns noted above (no fix in this phase, per instruction)
+SECURITY NOTES: DATABASE_URL/session secrets never printed; tokens only in
+  set-cookie/memory, hashes at rest; no private keys; envelopes leak no stacks
+FILES CHANGED: see list above
+GIT COMMIT: chore: phase 3 completion — auth verification and cookie/CORS
+NEXT TASK: Phase 4 — Marketplace read path (do NOT start automatically)
+BLOCKED BY: none
+```
 
 ## Phase 3 implementation results (2026-09-11)
 

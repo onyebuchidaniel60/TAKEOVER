@@ -107,6 +107,34 @@ A challenge is single-use.
 
 **IMPLEMENTATION DETAIL — AGENT MAY DECIDE:** exact byte encoding/message envelope required by the installed `@nimiq/mini-app-sdk` `sign()` API, provided the resulting server verification preserves the rules above and follows the current official SDK API.
 
+### 4.5 Signature verification proof (Phase 3 completion)
+
+The exact signed-message envelope is:
+
+`sign( sha256( '\x16Nimiq Signed Message:\n' + message.length + message ) )`
+
+where `message.length` is the stringified decimal length and `message` is the
+UTF-8 challenge string. The 23-byte prefix `'\x16Nimiq Signed Message:\n'`
+is pinned byte-for-byte in tests.
+
+Production verification (`apps/api/src/auth/nimiq-verify.ts`) uses only
+`tweetnacl` (Ed25519) + `@noble/hashes` (Blake2b for address derivation) +
+Node `crypto` (SHA-256) and does NOT depend on `@nimiq/core` at runtime.
+
+`@nimiq/core` (^2.21.0, root devDependency) is used exclusively as a test
+oracle in `apps/api/test/nimiq-oracle.test.ts`: keys, addresses, hashes, and
+signatures are produced by the official library and only consumed/verified by
+production code (cross-checked in both directions). It is never imported by
+production code.
+
+Citation (both confirmed 2026-09-11): official Hub `signMessage` docs —
+https://nimiq.github.io/api-reference/sign-message ("Prefixing and Hashing"
+defines the envelope above; "Verification" points at the core library) —
+plus the installed oracle implementation:
+`node_modules/@nimiq/core/nodejs/main-wasm/index.js` (`Signature.create` /
+`PublicKey.verify` / `Hash.computeSha256` / `KeyPair.generate`) and
+`node_modules/@nimiq/core/lib/node/index.js` (`BufferUtils.fromUtf8`).
+
 ## 5. Authorization model
 
 Authorization is resource based.

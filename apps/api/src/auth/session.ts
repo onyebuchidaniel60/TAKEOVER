@@ -27,13 +27,18 @@ export function sessionCookieOptions(): {
   path: string;
   httpOnly: boolean;
   secure: boolean;
-  sameSite: 'lax';
+  sameSite: 'lax' | 'none';
 } {
-  // Secure only in production so local HTTP development keeps working.
-  // NOTE: if the Nimiq Mini App WebView drops Lax cookies on the cross-origin
-  // production path (Vercel -> Railway), SameSite=None; Secure will be required
-  // there instead. No bearer-token fallback unless cookies demonstrably fail.
-  return { path: '/', httpOnly: true, secure: isProduction(), sameSite: 'lax' };
+  // Locked deployment topology: Vercel frontend -> Railway backend (cross-origin).
+  // Dev (NODE_ENV !== 'production'): SameSite=Lax, Secure=false so local HTTP
+  // (Vite proxy, first-party) keeps working.
+  // Production: SameSite=None, Secure=true so the browser sends the session
+  // cookie on cross-site HTTPS requests with credentials:'include'.
+  // HttpOnly is always true. No bearer-token fallback (per Phase 3 completion).
+  if (isProduction()) {
+    return { path: '/', httpOnly: true, secure: true, sameSite: 'none' };
+  }
+  return { path: '/', httpOnly: true, secure: false, sameSite: 'lax' };
 }
 
 /**

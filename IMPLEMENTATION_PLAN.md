@@ -165,6 +165,12 @@ Acceptance:
 - Only a valid signature authenticates a wallet.
 - No client-provided address can impersonate another address.
 
+Phase 3 complete means:
+- Server-side challenge / verify / session / logout / me
+- Signature scheme proven against @nimiq/core as an authoritative oracle
+- Cookie and CORS configured for the locked Vercel / Railway cross-origin topology
+- Auth-specific tests (replay, forge, expiry, revoke, rate limit, CORS)
+
 Git checkpoint: `feat: add wallet authentication`
 
 STOP.

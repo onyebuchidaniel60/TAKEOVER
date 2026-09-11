@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.14.0",
+    "@nimiq/core": "^2.21.0",
     "@types/node": "^22.9.0",
     "drizzle-kit": "^0.28.0",
     "eslint": "^9.14.0",

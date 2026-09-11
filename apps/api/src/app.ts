@@ -1,11 +1,16 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
+import cors from '@fastify/cors';
 import { randomUUID } from 'node:crypto';
 import { sessionMiddleware } from './auth/session';
+import { parseCorsOrigins } from './env';
 import { AppError, errorBody } from './http/errors';
 import { authRoutes, type AuthRouteOptions } from './routes/auth';
 
-export type AppOptions = AuthRouteOptions;
+export type AppOptions = AuthRouteOptions & {
+  /** Explicit CORS allowlist override (tests). Defaults to parseCorsOrigins(). */
+  corsOrigins?: string[];
+};
 
 export function buildApp(opts: AppOptions = {}): FastifyInstance {
   const app = Fastify({
@@ -14,6 +19,26 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
     // relies on X-Forwarded-For.
     trustProxy: true,
     genReqId: () => randomUUID(),
+  });
+
+  // Locked topology: Vercel frontend -> Railway backend (cross-origin).
+  // Explicit allowlist from CORS_ORIGINS (comma-separated); credentials:true;
+  // never a wildcard origin with credentials. Dev default http://localhost:5173;
+  // production from env only (empty = fail closed).
+  const corsAllowlist = opts.corsOrigins ?? parseCorsOrigins();
+  void app.register(cors, {
+    origin: (origin, cb) => {
+      if (!origin) {
+        cb(null, true);
+        return;
+      }
+      if (corsAllowlist.includes(origin)) {
+        cb(null, true);
+        return;
+      }
+      cb(null, false);
+    },
+    credentials: true,
   });
 
   void app.register(cookie);
