@@ -22,10 +22,16 @@ export default function ClaimCard({ claim }: { claim: ClaimView }) {
         })}
       </p>
       <div className="mt-3 flex gap-4 text-sm font-medium">
-        <Link to={`/claim/${claim.id}`} className="text-slate-900 underline">
+        <Link
+          to={`/claim/${claim.id}`}
+          className="inline-flex min-h-touch items-center text-slate-900 underline"
+        >
           View hold
         </Link>
-        <Link to={`/slot/${claim.slot_id}`} className="text-slate-600 underline">
+        <Link
+          to={`/slot/${claim.slot_id}`}
+          className="inline-flex min-h-touch items-center text-slate-600 underline"
+        >
           View opening
         </Link>
       </div>

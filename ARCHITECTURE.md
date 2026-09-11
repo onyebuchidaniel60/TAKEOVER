@@ -1031,6 +1031,20 @@ API surface). New shared components: `AdminTable`, `AdminTile`,
 button on `/slot/:slotId` (authenticated non-admin viewers only, never the
 listing's own provider, never admins).
 
+### Phase 11 implementation note (2026-09-11)
+
+Finishing pass only: no API, payment-logic, or feature changes. Routes are
+code-split (`React.lazy` — one chunk per route file, admin chunks load only
+on admin routes). A top-level `ErrorBoundary` plus an admin-group boundary
+keep crashes branded and isolated. Dialogs trap focus, close on Escape, and
+return focus to the trigger; the hold countdown announces only at the
+5 min / 1 min / 30s / 10s thresholds; motion stops under
+`prefers-reduced-motion`. Design tokens (`min-h-touch`, `min-w-admintable`,
+documented palette/type scale) live in the Tailwind config; per-route
+titles/descriptions, slot OG previews, favicon, and admin `noindex` ship
+via a small meta hook. New shared pieces: `ErrorBoundary`,
+`useDialogFocus`, `usePageMeta`, `NotFound` route.
+
 ### Shared components
 
 - AppShell

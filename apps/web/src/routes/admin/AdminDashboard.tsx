@@ -8,9 +8,11 @@ import AdminTile from '../../components/AdminTile';
 import ErrorState from '../../components/ErrorState';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import { ApiError } from '../../lib/api';
+import { usePageMeta } from '../../lib/meta';
 import { fetchAdminReports, fetchAuditEvents, fetchPaymentReviews } from '../../lib/admin';
 
 export default function AdminDashboard() {
+  usePageMeta({ title: 'Moderation — TAKEOVER', robots: 'noindex' });
   const [counts, setCounts] = useState<{
     openReports: number | null;
     paymentReviews: number | null;
@@ -80,7 +82,7 @@ export default function AdminDashboard() {
           <Link
             key={l.to}
             to={l.to}
-            className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 shadow-sm"
+            className="min-h-touch rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 shadow-sm"
           >
             {l.label}
           </Link>

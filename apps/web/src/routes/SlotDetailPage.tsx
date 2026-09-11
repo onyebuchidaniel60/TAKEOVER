@@ -10,7 +10,8 @@ import ReportDialog from '../components/ReportDialog';
 import SlotDetail from '../components/SlotDetail';
 import { isAdminUser } from '../lib/admin';
 import { ApiError } from '../lib/api';
-import { fetchSlot, type PublicSlot } from '../lib/slots';
+import { usePageMeta } from '../lib/meta';
+import { fetchSlot, formatNim, type PublicSlot } from '../lib/slots';
 import { useAuth } from '../store/auth';
 
 type State =
@@ -36,6 +37,21 @@ export default function SlotDetailPage() {
   const [retryKey, setRetryKey] = useState(0);
   const [reporting, setReporting] = useState(false);
   const [reported, setReported] = useState(false);
+
+  // Shared-link preview: title, price, and time once the opening loads.
+  const readySlot = state.kind === 'ready' ? state.slot : null;
+  usePageMeta(
+    readySlot
+      ? {
+          title: `${readySlot.title} — TAKEOVER`,
+          description: `${formatNim(readySlot.price_nim)} · ${new Date(readySlot.starts_at).toLocaleString()}. Claim it before it’s gone.`,
+          og: {
+            title: `${readySlot.title} — TAKEOVER`,
+            description: `${formatNim(readySlot.price_nim)} · ${new Date(readySlot.starts_at).toLocaleString()}`,
+          },
+        }
+      : { title: 'Slot — TAKEOVER' },
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -66,7 +82,7 @@ export default function SlotDetailPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/" className="inline-block min-h-[44px] py-2 text-sm font-medium text-slate-600">
+      <Link to="/" className="inline-block min-h-touch py-2 text-sm font-medium text-slate-600">
         ← Back to openings
       </Link>
       <div className="mt-2">
@@ -81,7 +97,7 @@ export default function SlotDetailPage() {
             action={
               <Link
                 to="/"
-                className="inline-block min-h-[44px] rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
               >
                 See available openings
               </Link>
@@ -110,7 +126,7 @@ export default function SlotDetailPage() {
                   <button
                     type="button"
                     onClick={() => setReporting(true)}
-                    className="min-h-[44px] text-sm font-medium text-slate-500 underline"
+                    className="min-h-touch text-sm font-medium text-slate-500 underline"
                   >
                     Report this opening
                   </button>

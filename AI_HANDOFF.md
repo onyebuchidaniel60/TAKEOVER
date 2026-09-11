@@ -69,7 +69,195 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 10 complete — Moderation and audit done (2026-09-11), plus the FR-10 reconciliation below. Next: Phase 11 — UX hardening and accessibility (NOT started, awaiting explicit instruction).**
+**Phase 11 complete — UX/accessibility hardening done (2026-09-11). Next: Phase 12 — Security pass (NOT started, awaiting explicit instruction).**
+
+## Phase 11 implementation results (2026-09-11)
+
+Finishing pass only: accessibility, states, tokens, microcopy, boundaries,
+meta, code splitting. No backend changes (no API diff), no payment-flow
+logic changes, no redesign, no new features/animations/i18n/dark mode.
+Phase 12 NOT started. No conflict with PROJECT_SPEC.md (consumer language
+per §7; a11y/UX rules per ARCHITECTURE.md §20–§21).
+
+a11y tool choice: axe-core run directly inside the existing vitest/jsdom
+web suite (new `test/a11y-helpers.tsx` harness + per-route suites).
+NOT @axe-core/playwright (needs downloaded browsers, unavailable in this
+environment) and NOT vitest-axe (it resolves vitest 5, conflicting with
+the repo's pinned vitest 2 + vite 5 — install failed on peer resolution;
+axe-core direct has no such peers). color-contrast is excluded from the
+jsdom axe run (jsdom cannot compute styles) and measured separately with
+exact palette math against the installed `tailwindcss/colors`.
+
+axe output: 17/17 route/state/dialog tests pass with ZERO critical or
+serious violations. Moderate/minor found during development and FIXED
+(none remaining, none deferred, none accepted):
+- `heading-order` (moderate) on `/` and `/sell` — card titles were `h3`
+  under the page `h1`. Fixed: card titles are `h2` (`SlotCard`,
+  `Sell.tsx`).
+- `aria-allowed-role` (minor) on the report dialog — `role="dialog"` sat
+  on a `<form>`. Fixed: role moved to a wrapping `<div>` in all three
+  fixed modals (`ReportDialog`, `ResolveDialog`, `DisableDialog`).
+
+Contrast (measured, WCAG 2.1 AA): all 22 text/background pairs pass.
+Body slate-900 17.85, white-on-slate-900 17.85, slate-800 14.63, slate-700
+10.35, slate-600 7.58, slate-500 on white 4.76, slate-500 on slate-50
+4.55 (thinnest margin — page subtitles; passes, left unchanged per the
+no-material-color-change rule), white-on-red-900 10.02, white-on-red-700
+6.47, red-800 on white 8.31, red-900/red-50 9.16, red-800/red-50 7.60,
+emerald-900/100 8.57, amber-900/50 8.75, amber-800/50 6.84,
+amber-900/100 8.15, orange-900/100 8.18, red-800/100 6.80,
+slate-700/200 8.40; UI components ≥3:1 (amber-900 on white 9.07,
+red-900 on white 10.02, slate-900 focus ring on white 17.85).
+
+What changed (`apps/web` only, plus web devDeps):
+
+- Tokens (`tailwind.config.js`): `min-h-touch: 44px` (replaces 70+
+  `min-h-[44px]` uses), `min-h-area: 88px`, `min-w-admintable: 40rem`
+  (replaces the dead non-scale `min-w-160` class); palette + type scale
+  documented in config comments. No color value changed. Verified: no
+  arbitrary `[...px]` / `text-[...]` values remain.
+- Global `:focus-visible` ring (3px slate-900, offset 2px) in `index.css`;
+  nothing removes an outline; `prefers-reduced-motion` block neutralizes
+  the skeleton shimmer and hover transitions.
+- `lib/dialog-focus.ts` (`useDialogFocus`): Tab trap, Escape close, focus
+  into dialog on open, focus back to trigger on close. Wired into all
+  three fixed modals; `CancelConfirmDialog` (inline) autofocuses,
+  Escape-dismisses, and — because its trigger unmounts while open —
+  `SellDetail` refocuses the re-mounted trigger on close.
+- `ErrorBoundary` (branded "Something went wrong." + Reload, never raw
+  errors): top-level around the whole app plus a Moderation boundary
+  around the six admin routes.
+- States: new catch-all `NotFound` 404 page; sold-out ("Sold out" /
+  "None — just missed it"), hold-expired ("Hold expired" + re-claim),
+  cancelled, review, and paid states all explicit; every route keeps
+  skeleton loading + contextual empty + message-and-retry error.
+- Microcopy (locked list applied): badges read On hold / Awaiting
+  confirmation / Payment under review / Paid / Hold expired / Cancelled;
+  countdown reads "Hold expires in M:SS"; verbs stay Claim/Pay/Publish/
+  Cancel; no crypto jargon on the consumer surface (only hit is a code
+  comment in `lib/nimiq.ts`); errors stay human sentences.
+- `HoldCountdown`: ticking time is `aria-hidden`; a polite live region
+  announces only the 5 min / 1 min / 30s / 10s bands plus expiry (banded
+  step function — minute rounding would re-announce every minute).
+- Touch/mobile: `min-h-touch` on all nav links, wallet buttons, card
+  links, re-claim links, and details toggles; `TopBar` wraps at 320px;
+  tables scroll inside their cards; `autocomplete`/`inputmode` completed
+  on all forms. Checked at 320/375/414/768/1024/1440 by class/layout
+  audit (single column below `sm`, no fixed widths, `break-all` on long
+  hashes/wallets): nothing breaks below 375; real-device widths ride
+  with the Phase 14 Nimiq Pay pass.
+- Meta (`lib/meta.ts` reconciling hook): per-route titles
+  ("Slot — TAKEOVER", "Claim — TAKEOVER", …), descriptions, dynamic
+  OG title/description/price/time on `/slot/:id`, static OG fallback +
+  description + `favicon.svg` (new `public/`) in `index.html`, `noindex`
+  on all admin routes (verified set and cleared on navigation).
+- Code splitting: all 15 routes `React.lazy` + `Suspense` skeleton.
+  Build output proves separation: consumer entry `index-*.js` (197 kB,
+  down from 269 kB) plus one chunk per route (`Home`, `SlotDetailPage`,
+  `ClaimDetailPage`, `ClaimsPage`, `Sell`, `SellNew`, `SellDetail`,
+  `Profile`, `NotFound`, and each `Admin*` page separately).
+- New web devDeps (nothing else solves them; backend untouched):
+  `axe-core`, `@testing-library/react`, `@testing-library/user-event`,
+  `jsdom`.
+
+Tests (real, passing — web only; backend suite untouched and still green):
+
+- `test/a11y-routes.test.tsx` (17 tests): axe over all 14 routes plus
+  the slot error state and an open dialog — zero critical/serious.
+- `test/keyboard-focus.test.tsx` (8 tests): native named controls only
+  (no clickable divs), labeled inputs, Enter claims + navigates, full tab
+  pass on `/slot/:id`, Escape closes report + inline confirm, focus
+  trap cycles, focus returns to trigger.
+- `test/route-states.test.tsx` (23 tests): loading/empty/error/
+  not-found/unavailable per route, titles, robots set + cleared, paid
+  from backend data only, 404 page.
+- `test/error-boundary.test.tsx` (3 tests): branded fallback, working
+  reload action, healthy passthrough.
+- `test/motion-countdown.test.tsx` (4 tests): reduced-motion CSS block,
+  static announcement above 5 min, threshold-only changes, full
+  5→1→30s→10s→expired walk with fake timers.
+- Pre-existing web suites (dashboards, moderation incl. new label map,
+  payment-flow, verify-poll) pass unmodified except the badge/copy
+  updates above.
+
+Verification (actual, via `npm.cmd`):
+
+- `run typecheck` → clean, exit 0 (api + web + shared + db).
+- `run lint` → clean, exit 0.
+- `run test` (live DB) → api 256 pass (22 files) + web 76 pass
+  (9 files) + shared 1 pass, exit 0. (Was 256+21+1; +55 new web tests.)
+- `run build` → clean (api tsc; web vite, per-route chunks as listed
+  above; shared tsc), exit 0.
+- a11y output: 17/17 axe checks, 0 critical, 0 serious, 0 moderate,
+  0 minor remaining (2 moderate + 1 minor found and fixed during the
+  pass, listed above).
+- Manual pass (no instrumented browser in this environment, stated
+  plainly): visited every route in jsdom with fixtures via the state
+  suites (loading/empty/error/not-found/unavailable each rendered);
+  keyboard-only flows exercised through user-event (tab order on `/`
+  and `/slot/:id`, Enter to claim, Escape from all four dialog kinds,
+  focus trap cycling, focus return); widths verified by layout audit at
+  320/375/414/768/1024/1440 (wrap/scroll/collapse rules above). Issues
+  found and fixed in-pass: heading order (h3→h2), dialog role placement,
+  countdown re-announcing every minute (banded), trigger-unmount focus
+  loss on inline confirm (refocus effect), sub-44px links/buttons
+  (token class added). No open issues.
+
+IMPLEMENTATION DETAILS — AGENT DECIDED (locked scope preserved):
+
+- Minute-band (not rounded) countdown announcements: between thresholds
+  the message is frozen, so "4 minutes" is never announced.
+- `NotFound` uses the shared `EmptyState` (404-styled, with a home CTA)
+  rather than a bespoke page.
+- Admin `noindex` is applied inside `RequireAdmin`'s pages via the meta
+  hook (per-page, reconciled on navigation) rather than a layout wrapper.
+- Heading fix kept visual classes identical (`text-base font-semibold`
+  on the new `h2`s) — semantics only.
+
+Secret handling: DATABASE_URL and session secrets were NEVER printed in
+outputs, logs, or commits (this phase is frontend-only; no backend file
+touched, no session/secret handling code changed); Temp scripts printed
+contrast ratios only.
+
+Files changed (Phase 11): `apps/web/{tailwind.config.js,
+index.html,package.json,package-lock.json,vitest.config.ts,
+public/favicon.svg}` (new: favicon), `apps/web/src/{index.css,App.tsx,
+lib/{dialog-focus,meta}.ts}` (new: hook, meta),
+`apps/web/src/components/{ErrorBoundary,SlotCard,ClaimCard,TopBar,
+WalletStatus,ClaimStatusBadge,HoldCountdown,SearchFilters,SlotForm,
+PaymentPanel,ReportDialog,ResolveDialog,DisableDialog,
+CancelConfirmDialog,AdminTable}.tsx`, `apps/web/src/routes/{Home,
+SlotDetailPage,ClaimDetailPage,ClaimsPage,Sell,SellNew,SellDetail,
+Profile,NotFound}.tsx` (new: NotFound) + all six `routes/admin/*.tsx`
+(meta only), `apps/web/test/{a11y-helpers,a11y-routes,keyboard-focus,
+route-states,error-boundary,motion-countdown}.tsx` (new harness + five
+suites); `ARCHITECTURE.md` (§19 Phase 11 note), `AI_HANDOFF.md` (this
+checkpoint).
+
+```text
+CURRENT PHASE: Phase 11 complete
+COMPLETED: tokens + global focus ring + reduced-motion CSS + dialog focus
+  trap/return + top-level and admin error boundaries + 404 page + explicit
+  route states + locked microcopy + threshold-only countdown announcements
+  + touch targets + form attrs + per-route meta/OG/favicon/noindex +
+  route-level code splitting
+TESTS RUN: typecheck clean; lint clean; tests 256 api + 76 web + 1 shared
+  pass (17 axe incl. all 14 routes + error + dialog with 0 critical/
+  serious, 8 keyboard/focus, 23 states, 3 boundary, 4 motion/countdown);
+  build clean (15 route chunks separate from 197 kB consumer entry);
+  contrast 22/22 pass (worst 4.55:1); manual jsdom + layout-audit pass
+RESULT: marketplace is keyboard-navigable, announced, and hardened route
+  by route with no backend or payment-logic change
+KNOWN ISSUES: none (2 moderate + 1 minor axe findings fixed in-pass, none
+  remaining; subtitle contrast 4.55:1 passes with a thin margin, kept per
+  the no-material-color-change rule)
+SECURITY NOTES: no backend files touched; payment flow logic unchanged;
+  admin payloads unchanged; DATABASE_URL/session secrets never printed
+FILES CHANGED: see list above
+GIT COMMIT: chore: phase 11 UX and accessibility hardening
+NEXT TASK: Phase 12 — Security pass (do NOT start automatically)
+BLOCKED BY: none
+```
 
 ## Phase 10 completion — FR-10 reconciliation (2026-09-11)
 

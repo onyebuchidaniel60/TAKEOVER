@@ -1,6 +1,6 @@
 // Phase 5: manage one owned opening. Drafts are editable + publishable;
 // drafts and published openings are cancellable. Auth-guarded.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import CancelConfirmDialog from '../components/CancelConfirmDialog';
 import EmptyState from '../components/EmptyState';
@@ -11,6 +11,7 @@ import SlotDetail from '../components/SlotDetail';
 import SlotForm, { initialValues } from '../components/SlotForm';
 import StatusBadge from '../components/StatusBadge';
 import { ApiError } from '../lib/api';
+import { usePageMeta } from '../lib/meta';
 import {
   cancelSlot,
   fetchOwnerSlot,
@@ -27,6 +28,7 @@ type State =
   | { kind: 'ready'; slot: OwnerSlot };
 
 export default function SellDetail() {
+  usePageMeta({ title: 'Manage opening — TAKEOVER' });
   const { slotId } = useParams<{ slotId: string }>();
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [retryKey, setRetryKey] = useState(0);
@@ -114,7 +116,7 @@ export default function SellDetail() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/sell" className="inline-block min-h-[44px] py-2 text-sm font-medium text-slate-600">
+      <Link to="/sell" className="inline-block min-h-touch py-2 text-sm font-medium text-slate-600">
         ← Back to my openings
       </Link>
       <div className="mt-2">
@@ -129,7 +131,7 @@ export default function SellDetail() {
             action={
               <Link
                 to="/sell"
-                className="inline-block min-h-[44px] rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
               >
                 Back to my openings
               </Link>
@@ -185,6 +187,17 @@ function ManageSlot({
 }) {
   const isDraft = slot.status === 'draft';
   const canCancel = slot.status === 'draft' || slot.status === 'published';
+  // The trigger unmounts while the inline confirmation is open, so the
+  // dialog hook's restore is a no-op here: focus the re-mounted trigger
+  // when the confirmation closes instead.
+  const cancelTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const wasConfirmingRef = useRef(confirmingCancel);
+  useEffect(() => {
+    if (wasConfirmingRef.current && !confirmingCancel) {
+      cancelTriggerRef.current?.focus();
+    }
+    wasConfirmingRef.current = confirmingCancel;
+  }, [confirmingCancel]);
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
@@ -205,9 +218,10 @@ function ManageSlot({
             <PublishButton onPublish={onPublish} publishing={publishing} />
             {!confirmingCancel ? (
               <button
+                ref={cancelTriggerRef}
                 type="button"
                 onClick={onAskCancel}
-                className="min-h-[44px] rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-900"
+                className="min-h-touch rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-900"
               >
                 Cancel opening
               </button>
@@ -245,9 +259,10 @@ function ManageSlot({
       {!isDraft && !confirmingCancel && canCancel ? (
         <div>
           <button
+            ref={cancelTriggerRef}
             type="button"
             onClick={onAskCancel}
-            className="min-h-[44px] rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-900"
+            className="min-h-touch rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-900"
           >
             Cancel opening
           </button>

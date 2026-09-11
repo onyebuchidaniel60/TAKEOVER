@@ -1,3 +1,7 @@
+// Phase 11: inline confirmation takes focus on open, Escape backs out,
+// and focus returns to the trigger on close (shared dialog hook).
+import { useDialogFocus } from '../lib/dialog-focus';
+
 export default function CancelConfirmDialog({
   onConfirm,
   onDismiss,
@@ -7,8 +11,10 @@ export default function CancelConfirmDialog({
   onDismiss: () => void;
   cancelling: boolean;
 }) {
+  const panelRef = useDialogFocus<HTMLDivElement>(true, onDismiss);
   return (
     <div
+      ref={panelRef}
       className="rounded-xl border border-red-200 bg-red-50 p-4"
       role="alertdialog"
       aria-label="Confirm cancellation"
@@ -22,7 +28,7 @@ export default function CancelConfirmDialog({
           type="button"
           onClick={onConfirm}
           disabled={cancelling}
-          className="min-h-[44px] rounded-lg bg-red-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-900 focus-visible:ring-offset-2"
+          className="min-h-touch rounded-lg bg-red-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-900 focus-visible:ring-offset-2"
         >
           {cancelling ? 'Cancelling…' : 'Yes, cancel it'}
         </button>
@@ -30,7 +36,7 @@ export default function CancelConfirmDialog({
           type="button"
           onClick={onDismiss}
           disabled={cancelling}
-          className="min-h-[44px] rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-900 disabled:opacity-50"
+          className="min-h-touch rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-900 disabled:opacity-50"
         >
           Keep it
         </button>

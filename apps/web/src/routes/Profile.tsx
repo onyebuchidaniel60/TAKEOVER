@@ -7,6 +7,7 @@ import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { ApiError } from '../lib/api';
+import { usePageMeta } from '../lib/meta';
 import {
   fetchMe,
   fetchMySlots,
@@ -17,6 +18,7 @@ import {
 import { useAuth } from '../store/auth';
 
 export default function Profile() {
+  usePageMeta({ title: 'Profile — TAKEOVER' });
   const logout = useAuth((s) => s.logout);
   const [user, setUser] = useState<MeUser | null>(null);
   const [hasSlots, setHasSlots] = useState(false);
@@ -76,7 +78,7 @@ export default function Profile() {
               type="button"
               onClick={handleCopy}
               title={user.walletAddress}
-              className="mt-1 min-h-[44px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+              className="mt-1 min-h-touch rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
             >
               {truncateWalletAddress(user.walletAddress)}
               <span className="ml-2 text-xs text-slate-500">{copied ? 'Copied' : 'Copy'}</span>
@@ -97,20 +99,20 @@ export default function Profile() {
           <section className="flex flex-wrap gap-2" aria-label="Shortcuts">
             <Link
               to="/sell"
-              className="inline-block min-h-[44px] rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+              className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
             >
               My openings
             </Link>
             <Link
               to="/claims"
-              className="inline-block min-h-[44px] rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700"
+              className="inline-block min-h-touch rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700"
             >
               My holds
             </Link>
             <button
               type="button"
               onClick={() => void logout()}
-              className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700"
+              className="min-h-touch rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700"
             >
               Log out
             </button>
@@ -148,7 +150,7 @@ function ProviderSection({
         action={
           <Link
             to="/sell/new"
-            className="inline-block min-h-[44px] rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+            className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
           >
             Create your first slot
           </Link>
@@ -204,11 +206,12 @@ function DisplayNameForm({
       <input
         id="provider-display-name"
         type="text"
+        autoComplete="nickname"
         value={value}
         onChange={(event) => setValue(event.target.value)}
         maxLength={60}
         placeholder="e.g. Sunrise Yoga"
-        className="mt-1 block min-h-[44px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+        className="mt-1 block min-h-touch w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
       />
       {error ? (
         <p className="mt-2 text-sm font-medium text-red-800" role="alert">
@@ -218,7 +221,7 @@ function DisplayNameForm({
       <button
         type="submit"
         disabled={saving}
-        className="mt-2 min-h-[44px] rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        className="mt-2 min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
         {saving ? 'Saving…' : submitLabel}
       </button>

@@ -13,28 +13,74 @@ function formatRemaining(ms: number): string {
   return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
 }
 
-// Live countdown to the hold deadline. Ticks every second, clamps at zero.
+// Screen-reader announcement bands (ms remaining): the live region changes
+// ONLY when a 5 min / 1 min / 30s / 10s threshold is crossed — never every
+// second and never every minute in between.
+function announcementFor(remaining: number): string | null {
+  if (remaining <= 0) {
+    return 'Hold expired.';
+  }
+  if (remaining <= 10 * 1000) {
+    return 'Hold expires in 10 seconds.';
+  }
+  if (remaining <= 30 * 1000) {
+    return 'Hold expires in 30 seconds.';
+  }
+  if (remaining <= 60 * 1000) {
+    return 'Hold expires in 1 minute.';
+  }
+  if (remaining <= 5 * 60 * 1000) {
+    return 'Hold expires in 5 minutes.';
+  }
+  return null;
+}
+
+// Live countdown to the hold deadline. Ticks every second visually
+// (aria-hidden so screen readers are not spammed); a separate polite live
+// region announces only the 5 min / 1 min / 30s / 10s thresholds and expiry.
 export default function HoldCountdown({ holdExpiresAt }: { holdExpiresAt: string }) {
   const [remaining, setRemaining] = useState(() => remainingMs(holdExpiresAt));
+  const [announcement, setAnnouncement] = useState<string | null>(() =>
+    announcementFor(remainingMs(holdExpiresAt)),
+  );
 
   useEffect(() => {
     setRemaining(remainingMs(holdExpiresAt));
+    setAnnouncement(announcementFor(remainingMs(holdExpiresAt)));
+    let lastAnnounced = announcementFor(remainingMs(holdExpiresAt));
     const timer = setInterval(() => {
-      setRemaining(remainingMs(holdExpiresAt));
+      const next = remainingMs(holdExpiresAt);
+      setRemaining(next);
+      const nextAnnouncement = announcementFor(next);
+      if (nextAnnouncement !== lastAnnounced) {
+        lastAnnounced = nextAnnouncement;
+        setAnnouncement(nextAnnouncement);
+      }
     }, 1000);
     return () => clearInterval(timer);
   }, [holdExpiresAt]);
 
   if (remaining <= 0) {
-    return <span className="text-sm font-semibold text-slate-500">Hold ended</span>;
+    return (
+      <>
+        <span className="text-sm font-semibold text-slate-500">Hold expired</span>
+        <span className="sr-only" role="status">
+          Hold expired.
+        </span>
+      </>
+    );
   }
+  const text = `Hold expires in ${formatRemaining(remaining)}`;
   return (
-    <span
-      className="text-sm font-semibold tabular-nums"
-      role="timer"
-      aria-label={`Hold ends in ${formatRemaining(remaining)}`}
-    >
-      {formatRemaining(remaining)} left
-    </span>
+    <>
+      <span className="text-sm font-semibold tabular-nums" aria-hidden="true">
+        {text}
+      </span>
+      {/* Static until a threshold is crossed, so screen readers hear the
+          hold state once — then 5 min / 1 min / 30s / 10s / expired only. */}
+      <span className="sr-only" role="status">
+        {announcement ?? 'Your hold is active.'}
+      </span>
+    </>
   );
 }

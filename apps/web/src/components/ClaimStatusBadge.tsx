@@ -1,4 +1,5 @@
 // Phase 6: claim status is always text, never color alone.
+// Phase 11: labels follow the locked status copy.
 const STYLES: Record<string, string> = {
   active_hold: 'bg-emerald-100 text-emerald-900',
   expired: 'bg-slate-200 text-slate-700',
@@ -10,11 +11,11 @@ const STYLES: Record<string, string> = {
 
 const LABELS: Record<string, string> = {
   active_hold: 'On hold',
-  expired: 'Hold ended',
+  expired: 'Hold expired',
   cancelled: 'Cancelled',
-  payment_pending: 'Payment pending',
-  paid: 'Confirmed',
-  payment_review: 'Under review',
+  payment_pending: 'Awaiting confirmation',
+  paid: 'Paid',
+  payment_review: 'Payment under review',
 };
 
 export default function ClaimStatusBadge({ status }: { status: string }) {

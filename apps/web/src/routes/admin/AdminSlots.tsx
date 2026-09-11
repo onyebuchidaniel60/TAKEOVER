@@ -11,6 +11,7 @@ import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import { ApiError } from '../../lib/api';
+import { usePageMeta } from '../../lib/meta';
 import { disableSlot, fetchAdminReports, fetchPaymentReviews } from '../../lib/admin';
 
 interface ListedSlot {
@@ -23,6 +24,7 @@ interface ListedSlot {
 const FILTERS = ['', 'draft', 'published', 'sold_out', 'cancelled', 'open'] as const;
 
 export default function AdminSlots() {
+  usePageMeta({ title: 'Listings — TAKEOVER', robots: 'noindex' });
   const [slots, setSlots] = useState<ListedSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +71,7 @@ export default function AdminSlots() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/admin" className="inline-block min-h-[44px] py-2 text-sm font-medium text-slate-600">
+      <Link to="/admin" className="inline-block min-h-touch py-2 text-sm font-medium text-slate-600">
         ← Moderation
       </Link>
       <h1 className="mt-1 text-2xl font-bold tracking-tight">Listings</h1>
@@ -89,7 +91,7 @@ export default function AdminSlots() {
             type="button"
             onClick={() => setFilter(f)}
             aria-pressed={filter === f}
-            className={`min-h-[44px] rounded-full px-4 py-2 text-sm font-medium ${
+            className={`min-h-touch rounded-full px-4 py-2 text-sm font-medium ${
               filter === f ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'
             }`}
           >
@@ -118,7 +120,7 @@ export default function AdminSlots() {
                   <button
                     type="button"
                     onClick={() => setDisabling(s)}
-                    className="min-h-[44px] rounded-lg border border-red-300 px-3 py-1 text-sm font-medium text-red-700"
+                    className="min-h-touch rounded-lg border border-red-300 px-3 py-1 text-sm font-medium text-red-700"
                   >
                     Disable
                   </button>
@@ -146,11 +148,13 @@ export default function AdminSlots() {
             value={manualId}
             onChange={(e) => setManualId(e.target.value)}
             placeholder="Listing id (uuid)"
-            className="min-h-[44px] flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            autoComplete="off"
+            spellCheck={false}
+            className="min-h-touch flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
           <button
             type="submit"
-            className="min-h-[44px] shrink-0 rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white"
+            className="min-h-touch shrink-0 rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white"
           >
             Disable
           </button>

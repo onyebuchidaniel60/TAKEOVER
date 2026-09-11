@@ -3,6 +3,7 @@
 // event. Disabling never moves funds and cannot be undone from this UI.
 import { useState } from 'react';
 import { ApiError } from '../lib/api';
+import { useDialogFocus } from '../lib/dialog-focus';
 
 export default function DisableDialog({
   title,
@@ -20,6 +21,7 @@ export default function DisableDialog({
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const panelRef = useDialogFocus<HTMLDivElement>(true, onClose);
 
   async function handleSubmit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -40,17 +42,18 @@ export default function DisableDialog({
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
       onClick={onClose}
     >
-      <form
-        onSubmit={(e) => void handleSubmit(e)}
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
       >
+      <form onSubmit={(e) => void handleSubmit(e)}>
         <h2 className="text-lg font-bold">{title}</h2>
         <p className="mt-2 text-sm text-slate-600">{body}</p>
         <label className="mt-4 block text-sm font-medium text-slate-700" htmlFor="disable-reason">
@@ -75,19 +78,20 @@ export default function DisableDialog({
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="min-h-[44px] rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50"
+            className="min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={busy}
-            className="min-h-[44px] rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="min-h-touch rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {busy ? 'Disabling…' : submitLabel}
           </button>
         </div>
       </form>
+      </div>
     </div>
   );
 }

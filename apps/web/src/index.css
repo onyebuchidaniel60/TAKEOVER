@@ -1,3 +1,26 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Phase 11: one visible keyboard focus ring for every focusable element.
+   Components may layer their own focus-visible ring on top; nothing here
+   removes an outline without replacing it. */
+@layer base {
+  :focus-visible {
+    outline: 3px solid #0f172a;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+/* Phase 11: honor prefers-reduced-motion — stop the loading shimmer and
+   card hover transitions instead of animating through them. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

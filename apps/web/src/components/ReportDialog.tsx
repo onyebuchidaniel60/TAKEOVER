@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { ApiError } from '../lib/api';
 import { createReport, REPORT_REASON_LABELS, REPORT_REASONS, type ReportReason } from '../lib/admin';
+import { useDialogFocus } from '../lib/dialog-focus';
 
 export default function ReportDialog({
   slotId,
@@ -18,6 +19,7 @@ export default function ReportDialog({
   const [details, setDetails] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const panelRef = useDialogFocus<HTMLDivElement>(true, onClose);
 
   async function handleSubmit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -39,17 +41,18 @@ export default function ReportDialog({
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Report this opening"
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
       onClick={onClose}
     >
-      <form
-        onSubmit={(e) => void handleSubmit(e)}
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Report this opening"
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
       >
+      <form onSubmit={(e) => void handleSubmit(e)}>
         <h2 className="text-lg font-bold">Report this opening</h2>
         <p className="mt-1 text-sm text-slate-600">
           An admin will review it. The provider is not notified.
@@ -61,7 +64,7 @@ export default function ReportDialog({
           id="report-reason"
           value={reason}
           onChange={(e) => setReason(e.target.value as ReportReason)}
-          className="mt-1 min-h-[44px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          className="mt-1 min-h-touch w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
         >
           {REPORT_REASONS.map((r) => (
             <option key={r} value={r}>
@@ -91,19 +94,20 @@ export default function ReportDialog({
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="min-h-[44px] rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50"
+            className="min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={busy}
-            className="min-h-[44px] rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {busy ? 'Sending…' : 'Send report'}
           </button>
         </div>
       </form>
+    </div>
     </div>
   );
 }

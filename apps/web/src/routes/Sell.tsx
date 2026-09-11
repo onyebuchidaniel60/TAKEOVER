@@ -8,11 +8,13 @@ import ErrorState from '../components/ErrorState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import StatusBadge from '../components/StatusBadge';
 import { ApiError } from '../lib/api';
+import { usePageMeta } from '../lib/meta';
 import { fetchMySlots, fetchSlotClaims, type OwnerSlot } from '../lib/slots';
 
 const FILTERS = ['', 'draft', 'published', 'cancelled'] as const;
 
 export default function Sell() {
+  usePageMeta({ title: 'My openings — TAKEOVER' });
   const [slots, setSlots] = useState<OwnerSlot[]>([]);
   const [total, setTotal] = useState(0);
   const [tiles, setTiles] = useState({ active: 0, drafts: 0, soldOut: 0 });
@@ -63,7 +65,7 @@ export default function Sell() {
         </div>
         <Link
           to="/sell/new"
-          className="min-h-[44px] shrink-0 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+          className="min-h-touch shrink-0 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
         >
           Create slot
         </Link>
@@ -80,7 +82,7 @@ export default function Sell() {
             type="button"
             onClick={() => setStatus(f)}
             aria-pressed={status === f}
-            className={`min-h-[44px] rounded-full px-4 py-2 text-sm font-medium ${
+            className={`min-h-touch rounded-full px-4 py-2 text-sm font-medium ${
               status === f ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'
             }`}
           >
@@ -100,7 +102,7 @@ export default function Sell() {
             action={
               <Link
                 to="/sell/new"
-                className="inline-block min-h-[44px] rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
               >
                 Create your first slot
               </Link>
@@ -115,7 +117,7 @@ export default function Sell() {
                   className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-base font-semibold leading-snug">{slot.title}</h3>
+                    <h2 className="text-base font-semibold leading-snug">{slot.title}</h2>
                     <StatusBadge status={slot.status} />
                   </div>
                   <p className="mt-1 text-xs text-slate-500">

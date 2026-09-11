@@ -8,6 +8,7 @@ import LoadingSkeleton from '../components/LoadingSkeleton';
 import SearchFilters, { type FilterValues } from '../components/SearchFilters';
 import SlotList from '../components/SlotList';
 import { ApiError } from '../lib/api';
+import { usePageMeta } from '../lib/meta';
 import { fetchSlots, type PublicSlot } from '../lib/slots';
 
 const PAGE_SIZE = 20;
@@ -27,6 +28,11 @@ function inputToIso(value: string): string | undefined {
 }
 
 export default function Home() {
+  usePageMeta({
+    title: 'TAKEOVER — Last-minute marketplace',
+    description:
+      'TAKEOVER is the last-minute marketplace for released capacity. Claim an opening before it’s gone.',
+  });
   const location = useLocation();
   const notice =
     location.state && typeof location.state === 'object' && 'notice' in location.state
@@ -153,7 +159,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handleClear}
-                  className="min-h-[44px] rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                  className="min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
                 >
                   Clear filters
                 </button>
@@ -171,7 +177,7 @@ export default function Home() {
                 type="button"
                 onClick={handleShowMore}
                 disabled={loadingMore}
-                className="mt-4 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 disabled:opacity-50"
+                className="mt-4 min-h-touch w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 disabled:opacity-50"
               >
                 {loadingMore ? 'Loading…' : `Show more (${total - slots.length} left)`}
               </button>

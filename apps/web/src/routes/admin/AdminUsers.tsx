@@ -11,6 +11,7 @@ import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import { ApiError } from '../../lib/api';
+import { usePageMeta } from '../../lib/meta';
 import { disableUser, fetchAdminReports } from '../../lib/admin';
 
 interface ListedUser {
@@ -20,6 +21,7 @@ interface ListedUser {
 }
 
 export default function AdminUsers() {
+  usePageMeta({ title: 'Users — TAKEOVER', robots: 'noindex' });
   const [users, setUsers] = useState<ListedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +72,7 @@ export default function AdminUsers() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/admin" className="inline-block min-h-[44px] py-2 text-sm font-medium text-slate-600">
+      <Link to="/admin" className="inline-block min-h-touch py-2 text-sm font-medium text-slate-600">
         ← Moderation
       </Link>
       <h1 className="mt-1 text-2xl font-bold tracking-tight">Users</h1>
@@ -91,7 +93,9 @@ export default function AdminUsers() {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="NQ32…"
-        className="mt-1 min-h-[44px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        autoComplete="off"
+        spellCheck={false}
+        className="mt-1 min-h-touch w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
       />
       <div className="mt-4" aria-live="polite">
         {loading ? (
@@ -113,7 +117,7 @@ export default function AdminUsers() {
                   <button
                     type="button"
                     onClick={() => setDisabling(u)}
-                    className="min-h-[44px] rounded-lg border border-red-300 px-3 py-1 text-sm font-medium text-red-700"
+                    className="min-h-touch rounded-lg border border-red-300 px-3 py-1 text-sm font-medium text-red-700"
                   >
                     Disable
                   </button>
@@ -141,11 +145,13 @@ export default function AdminUsers() {
             value={manualId}
             onChange={(e) => setManualId(e.target.value)}
             placeholder="User id (uuid)"
-            className="min-h-[44px] flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            autoComplete="off"
+            spellCheck={false}
+            className="min-h-touch flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
           <button
             type="submit"
-            className="min-h-[44px] shrink-0 rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white"
+            className="min-h-touch shrink-0 rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white"
           >
             Disable
           </button>

@@ -12,6 +12,7 @@ import PaymentPanel from '../components/PaymentPanel';
 import PriceDisplay from '../components/PriceDisplay';
 import TimeBadge from '../components/TimeBadge';
 import { ApiError } from '../lib/api';
+import { usePageMeta } from '../lib/meta';
 import {
   createPaymentIntent,
   fetchClaim,
@@ -29,6 +30,7 @@ type State =
   | { kind: 'ready'; claim: ClaimView; slot: PublicSlot };
 
 export default function ClaimDetailPage() {
+  usePageMeta({ title: 'Claim — TAKEOVER' });
   const { claimId } = useParams<{ claimId: string }>();
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [retryKey, setRetryKey] = useState(0);
@@ -64,7 +66,7 @@ export default function ClaimDetailPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/claims" className="inline-block min-h-[44px] py-2 text-sm font-medium text-slate-600">
+      <Link to="/claims" className="inline-block min-h-touch py-2 text-sm font-medium text-slate-600">
         ← Back to my holds
       </Link>
       <div className="mt-2">
@@ -79,7 +81,7 @@ export default function ClaimDetailPage() {
             action={
               <Link
                 to="/claims"
-                className="inline-block min-h-[44px] rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
               >
                 See my holds
               </Link>
@@ -136,14 +138,17 @@ function ClaimBody({
         {claim.status === 'expired' ? (
           <div className="mt-4 rounded-lg bg-slate-50 p-3">
             <p className="text-sm font-medium text-slate-700">Hold expired</p>
-            <Link to={`/slot/${slot.id}`} className="mt-1 inline-block text-sm underline">
+            <Link
+              to={`/slot/${slot.id}`}
+              className="mt-1 inline-flex min-h-touch items-center text-sm underline"
+            >
               Claim again
             </Link>
           </div>
         ) : null}
         {claim.status === 'paid' ? (
           <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-            Payment verified.
+            Paid.
           </p>
         ) : null}
         {claim.status !== 'active_hold' &&
@@ -322,7 +327,7 @@ function VerifyPollBox({ claim, onResolved }: { claim: ClaimView; onResolved: ()
         type="button"
         onClick={handleManualCheck}
         disabled={manualBusy}
-        className="mt-3 min-h-[44px] rounded-lg border border-amber-400 bg-white px-4 py-2 text-sm font-medium text-amber-900 disabled:opacity-50"
+        className="mt-3 min-h-touch rounded-lg border border-amber-400 bg-white px-4 py-2 text-sm font-medium text-amber-900 disabled:opacity-50"
       >
         {manualBusy ? 'Checking…' : 'Check status'}
       </button>

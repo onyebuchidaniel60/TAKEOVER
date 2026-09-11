@@ -7,7 +7,7 @@ export interface FilterValues {
 }
 
 const inputClass =
-  'min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900';
+  'min-h-touch w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900';
 
 export default function SearchFilters({
   values,
@@ -37,6 +37,7 @@ export default function SearchFilters({
           <input
             id="slot-search"
             type="search"
+            autoComplete="off"
             className={inputClass}
             placeholder="Dinner, yoga, court…"
             value={values.q}
@@ -50,6 +51,7 @@ export default function SearchFilters({
           <input
             id="slot-category"
             type="text"
+            autoComplete="off"
             className={inputClass}
             placeholder="dining, fitness, sports…"
             value={values.category}
@@ -63,6 +65,7 @@ export default function SearchFilters({
           <input
             id="slot-location"
             type="text"
+            autoComplete="off"
             className={inputClass}
             placeholder="Mitte, Kreuzberg…"
             value={values.location}
@@ -99,7 +102,7 @@ export default function SearchFilters({
       <button
         type="button"
         onClick={onClear}
-        className="mt-3 min-h-[44px] rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+        className="mt-3 min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
       >
         Clear filters
       </button>

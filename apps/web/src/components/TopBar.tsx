@@ -7,22 +7,25 @@ export default function TopBar() {
   const user = useAuth((s) => s.user);
   return (
     <header className="border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-3">
-        <nav className="flex items-center gap-4">
-          <Link to="/" className="text-lg font-bold tracking-tight">
+      <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-6 py-3">
+        <nav className="flex flex-wrap items-center gap-x-4 gap-y-1" aria-label="Primary">
+          <Link to="/" className="inline-flex min-h-touch items-center text-lg font-bold tracking-tight">
             TAKEOVER
           </Link>
-          <Link to="/sell" className="text-sm text-slate-600">
+          <Link to="/sell" className="inline-flex min-h-touch items-center text-sm text-slate-600">
             Sell
           </Link>
-          <Link to="/claims" className="text-sm text-slate-600">
+          <Link to="/claims" className="inline-flex min-h-touch items-center text-sm text-slate-600">
             Claims
           </Link>
-          <Link to="/profile" className="text-sm text-slate-600">
+          <Link to="/profile" className="inline-flex min-h-touch items-center text-sm text-slate-600">
             Profile
           </Link>
           {isAdminUser(user) ? (
-            <Link to="/admin" className="text-sm font-medium text-slate-900">
+            <Link
+              to="/admin"
+              className="inline-flex min-h-touch items-center text-sm font-medium text-slate-900"
+            >
               Admin
             </Link>
           ) : null}

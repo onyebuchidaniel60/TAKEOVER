@@ -1,23 +1,30 @@
-import { useEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { BrowserRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import ErrorBoundary from './components/ErrorBoundary';
+import LoadingSkeleton from './components/LoadingSkeleton';
 import RequireAdmin from './components/RequireAdmin';
 import RequireAuth, { getReturnTo } from './components/RequireAuth';
 import TopBar from './components/TopBar';
-import AdminAudit from './routes/admin/AdminAudit';
-import AdminDashboard from './routes/admin/AdminDashboard';
-import AdminPaymentReviews from './routes/admin/AdminPaymentReviews';
-import AdminReports from './routes/admin/AdminReports';
-import AdminSlots from './routes/admin/AdminSlots';
-import AdminUsers from './routes/admin/AdminUsers';
-import ClaimDetailPage from './routes/ClaimDetailPage';
-import ClaimsPage from './routes/ClaimsPage';
-import Home from './routes/Home';
-import Profile from './routes/Profile';
-import Sell from './routes/Sell';
-import SellDetail from './routes/SellDetail';
-import SellNew from './routes/SellNew';
-import SlotDetailPage from './routes/SlotDetailPage';
 import { useAuth } from './store/auth';
+
+// Phase 11: route-level code splitting. Every route is its own chunk, so the
+// admin pages (and their heavier tables) never ship in the consumer entry.
+// The build output shows one chunk per route file.
+const Home = lazy(() => import('./routes/Home'));
+const SlotDetailPage = lazy(() => import('./routes/SlotDetailPage'));
+const ClaimDetailPage = lazy(() => import('./routes/ClaimDetailPage'));
+const ClaimsPage = lazy(() => import('./routes/ClaimsPage'));
+const Sell = lazy(() => import('./routes/Sell'));
+const SellNew = lazy(() => import('./routes/SellNew'));
+const SellDetail = lazy(() => import('./routes/SellDetail'));
+const Profile = lazy(() => import('./routes/Profile'));
+const NotFound = lazy(() => import('./routes/NotFound'));
+const AdminDashboard = lazy(() => import('./routes/admin/AdminDashboard'));
+const AdminReports = lazy(() => import('./routes/admin/AdminReports'));
+const AdminPaymentReviews = lazy(() => import('./routes/admin/AdminPaymentReviews'));
+const AdminUsers = lazy(() => import('./routes/admin/AdminUsers'));
+const AdminSlots = lazy(() => import('./routes/admin/AdminSlots'));
+const AdminAudit = lazy(() => import('./routes/admin/AdminAudit'));
 
 // After a guest is bounced to "/" and then connects, send them back to the
 // route they originally asked for (once — then the marker is spent).
@@ -43,6 +50,24 @@ function ReturnToHandler() {
   return null;
 }
 
+function RouteFallback() {
+  return (
+    <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+      <LoadingSkeleton rows={2} />
+    </main>
+  );
+}
+
+// Admin routes get their own boundary: an admin-surface crash shows the
+// moderation fallback instead of taking down the consumer marketplace.
+function AdminSection({ children }: { children: React.ReactNode }) {
+  return (
+    <RequireAdmin>
+      <ErrorBoundary section="Moderation">{children}</ErrorBoundary>
+    </RequireAdmin>
+  );
+}
+
 export default function App() {
   const refresh = useAuth((s) => s.refresh);
 
@@ -53,108 +78,113 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-slate-50 text-slate-900">
-        <TopBar />
-        <ReturnToHandler />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/slot/:slotId" element={<SlotDetailPage />} />
-          <Route
-            path="/claim/:claimId"
-            element={
-              <RequireAuth>
-                <ClaimDetailPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/claims"
-            element={
-              <RequireAuth>
-                <ClaimsPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/sell"
-            element={
-              <RequireAuth>
-                <Sell />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/sell/new"
-            element={
-              <RequireAuth>
-                <SellNew />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/sell/:slotId"
-            element={
-              <RequireAuth>
-                <SellDetail />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/profile"
-            element={
-              <RequireAuth>
-                <Profile />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              <RequireAdmin>
-                <AdminDashboard />
-              </RequireAdmin>
-            }
-          />
-          <Route
-            path="/admin/reports"
-            element={
-              <RequireAdmin>
-                <AdminReports />
-              </RequireAdmin>
-            }
-          />
-          <Route
-            path="/admin/payment-reviews"
-            element={
-              <RequireAdmin>
-                <AdminPaymentReviews />
-              </RequireAdmin>
-            }
-          />
-          <Route
-            path="/admin/users"
-            element={
-              <RequireAdmin>
-                <AdminUsers />
-              </RequireAdmin>
-            }
-          />
-          <Route
-            path="/admin/slots"
-            element={
-              <RequireAdmin>
-                <AdminSlots />
-              </RequireAdmin>
-            }
-          />
-          <Route
-            path="/admin/audit"
-            element={
-              <RequireAdmin>
-                <AdminAudit />
-              </RequireAdmin>
-            }
-          />
-        </Routes>
+        <ErrorBoundary section="TAKEOVER">
+          <TopBar />
+          <ReturnToHandler />
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/slot/:slotId" element={<SlotDetailPage />} />
+              <Route
+                path="/claim/:claimId"
+                element={
+                  <RequireAuth>
+                    <ClaimDetailPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/claims"
+                element={
+                  <RequireAuth>
+                    <ClaimsPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/sell"
+                element={
+                  <RequireAuth>
+                    <Sell />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/sell/new"
+                element={
+                  <RequireAuth>
+                    <SellNew />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/sell/:slotId"
+                element={
+                  <RequireAuth>
+                    <SellDetail />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <RequireAuth>
+                    <Profile />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <AdminSection>
+                    <AdminDashboard />
+                  </AdminSection>
+                }
+              />
+              <Route
+                path="/admin/reports"
+                element={
+                  <AdminSection>
+                    <AdminReports />
+                  </AdminSection>
+                }
+              />
+              <Route
+                path="/admin/payment-reviews"
+                element={
+                  <AdminSection>
+                    <AdminPaymentReviews />
+                  </AdminSection>
+                }
+              />
+              <Route
+                path="/admin/users"
+                element={
+                  <AdminSection>
+                    <AdminUsers />
+                  </AdminSection>
+                }
+              />
+              <Route
+                path="/admin/slots"
+                element={
+                  <AdminSection>
+                    <AdminSlots />
+                  </AdminSection>
+                }
+              />
+              <Route
+                path="/admin/audit"
+                element={
+                  <AdminSection>
+                    <AdminAudit />
+                  </AdminSection>
+                }
+              />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </div>
     </BrowserRouter>
   );

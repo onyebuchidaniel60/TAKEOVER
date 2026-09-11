@@ -18,7 +18,7 @@ export interface SlotFormValues {
 }
 
 const inputClass =
-  'min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900';
+  'min-h-touch w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900';
 
 const labelClass = 'mb-1 block text-xs font-medium text-slate-600';
 
@@ -131,6 +131,7 @@ export default function SlotForm({
         <input
           id="slot-title"
           type="text"
+          autoComplete="off"
           className={inputClass}
           placeholder="Table for two — tonight"
           value={values.title}
@@ -144,7 +145,7 @@ export default function SlotForm({
         </label>
         <textarea
           id="slot-description"
-          className={`${inputClass} min-h-[88px]`}
+          className={`${inputClass} min-h-area`}
           placeholder="What should guests expect?"
           value={values.description}
           onChange={set('description')}
@@ -159,6 +160,7 @@ export default function SlotForm({
           <input
             id="slot-category"
             type="text"
+            autoComplete="off"
             className={inputClass}
             placeholder="dining, fitness, sports…"
             value={values.category}
@@ -173,6 +175,7 @@ export default function SlotForm({
           <input
             id="slot-location"
             type="text"
+            autoComplete="off"
             className={inputClass}
             placeholder="Mitte, Kreuzberg…"
             value={values.location_label}
@@ -212,6 +215,7 @@ export default function SlotForm({
             id="slot-price"
             type="text"
             inputMode="decimal"
+            autoComplete="off"
             className={inputClass}
             placeholder="1.5"
             value={values.price}
@@ -264,7 +268,7 @@ export default function SlotForm({
       <button
         type="submit"
         disabled={submitting}
-        className="min-h-[44px] rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+        className="min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
       >
         {submitting ? 'Saving…' : submitLabel}
       </button>

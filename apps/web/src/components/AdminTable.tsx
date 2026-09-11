@@ -13,7 +13,7 @@ export default function AdminTable({
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-      <table className="w-full min-w-160 text-left text-sm" aria-label={label}>
+      <table className="w-full min-w-admintable text-left text-sm" aria-label={label}>
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
             {headers.map((h) => (

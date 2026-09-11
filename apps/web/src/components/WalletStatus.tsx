@@ -19,7 +19,7 @@ export default function WalletStatus() {
         <button
           type="button"
           onClick={() => void logout()}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-700"
+          className="min-h-touch rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-700"
         >
           Log out
         </button>
@@ -33,7 +33,7 @@ export default function WalletStatus() {
         type="button"
         onClick={() => void login()}
         disabled={status === 'authenticating'}
-        className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+        className="min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
       >
         {status === 'authenticating' ? 'Connecting…' : 'Connect Wallet'}
       </button>

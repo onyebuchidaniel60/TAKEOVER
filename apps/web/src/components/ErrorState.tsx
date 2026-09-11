@@ -13,7 +13,7 @@ export default function ErrorState({
         <button
           type="button"
           onClick={onRetry}
-          className="mt-4 min-h-[44px] rounded-lg bg-red-900 px-4 py-2 text-sm font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-red-900 focus-visible:ring-offset-2"
+          className="mt-4 min-h-touch rounded-lg bg-red-900 px-4 py-2 text-sm font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-red-900 focus-visible:ring-offset-2"
         >
           Try again
         </button>

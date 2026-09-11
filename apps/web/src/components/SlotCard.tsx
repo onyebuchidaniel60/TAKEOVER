@@ -11,7 +11,7 @@ export default function SlotCard({ slot }: { slot: PublicSlot }) {
       className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
     >
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-base font-semibold leading-snug">{slot.title}</h3>
+        <h2 className="text-base font-semibold leading-snug">{slot.title}</h2>
         <PriceDisplay priceNim={slot.price_nim} />
       </div>
       {slot.description ? (

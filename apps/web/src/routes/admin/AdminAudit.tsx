@@ -7,6 +7,7 @@ import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import { ApiError } from '../../lib/api';
+import { usePageMeta } from '../../lib/meta';
 import { fetchAuditEvents, type AuditEvent } from '../../lib/admin';
 
 const PAGE_SIZE = 20;
@@ -27,6 +28,7 @@ export const KNOWN_EVENT_TYPES = [
 ];
 
 export default function AdminAudit() {
+  usePageMeta({ title: 'Audit trail — TAKEOVER', robots: 'noindex' });
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -71,7 +73,7 @@ export default function AdminAudit() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/admin" className="inline-block min-h-[44px] py-2 text-sm font-medium text-slate-600">
+      <Link to="/admin" className="inline-block min-h-touch py-2 text-sm font-medium text-slate-600">
         ← Moderation
       </Link>
       <h1 className="mt-1 text-2xl font-bold tracking-tight">Audit trail</h1>
@@ -91,8 +93,9 @@ export default function AdminAudit() {
             value={eventType}
             onChange={(e) => setEventType(e.target.value)}
             placeholder="e.g. payment.verified"
+            autoComplete="off"
             list="audit-event-types"
-            className="mt-1 min-h-[44px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 min-h-touch w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
           <datalist id="audit-event-types">
             {KNOWN_EVENT_TYPES.map((t) => (
@@ -109,7 +112,8 @@ export default function AdminAudit() {
             value={entityType}
             onChange={(e) => setEntityType(e.target.value)}
             placeholder="e.g. claim"
-            className="mt-1 min-h-[44px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            autoComplete="off"
+            className="mt-1 min-h-touch w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
         <div>
@@ -121,7 +125,7 @@ export default function AdminAudit() {
             type="datetime-local"
             value={since}
             onChange={(e) => setSince(e.target.value)}
-            className="mt-1 min-h-[44px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 min-h-touch w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
         <div>
@@ -133,13 +137,13 @@ export default function AdminAudit() {
             type="datetime-local"
             value={until}
             onChange={(e) => setUntil(e.target.value)}
-            className="mt-1 min-h-[44px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 min-h-touch w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
         <div className="sm:col-span-2">
           <button
             type="submit"
-            className="min-h-[44px] w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+            className="min-h-touch w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
           >
             Apply filters
           </button>
@@ -172,7 +176,9 @@ export default function AdminAudit() {
                   <td className="px-3 py-2 align-top">{e.actor?.walletDisplay ?? '—'}</td>
                   <td className="px-3 py-2 align-top text-xs">
                     <details>
-                      <summary className="cursor-pointer text-slate-600">Details</summary>
+                      <summary className="inline-flex min-h-touch cursor-pointer items-center text-slate-600">
+                        Details
+                      </summary>
                       <pre className="mt-1 max-w-56 overflow-x-auto whitespace-pre-wrap break-all text-xs text-slate-600">
                         {JSON.stringify(e.metadata ?? {}, null, 2)}
                       </pre>
@@ -186,7 +192,7 @@ export default function AdminAudit() {
                 type="button"
                 disabled={offset === 0}
                 onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-                className="min-h-[44px] rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
+                className="min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
               >
                 Previous
               </button>
@@ -194,7 +200,7 @@ export default function AdminAudit() {
                 type="button"
                 disabled={offset + PAGE_SIZE >= total}
                 onClick={() => setOffset((o) => o + PAGE_SIZE)}
-                className="min-h-[44px] rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
+                className="min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
               >
                 Next
               </button>

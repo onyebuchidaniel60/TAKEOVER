@@ -7,9 +7,11 @@ import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { ApiError } from '../lib/api';
+import { usePageMeta } from '../lib/meta';
 import { fetchMyClaims, groupClaimsForBuckets } from '../lib/slots';
 
 export default function ClaimsPage() {
+  usePageMeta({ title: 'My holds — TAKEOVER' });
   const [buckets, setBuckets] = useState<ReturnType<typeof groupClaimsForBuckets>>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -55,7 +57,7 @@ export default function ClaimsPage() {
             action={
               <Link
                 to="/"
-                className="inline-block min-h-[44px] rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
               >
                 Browse openings
               </Link>
@@ -69,7 +71,7 @@ export default function ClaimsPage() {
                 open={bucket.claims.length > 0}
                 className="rounded-xl border border-slate-200 bg-white"
               >
-                <summary className="min-h-[44px] cursor-pointer list-none px-4 py-3 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 [&::-webkit-details-marker]:hidden">
+                <summary className="min-h-touch cursor-pointer list-none px-4 py-3 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 [&::-webkit-details-marker]:hidden">
                   {bucket.title} ({bucket.claims.length})
                 </summary>
                 <div className="border-t border-slate-100 p-4">

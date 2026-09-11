@@ -130,7 +130,7 @@ export default function PaymentPanel({
         <button
           type="button"
           onClick={onSubmitted}
-          className="mt-3 min-h-[44px] rounded-lg border border-amber-400 bg-white px-4 py-2 text-sm font-medium text-amber-900"
+          className="mt-3 min-h-touch rounded-lg border border-amber-400 bg-white px-4 py-2 text-sm font-medium text-amber-900"
         >
           Refresh status
         </button>
@@ -146,7 +146,10 @@ export default function PaymentPanel({
           <p className="mt-2 text-sm font-medium text-red-800" role="alert">
             {error}{' '}
             {showReclaim ? (
-              <Link to={`/slot/${slot.id}`} className="underline">
+              <Link
+                to={`/slot/${slot.id}`}
+                className="inline-flex min-h-touch items-center underline"
+              >
                 Claim again
               </Link>
             ) : null}
@@ -169,7 +172,10 @@ export default function PaymentPanel({
         <p className="mt-3 text-sm font-medium text-red-800" role="alert">
           {error}{' '}
           {showReclaim ? (
-            <Link to={`/slot/${slot.id}`} className="underline">
+            <Link
+              to={`/slot/${slot.id}`}
+              className="inline-flex min-h-touch items-center underline"
+            >
               Claim again
             </Link>
           ) : null}
@@ -179,7 +185,7 @@ export default function PaymentPanel({
         type="button"
         onClick={handlePay}
         disabled={working}
-        className="mt-3 min-h-[44px] w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+        className="mt-3 min-h-touch w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
       >
         {working ? busyLabel : 'Pay with Nimiq Pay'}
       </button>

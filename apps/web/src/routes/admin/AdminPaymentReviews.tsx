@@ -10,12 +10,14 @@ import ErrorState from '../../components/ErrorState';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import ResolveDialog from '../../components/ResolveDialog';
 import { ApiError } from '../../lib/api';
+import { usePageMeta } from '../../lib/meta';
 import { fetchPaymentReviews, resolvePaymentReview, type PaymentReview } from '../../lib/admin';
 import { formatNim } from '../../lib/slots';
 
 const PAGE_SIZE = 20;
 
 export default function AdminPaymentReviews() {
+  usePageMeta({ title: 'Payment reviews — TAKEOVER', robots: 'noindex' });
   const [reviews, setReviews] = useState<PaymentReview[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -45,7 +47,7 @@ export default function AdminPaymentReviews() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/admin" className="inline-block min-h-[44px] py-2 text-sm font-medium text-slate-600">
+      <Link to="/admin" className="inline-block min-h-touch py-2 text-sm font-medium text-slate-600">
         ← Moderation
       </Link>
       <h1 className="mt-1 text-2xl font-bold tracking-tight">Payment reviews</h1>
@@ -102,7 +104,7 @@ export default function AdminPaymentReviews() {
                     <button
                       type="button"
                       onClick={() => setResolving(r)}
-                      className="min-h-[44px] rounded-lg border border-slate-300 px-3 py-1 text-sm font-medium text-slate-700"
+                      className="min-h-touch rounded-lg border border-slate-300 px-3 py-1 text-sm font-medium text-slate-700"
                     >
                       Resolve
                     </button>
@@ -115,7 +117,7 @@ export default function AdminPaymentReviews() {
                 type="button"
                 disabled={offset === 0}
                 onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-                className="min-h-[44px] rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
+                className="min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
               >
                 Previous
               </button>
@@ -123,7 +125,7 @@ export default function AdminPaymentReviews() {
                 type="button"
                 disabled={offset + PAGE_SIZE >= total}
                 onClick={() => setOffset((o) => o + PAGE_SIZE)}
-                className="min-h-[44px] rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
+                className="min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
               >
                 Next
               </button>

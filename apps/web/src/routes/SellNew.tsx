@@ -3,9 +3,11 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import SlotForm, { initialValues } from '../components/SlotForm';
 import { ApiError } from '../lib/api';
+import { usePageMeta } from '../lib/meta';
 import { createSlot, type SlotWrite } from '../lib/slots';
 
 export default function SellNew() {
+  usePageMeta({ title: 'New opening — TAKEOVER' });
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -25,7 +27,7 @@ export default function SellNew() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/sell" className="inline-block min-h-[44px] py-2 text-sm font-medium text-slate-600">
+      <Link to="/sell" className="inline-block min-h-touch py-2 text-sm font-medium text-slate-600">
         ← Back to my openings
       </Link>
       <h1 className="mt-1 text-2xl font-bold tracking-tight">New opening</h1>
