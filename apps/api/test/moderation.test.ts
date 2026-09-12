@@ -3,7 +3,14 @@
 // ADMIN_WALLET_ADDRESSES env (set only around the admin login, then cleared).
 // Chain reads use a fake RPC client. Fresh fixtures per test keep the
 // per-user report limiter and per-claim verify limiter isolated.
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
+
+// Phase 13 determinism: live-DB chains (login + mutations + verification
+// reads) measure 2-5s per test against remote Postgres with spikes past 5s;
+// observed failures were wall-clock timeouts only, scattered across tests
+// and runs, never wrong values. File-level budget per the claims.test.ts
+// precedent - not a logic fix.
+vi.setConfig({ testTimeout: 30_000 });
 import { and, eq, inArray } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';

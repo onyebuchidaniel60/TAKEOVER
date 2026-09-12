@@ -168,10 +168,16 @@ export async function cancelSlot(
   audit?: { requestId?: string | null },
 ): Promise<OwnerSlot> {
   const row = await db.transaction(async (tx) => {
+    // Row lock (Phase 13 race fix): without it a concurrent claim can commit
+    // between the hold-release UPDATE below and the slot-cancel UPDATE,
+    // leaving live holds on a cancelled slot. createClaim and admin
+    // disableSlot already lock the same way; same lock order (slot first),
+    // so no deadlock cycle is introduced.
     const rows = await tx
       .select()
       .from(slots)
       .where(and(eq(slots.id, slotId), eq(slots.providerId, ownerId)))
+      .for('update')
       .limit(1);
     const current = rows[0];
     if (!current) {

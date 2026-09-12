@@ -3,7 +3,10 @@
 // Zero critical/serious violations allowed; moderate/minor are printed for
 // triage (see AI_HANDOFF.md). color-contrast is excluded here (jsdom cannot
 // compute styles) and measured separately with exact palette math.
-import { render, screen } from '@testing-library/react';
+// Phase 13 flake fix: readiness waits for the loading skeleton to LEAVE the
+// DOM (MutationObserver-driven) instead of sleeping a fixed 50ms — no
+// elapsed-time assumption, so CPU contention can no longer beat the wait.
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
@@ -53,6 +56,20 @@ function renderAt(path: string, route: string, element: React.ReactNode): HTMLEl
   return container;
 }
 
+/**
+ * Deterministic page readiness: resolves when the loading skeleton leaves
+ * the DOM (every fetching route renders it first). Resolves immediately
+ * when no skeleton is present (synchronously rendered routes like /sell/new
+ * and the 404 page). A single polled condition — no elapsed-time assumption
+ * and no existence prerequisite, so neither CPU contention nor render speed
+ * can beat or break the wait.
+ */
+async function awaitLoaded(): Promise<void> {
+  await waitFor(() => {
+    expect(screen.queryByLabelText(/loading/i)).toBeNull();
+  });
+}
+
 async function checkAxe(route: string, container: HTMLElement): Promise<void> {
   const triage: AxeTriage = await runAxe(container);
   if (triage.moderate.length > 0 || triage.minor.length > 0) {
@@ -84,7 +101,7 @@ describe('axe on consumer routes', () => {
       return undefined;
     });
     const container = renderAt('/', '/', <Home />);
-    await new Promise((r) => setTimeout(r, 50));
+    await awaitLoaded();
     await checkAxe('/', container);
   });
 
@@ -95,7 +112,7 @@ describe('axe on consumer routes', () => {
       return undefined;
     });
     const container = renderAt('/slot/slot-1', '/slot/:slotId', <SlotDetailPage />);
-    await new Promise((r) => setTimeout(r, 50));
+    await awaitLoaded();
     await checkAxe('/slot/:id', container);
     expect(container.textContent).toContain('Table for two');
   });
@@ -114,7 +131,7 @@ describe('axe on consumer routes', () => {
         <ClaimDetailPage />
       </RequireAuth>,
     );
-    await new Promise((r) => setTimeout(r, 50));
+    await awaitLoaded();
     await checkAxe('/claim/:id', container);
   });
 
@@ -133,7 +150,7 @@ describe('axe on consumer routes', () => {
         <ClaimsPage />
       </RequireAuth>,
     );
-    await new Promise((r) => setTimeout(r, 50));
+    await awaitLoaded();
     await checkAxe('/claims', container);
   });
 
@@ -153,7 +170,7 @@ describe('axe on consumer routes', () => {
         <Sell />
       </RequireAuth>,
     );
-    await new Promise((r) => setTimeout(r, 50));
+    await awaitLoaded();
     await checkAxe('/sell', container);
   });
 
@@ -167,7 +184,7 @@ describe('axe on consumer routes', () => {
         <SellNew />
       </RequireAuth>,
     );
-    await new Promise((r) => setTimeout(r, 20));
+    await awaitLoaded();
     await checkAxe('/sell/new', container);
   });
 
@@ -186,7 +203,7 @@ describe('axe on consumer routes', () => {
         <SellDetail />
       </RequireAuth>,
     );
-    await new Promise((r) => setTimeout(r, 50));
+    await awaitLoaded();
     await checkAxe('/sell/:id', container);
   });
 
@@ -204,7 +221,7 @@ describe('axe on consumer routes', () => {
         <Profile />
       </RequireAuth>,
     );
-    await new Promise((r) => setTimeout(r, 50));
+    await awaitLoaded();
     await checkAxe('/profile', container);
   });
 
@@ -249,7 +266,7 @@ describe('axe on admin routes', () => {
         <AdminDashboard />
       </RequireAdmin>,
     );
-    await new Promise((r) => setTimeout(r, 50));
+    await awaitLoaded();
     await checkAxe('/admin', container);
   });
 
@@ -268,7 +285,7 @@ describe('axe on admin routes', () => {
         <AdminReports />
       </RequireAdmin>,
     );
-    await new Promise((r) => setTimeout(r, 50));
+    await awaitLoaded();
     await checkAxe('/admin/reports', container);
   });
 
@@ -298,7 +315,7 @@ describe('axe on admin routes', () => {
         <AdminPaymentReviews />
       </RequireAdmin>,
     );
-    await new Promise((r) => setTimeout(r, 50));
+    await awaitLoaded();
     await checkAxe('/admin/payment-reviews', container);
   });
 
@@ -317,7 +334,7 @@ describe('axe on admin routes', () => {
         <AdminUsers />
       </RequireAdmin>,
     );
-    await new Promise((r) => setTimeout(r, 50));
+    await awaitLoaded();
     await checkAxe('/admin/users', container);
   });
 
@@ -339,7 +356,7 @@ describe('axe on admin routes', () => {
         <AdminSlots />
       </RequireAdmin>,
     );
-    await new Promise((r) => setTimeout(r, 50));
+    await awaitLoaded();
     await checkAxe('/admin/slots', container);
   });
 
@@ -365,7 +382,7 @@ describe('axe on admin routes', () => {
         <AdminAudit />
       </RequireAdmin>,
     );
-    await new Promise((r) => setTimeout(r, 50));
+    await awaitLoaded();
     await checkAxe('/admin/audit', container);
   });
 });
@@ -375,7 +392,7 @@ describe('axe on error states', () => {
     setGuest();
     mockFetch(() => err(500, 'INTERNAL_ERROR', 'Something went wrong.'));
     const container = renderAt('/slot/slot-1', '/slot/:slotId', <SlotDetailPage />);
-    await new Promise((r) => setTimeout(r, 50));
+    await awaitLoaded();
     expect(container.textContent).toContain('Couldn’t load this page');
     await checkAxe('/slot/:id error', container);
   });
@@ -394,7 +411,7 @@ describe('axe on error states', () => {
         </Routes>
       </MemoryRouter>,
     );
-    await new Promise((r) => setTimeout(r, 50));
+    await awaitLoaded();
     const reportButton = screen.getByRole('button', { name: /report this opening/i });
     await user.click(reportButton);
     await checkAxe('report dialog', container);

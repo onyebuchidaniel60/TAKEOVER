@@ -168,7 +168,7 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     await app.close();
   });
 
-  it('claims a published slot: hold + decrement + envelope', async () => {
+  it('claims a published slot: hold + decrement + envelope', { timeout: 30_000 }, async () => {
     const cookie = await loginAs(randomWallet());
     const slotId = await makeSlot({ total: 4, available: 4 });
     const res = await postClaim(cookie, slotId);
@@ -195,7 +195,7 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     expect(row.availableQuantity).toBe(3);
   });
 
-  it('flips to sold_out when the final unit is claimed', async () => {
+  it('flips to sold_out when the final unit is claimed', { timeout: 30_000 }, async () => {
     const cookie = await loginAs(randomWallet());
     const slotId = await makeSlot({ total: 1, available: 1 });
     const res = await postClaim(cookie, slotId);
@@ -239,14 +239,14 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     expect((res.json() as { error: { code: string } }).error.code).toBe('SLOT_UNAVAILABLE');
   });
 
-  it('returns 404 for a missing slot id', async () => {
+  it('returns 404 for a missing slot id', { timeout: 30_000 }, async () => {
     const cookie = await loginAs(randomWallet());
     const res = await postClaim(cookie, randomUUID());
     expect(res.statusCode).toBe(404);
     expect((res.json() as { error: { code: string } }).error.code).toBe('NOT_FOUND');
   });
 
-  it('returns the same claim on a duplicate POST without decrementing again', async () => {
+  it('returns the same claim on a duplicate POST without decrementing again', { timeout: 30_000 }, async () => {
     const cookie = await loginAs(randomWallet());
     const slotId = await makeSlot({ total: 5, available: 5 });
     const first = await postClaim(cookie, slotId);
@@ -266,7 +266,7 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     expect(await readClaims(slotId)).toHaveLength(1);
   });
 
-  it('returns an existing payment_pending claim idempotently', async () => {
+  it('returns an existing payment_pending claim idempotently', { timeout: 30_000 }, async () => {
     const db = getDb();
     const wallet = randomWallet();
     const cookie = await loginAs(wallet);
@@ -315,7 +315,7 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     expect((res.json() as { error: { code: string } }).error.code).toBe('UNAUTHENTICATED');
   });
 
-  it('returns the buyer’s own claim with slot context', async () => {
+  it('returns the buyer’s own claim with slot context', { timeout: 30_000 }, async () => {
     const cookie = await loginAs(randomWallet());
     const slotId = await makeSlot({});
     const created = await postClaim(cookie, slotId);
@@ -331,7 +331,7 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     expect(body.data.slot['id']).toBe(slotId);
   });
 
-  it('returns 404 CLAIM_NOT_FOUND for another user’s claim', async () => {
+  it('returns 404 CLAIM_NOT_FOUND for another user’s claim', { timeout: 30_000 }, async () => {
     const cookieA = await loginAs(randomWallet());
     const slotId = await makeSlot({});
     const created = await postClaim(cookieA, slotId);
@@ -374,11 +374,18 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     }
   });
 
-  it('expires a hold on detail view and restores one unit', async () => {
-    const cookie = await loginAs(randomWallet());
-    const slotId = await makeSlot({ total: 2, available: 2 });
-    await postClaim(cookie, slotId);
-    expect((await readSlot(slotId)).availableQuantity).toBe(1);
+  // Sequential live-DB chains are the timeout risk against remote Postgres:
+  // login and slot setup are independent, so they run concurrently, and the
+  // mid-test inventory read is asserted from the claim response already in
+  // hand instead of a second query. Final-state asserts are unchanged.
+  // Explicit budget like the sibling sweep tests: the remaining chain
+  // (claim + forced expiry + sweep + verification reads) still measures
+  // ~4s against remote Postgres (proven latency-only, never a wrong value).
+  it('expires a hold on detail view and restores one unit', { timeout: 30_000 }, async () => {
+    const [cookie, slotId] = await Promise.all([loginAs(randomWallet()), makeSlot({ total: 2, available: 2 })]);
+    const claimed = await postClaim(cookie, slotId);
+    expect(claimed.statusCode).toBe(200);
+    expect((claimed.json() as { data: { slot: { available_quantity: number } } }).data.slot.available_quantity).toBe(1);
     await forceExpiry(slotId);
     const res = await app.inject({ method: 'GET', url: `/api/v1/slots/${slotId}` });
     expect(res.statusCode).toBe(200);
@@ -386,11 +393,11 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     expect((await readSlot(slotId)).availableQuantity).toBe(2);
   });
 
-  it('flips sold_out back to published when expiry restores stock', async () => {
-    const cookie = await loginAs(randomWallet());
-    const slotId = await makeSlot({ total: 1, available: 1 });
-    await postClaim(cookie, slotId);
-    expect((await readSlot(slotId)).status).toBe('sold_out');
+  it('flips sold_out back to published when expiry restores stock', { timeout: 30_000 }, async () => {
+    const [cookie, slotId] = await Promise.all([loginAs(randomWallet()), makeSlot({ total: 1, available: 1 })]);
+    const claimed = await postClaim(cookie, slotId);
+    expect(claimed.statusCode).toBe(200);
+    expect((claimed.json() as { data: { slot: { status: string } } }).data.slot.status).toBe('sold_out');
     await forceExpiry(slotId);
     const res = await app.inject({ method: 'GET', url: `/api/v1/slots/${slotId}` });
     expect(res.statusCode).toBe(200);
@@ -443,3 +450,4 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     expect(found?.status).toBe('sold_out');
   });
 });
+
