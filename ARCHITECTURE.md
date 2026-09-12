@@ -816,8 +816,10 @@ action they describe (retrofitted: `user.created`, `slot.published`,
 `slot.cancelled`, `claim.created`, `payment.submitted`, `payment.verified`,
 `payment.review`; new: `report.created`, `report.resolved`,
 `slot.disabled_by_admin`, `user.disabled`, `payment_review.resolved`).
-Idempotent re-returns never log. Admin endpoints carry no per-IP rate
-limit beyond admin auth; only POST /reports is rate-limited.
+Idempotent re-returns never log. Admin endpoints carry a generous per-IP
+backstop limiter behind admin auth (Phase 12; abuse tripwire, not the
+control — admin auth + audit remain the control); only POST /reports is
+tightly rate-limited (5/hour per user).
 
 ## 14. Rate limiting
 

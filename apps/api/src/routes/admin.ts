@@ -1,12 +1,18 @@
 // Phase 10: admin moderation surfaces. Every route requires admin auth
 // (requireAdmin after requireAuth: anonymous → 401, non-admin → 403
-// FORBIDDEN — endpoints do not hide their existence). No additional per-IP
-// rate limit on admin endpoints (behind admin auth); documented here and in
-// AI_HANDOFF. All responses use the { data, requestId } envelope.
+// FORBIDDEN — endpoints do not hide their existence). Phase 12 adds a generous
+// per-IP backstop limiter behind admin auth (abuse tripwire, not the control —
+// admin auth + audit remain the control). All responses use the
+// { data, requestId } envelope.
 import type { FastifyInstance } from 'fastify';
 import { getDb } from '../../../../db/client';
 import { requireAdmin } from '../auth/admin';
 import { AppError, successBody } from '../http/errors';
+import {
+  createRateLimiter,
+  DEFAULT_ADMIN_RATE_LIMIT,
+  type RateLimitOptions,
+} from '../http/rate-limit';
 import {
   disableSlot,
   disableUser,
@@ -29,8 +35,17 @@ import {
   userIdParamsSchema,
 } from '../reports/validation';
 
-export async function adminRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/admin/reports', async (request) => {
+export interface AdminRouteOptions {
+  rateLimit?: {
+    /** Per-IP admin backstop budget shared by all admin routes (default 120/min). */
+    admin?: RateLimitOptions;
+  };
+}
+
+export async function adminRoutes(app: FastifyInstance, opts: AdminRouteOptions = {}): Promise<void> {
+  const adminLimiter = createRateLimiter(opts.rateLimit?.admin ?? DEFAULT_ADMIN_RATE_LIMIT);
+
+  app.get('/admin/reports', { preHandler: adminLimiter }, async (request) => {
     await requireAdmin(request);
     const parsed = adminReportsQuerySchema.safeParse(request.query);
     if (!parsed.success) {
@@ -50,7 +65,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     });
   });
 
-  app.post('/admin/reports/:reportId/resolve', { bodyLimit: 16 * 1024 }, async (request) => {
+  app.post('/admin/reports/:reportId/resolve', { preHandler: adminLimiter, bodyLimit: 16 * 1024 }, async (request) => {
     const admin = await requireAdmin(request);
     const params = reportIdParamsSchema.safeParse(request.params);
     if (!params.success) {
@@ -71,7 +86,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return successBody(request, { report });
   });
 
-  app.post('/admin/slots/:slotId/disable', { bodyLimit: 16 * 1024 }, async (request) => {
+  app.post('/admin/slots/:slotId/disable', { preHandler: adminLimiter, bodyLimit: 16 * 1024 }, async (request) => {
     const admin = await requireAdmin(request);
     const params = slotIdParamsSchema.safeParse(request.params);
     if (!params.success) {
@@ -91,7 +106,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return successBody(request, result);
   });
 
-  app.post('/admin/users/:userId/disable', { bodyLimit: 16 * 1024 }, async (request) => {
+  app.post('/admin/users/:userId/disable', { preHandler: adminLimiter, bodyLimit: 16 * 1024 }, async (request) => {
     const admin = await requireAdmin(request);
     const params = userIdParamsSchema.safeParse(request.params);
     if (!params.success) {
@@ -111,7 +126,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return successBody(request, result);
   });
 
-  app.get('/admin/payment-reviews', async (request) => {
+  app.get('/admin/payment-reviews', { preHandler: adminLimiter }, async (request) => {
     await requireAdmin(request);
     const parsed = adminListQuerySchema.safeParse(request.query);
     if (!parsed.success) {
@@ -130,7 +145,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     });
   });
 
-  app.post('/admin/payment-reviews/:claimId/resolve', { bodyLimit: 16 * 1024 }, async (request) => {
+  app.post('/admin/payment-reviews/:claimId/resolve', { preHandler: adminLimiter, bodyLimit: 16 * 1024 }, async (request) => {
     const admin = await requireAdmin(request);
     const params = claimIdParamsSchema.safeParse(request.params);
     if (!params.success) {
@@ -151,7 +166,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return successBody(request, result);
   });
 
-  app.get('/admin/audit-events', async (request) => {
+  app.get('/admin/audit-events', { preHandler: adminLimiter }, async (request) => {
     await requireAdmin(request);
     const parsed = auditEventsQuerySchema.safeParse(request.query);
     if (!parsed.success) {

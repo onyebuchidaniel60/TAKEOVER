@@ -69,7 +69,129 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 11 complete — UX/accessibility hardening done (2026-09-11). Next: Phase 12 — Security pass (NOT started, awaiting explicit instruction).**
+**Phase 12 complete — security pass done (2026-09-12). Next: Phase 13 — Full test and release candidate (NOT started, awaiting explicit instruction).**
+
+## Phase 12 implementation results (2026-09-12)
+
+Security pass only: adversarial tests + audit, zero features, zero
+architecture changes, zero payment-predicate changes. Deliverable:
+`SECURITY_REVIEW.md` (repo root) with the threat matrix, 46-test inventory,
+findings, dependency audit, secret hygiene, and residual risks. 46/46 new
+adversarial tests pass; full suite still green. Phase 13 NOT started. No
+conflict with PROJECT_SPEC.md (no scope added; FR/acceptance behavior
+unchanged — 429s are config-scale backstops, documented in the review).
+
+What changed (`apps/api/src`, rate limits only — no logic change):
+
+- `http/rate-limit.ts` — six new default budgets (claim-create 60/min/IP,
+  slot-create 30/hour/USER, slot-mutate 60/min/IP, provider-profile
+  60/min/IP, provider-claims-read 120/min/IP, admin backstop 120/min/IP)
+  plus `createUserRateLimiter()` (key = authenticated user id, IP fallback;
+  runs after `sessionMiddleware`, so `request.user` is populated). Exact
+  values are configuration per ARCHITECTURE.md §14, not business rules.
+- `routes/{claims,slots,provider,admin}.ts` + `app.ts` — wired the limiters
+  with per-route `AppOptions.rateLimit` overrides (tests use them). Paid
+  down one stale comment (admin "no per-IP limit" → backstop documented).
+- `ARCHITECTURE.md` (§13 Phase 10 note: admin backstop recorded).
+- Test-only overrides for the new keys in five older suites (budgets
+  disabled there; proven separately in the security suites). Production
+  defaults apply everywhere else.
+
+Tests (real, passing — live DB + fake RPC unless noted):
+
+- `test/security.test.ts` (35 tests): nonce reuse/expired-401s; forged/
+  expired/revoked sessions 401; IDOR sweep (foreign claim/intent/submit/
+  verify, foreign slot patch/publish/cancel, foreign demand view, draft
+  detail without payout leak, /me isolation, all 404-never-403); role
+  forgery 400s + header ignore; SQLi trio (shaped→400, free-text verbatim,
+  search escaped with zero-match proof); XSS-as-inert-JSON; CSRF preflight
+  discrimination + form-POST fails-closed; SSRF source scan + zero-call
+  proof; brute-force 429s (challenge, verify, reports 5+1, verify-payment
+  + retry-after, all five new budgets incl. per-user isolation); payment
+  replay/amount/recipient-immutable/sender/data matrix; 9-code error
+  envelope + forced-500 scan; prod cookie flags; log-body source scan;
+  web-dist secret scan; 7/7 admin endpoints 401/403-never-404.
+- `test/security-concurrency.test.ts` (5 tests): claim-vs-disable XOR;
+  delayed-verify-vs-disable terminal combos; resolve race with race-noop
+  verifies + single audit; submit-vs-expiry XOR + no double restore;
+  disable-vs-in-flight claim 200-XOR-401 with no partial write.
+- `apps/web/test/security.test.tsx` (6 tests, jsdom): hostile fields inert
+  in SlotCard/SlotDetail/Profile display-name/server-error-message; zero
+  dangerouslySetInnerHTML in src; JSON-only credentialed posts.
+
+Verification (actual, via `npm.cmd`; secrets loaded from local `.env.txt`
+into the shell, values never printed):
+
+- `run typecheck` → clean, exit 0 (api + web + shared + db).
+- `run lint` → clean, exit 0.
+- `run test` (live DB) → api 296 pass (24 files) + web 82 pass (10 files)
+  + shared 1 pass, exit 0. (Was 256+76+1; +35 api matrix, +5 api race,
+  +6 web.)
+- `run build` → clean (api tsc; web vite incl. fresh `dist`; shared tsc),
+  exit 0.
+- `npm audit --json` → 9 total (1 critical vitest dev, 2 high: vite dev +
+  drizzle-orm prod, 6 moderate) — identical to baseline; `--omit=dev` →
+  exactly 1 (drizzle-orm high, escalated, not upgraded).
+- `install --package-lock-only --dry-run` → up to date, exit 0;
+  `git ls-files` confirms the lockfile is committed.
+- dist secret grep (33 files, count-only) → 0 key-name hits, 0 value hits.
+- Residue check after every run → zero leaked rows (one crashed-cleanup
+  incident mid-phase was swept with a one-off script, counts only, scripts
+  deleted before committing).
+
+IMPLEMENTATION DETAILS — AGENT DECIDED (locked scope preserved):
+
+- New-limiter defaults favor availability over strictness (60/min claim
+  bursts, 30/hour listings per user) because exact values are config; the
+  429 mechanism itself is proven at tiny thresholds per endpoint.
+- Slot patch/publish/cancel share one per-IP budget (owner-write burst
+  bound); admin routes share one backstop budget (tripwire, auth+audit
+  remain the control); logout and GET reads deliberately unlimited
+  (session-bound self-revoke; non-mutating) — all documented in the review.
+- `text/plain` POSTs 400 (parsed-then-Zod-rejected) rather than 415; both
+  fail closed, asserted as such.
+- Disabled-user check precedes all other session checks, so the race test
+  sees `ACCOUNT_DISABLED` (not bare unauthenticated) on the 401 branch.
+
+Findings: 1 fixed (F1 missing rate limits), 2 escalated (F2 drizzle-orm
+0.36→0.45 breaking upgrade — unreachable via our static-identifier query
+patterns; F4 anti-CSRF token — contract change, needs design), 2 accepted
+(F3 dev-only vulns never shipped; F5 in-memory limiter single-region note),
+1 info (F6). Full table + residual/Phase-14 list in SECURITY_REVIEW.md §4/§7.
+
+Secret handling: DATABASE_URL, session secrets, and admin wallet addresses
+were NEVER printed in outputs, logs, commits, or test assertions (presence
+booleans/counts and filename-only failure output); `.env.txt` stays
+gitignored; Temp/one-off scripts printed counts only and were deleted before
+committing.
+
+Files changed (Phase 12): `apps/api/src/{app.ts,http/rate-limit.ts,
+routes/{claims,slots,provider,admin}.ts}`, `apps/api/test/
+{security,security-concurrency}.test.ts` (new), `apps/web/test/
+security.test.tsx` (new), `apps/api/test/{claims,payments,
+verify-payments,moderation,provider-dashboards}.test.ts` (test-only limiter
+overrides), `ARCHITECTURE.md` (§13 admin-backstop note),
+`SECURITY_REVIEW.md` (new), `AI_HANDOFF.md` (this checkpoint).
+
+```text
+CURRENT PHASE: Phase 12 complete
+COMPLETED: 46-test adversarial pass (35 matrix + 5 concurrency + 6 web) +
+  six missing rate limits added + dependency/secret audits + SECURITY_REVIEW.md
+TESTS RUN: typecheck clean; lint clean; tests 296 api + 82 web + 1 shared
+  pass; build clean; audit 9 total = baseline (prod-only: drizzle-orm high,
+  escalated); lockfile committed + consistent; dist 33 files, 0 secret hits
+RESULT: every ARCH §16 mitigation proven (CSRF partial with F4 escalation,
+  AI N/A); no P0/P1 product finding; two owner decisions queued (F2, F4)
+KNOWN ISSUES: none functional (F1 fixed in-pass; F2/F4 escalated, F3/F5
+  accepted, F6 info — see SECURITY_REVIEW.md §4)
+SECURITY NOTES: DATABASE_URL/session secrets/admin wallets never printed;
+  429s on all mutating endpoints; 404-never-403 cross-owner; 403-never-404
+  admin; envelopes generic + requestId on 9 codes + forced 500
+FILES CHANGED: see list above
+GIT COMMIT: chore: phase 12 security pass
+NEXT TASK: Phase 13 — Full test and release candidate (do NOT start automatically)
+BLOCKED BY: none (owner decisions F2/F4 may arrive anytime; neither blocks Phase 13)
+```
 
 ## Phase 11 implementation results (2026-09-11)
 

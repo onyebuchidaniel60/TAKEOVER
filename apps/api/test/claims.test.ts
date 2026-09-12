@@ -19,6 +19,11 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     rateLimit: {
       challenge: { windowMs: 60_000, max: 1000 },
       verify: { windowMs: 60_000, max: 1000 },
+      // Phase 12 budgets disabled here (proven separately in security.test.ts).
+      claimCreate: { windowMs: 60_000, max: 1000 },
+      slotCreate: { windowMs: 3_600_000, max: 1000 },
+      slotMutate: { windowMs: 60_000, max: 1000 },
+      providerClaims: { windowMs: 60_000, max: 1000 },
     },
   });
 

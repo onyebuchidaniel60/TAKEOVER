@@ -9,6 +9,11 @@ import { requireAuth } from '../auth/session';
 import { getClaimHoldTtlSeconds } from '../env';
 import { AppError, successBody } from '../http/errors';
 import {
+  createRateLimiter,
+  DEFAULT_CLAIM_CREATE_RATE_LIMIT,
+  type RateLimitOptions,
+} from '../http/rate-limit';
+import {
   createClaim,
   expireHoldsForSlot,
   getClaimForBuyer,
@@ -21,8 +26,19 @@ import {
   myClaimsQuerySchema,
 } from '../claims/validation';
 
-export async function claimRoutes(app: FastifyInstance): Promise<void> {
-  app.post('/slots/:slotId/claims', async (request) => {
+export interface ClaimRouteOptions {
+  rateLimit?: {
+    /** Per-IP claim-creation budget (default 60/min). Bounds availability probing. */
+    claimCreate?: RateLimitOptions;
+  };
+}
+
+export async function claimRoutes(app: FastifyInstance, opts: ClaimRouteOptions = {}): Promise<void> {
+  const claimCreateLimiter = createRateLimiter(
+    opts.rateLimit?.claimCreate ?? DEFAULT_CLAIM_CREATE_RATE_LIMIT,
+  );
+
+  app.post('/slots/:slotId/claims', { preHandler: claimCreateLimiter }, async (request) => {
     const user = await requireAuth(request);
     const params = slotIdParamsSchema.safeParse(request.params);
     if (!params.success) {

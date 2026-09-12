@@ -6,15 +6,19 @@ import { sessionMiddleware } from './auth/session';
 import { parseCorsOrigins } from './env';
 import { AppError, errorBody } from './http/errors';
 import { authRoutes, type AuthRouteOptions } from './routes/auth';
-import { adminRoutes } from './routes/admin';
-import { claimRoutes } from './routes/claims';
+import { adminRoutes, type AdminRouteOptions } from './routes/admin';
+import { claimRoutes, type ClaimRouteOptions } from './routes/claims';
 import { reportRoutes } from './routes/reports';
 import { paymentRoutes, type PaymentRouteOptions } from './routes/payments';
-import { providerRoutes } from './routes/provider';
-import { slotRoutes } from './routes/slots';
+import { providerRoutes, type ProviderRouteOptions } from './routes/provider';
+import { slotRoutes, type SlotRouteOptions } from './routes/slots';
 
 export type AppOptions = AuthRouteOptions &
-  PaymentRouteOptions & {
+  PaymentRouteOptions &
+  SlotRouteOptions &
+  ClaimRouteOptions &
+  ProviderRouteOptions &
+  AdminRouteOptions & {
     /** Explicit CORS allowlist override (tests). Defaults to parseCorsOrigins(). */
     corsOrigins?: string[];
   };
@@ -63,12 +67,12 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
     async (api) => {
       api.addHook('onRequest', sessionMiddleware);
       await api.register(authRoutes, opts);
-      await api.register(slotRoutes);
-      await api.register(claimRoutes);
+      await api.register(slotRoutes, opts);
+      await api.register(claimRoutes, opts);
       await api.register(paymentRoutes, opts);
-      await api.register(providerRoutes);
+      await api.register(providerRoutes, opts);
       await api.register(reportRoutes);
-      await api.register(adminRoutes);
+      await api.register(adminRoutes, opts);
     },
     { prefix: '/api/v1' },
   );

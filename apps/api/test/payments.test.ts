@@ -21,6 +21,8 @@ describe.skipIf(!isDatabaseConfigured())('payment intents and submission (live)'
       verify: { windowMs: 60_000, max: 1000 },
       intent: { windowMs: 60_000, max: 1000 },
       submission: { windowMs: 60_000, max: 1000 },
+      // Phase 12 budgets disabled here (proven separately in security.test.ts).
+      claimCreate: { windowMs: 60_000, max: 1000 },
     },
   });
 

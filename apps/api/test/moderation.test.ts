@@ -44,6 +44,12 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
       verify: { windowMs: 60_000, max: 1000 },
       intent: { windowMs: 60_000, max: 1000 },
       submission: { windowMs: 60_000, max: 1000 },
+      // Phase 12 budgets disabled here (proven separately in security.test.ts).
+      claimCreate: { windowMs: 60_000, max: 1000 },
+      slotCreate: { windowMs: 3_600_000, max: 1000 },
+      slotMutate: { windowMs: 60_000, max: 1000 },
+      providerClaims: { windowMs: 60_000, max: 1000 },
+      admin: { windowMs: 60_000, max: 1000 },
     },
   });
 

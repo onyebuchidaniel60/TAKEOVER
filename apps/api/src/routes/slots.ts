@@ -7,6 +7,14 @@ import { z } from 'zod';
 import { getDb } from '../../../../db/client';
 import { requireAuth } from '../auth/session';
 import { AppError, successBody } from '../http/errors';
+import {
+  createRateLimiter,
+  createUserRateLimiter,
+  DEFAULT_PROVIDER_CLAIMS_READ_RATE_LIMIT,
+  DEFAULT_SLOT_CREATE_RATE_LIMIT,
+  DEFAULT_SLOT_MUTATE_RATE_LIMIT,
+  type RateLimitOptions,
+} from '../http/rate-limit';
 import { expireHoldsForSlot, listSlotClaimsForProvider } from '../claims/service';
 import {
   cancelSlot,
@@ -42,7 +50,27 @@ const slotsQuerySchema = z
   })
   .strict();
 
-export async function slotRoutes(app: FastifyInstance): Promise<void> {
+export interface SlotRouteOptions {
+  rateLimit?: {
+    /** Per-user slot-creation budget (default 30/hour). Bounds spam listings. */
+    slotCreate?: RateLimitOptions;
+    /** Per-IP owner-mutation budget shared by patch/publish/cancel (default 60/min). */
+    slotMutate?: RateLimitOptions;
+    /** Per-IP provider demand-view budget (default 120/min). Bounds claim-state enumeration. */
+    providerClaims?: RateLimitOptions;
+  };
+}
+
+export async function slotRoutes(app: FastifyInstance, opts: SlotRouteOptions = {}): Promise<void> {
+  const slotCreateLimiter = createUserRateLimiter(
+    opts.rateLimit?.slotCreate ?? DEFAULT_SLOT_CREATE_RATE_LIMIT,
+  );
+  const slotMutateLimiter = createRateLimiter(
+    opts.rateLimit?.slotMutate ?? DEFAULT_SLOT_MUTATE_RATE_LIMIT,
+  );
+  const providerClaimsLimiter = createRateLimiter(
+    opts.rateLimit?.providerClaims ?? DEFAULT_PROVIDER_CLAIMS_READ_RATE_LIMIT,
+  );
   app.get('/slots', async (request) => {
     const parsed = slotsQuerySchema.safeParse(request.query);
     if (!parsed.success) {
@@ -87,7 +115,7 @@ export async function slotRoutes(app: FastifyInstance): Promise<void> {
     throw new AppError(404, 'NOT_FOUND', 'Slot not found.');
   });
 
-  app.post('/slots', async (request, reply) => {
+  app.post('/slots', { preHandler: slotCreateLimiter }, async (request, reply) => {
     const user = await requireAuth(request);
     const parsed = slotCreateSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -99,7 +127,7 @@ export async function slotRoutes(app: FastifyInstance): Promise<void> {
     return successBody(request, { slot });
   });
 
-  app.patch('/slots/:slotId', async (request) => {
+  app.patch('/slots/:slotId', { preHandler: slotMutateLimiter }, async (request) => {
     const user = await requireAuth(request);
     const params = slotIdParamsSchema.safeParse(request.params);
     if (!params.success) {
@@ -114,7 +142,7 @@ export async function slotRoutes(app: FastifyInstance): Promise<void> {
     return successBody(request, { slot });
   });
 
-  app.post('/slots/:slotId/publish', async (request) => {
+  app.post('/slots/:slotId/publish', { preHandler: slotMutateLimiter }, async (request) => {
     const user = await requireAuth(request);
     const params = slotIdParamsSchema.safeParse(request.params);
     if (!params.success) {
@@ -125,7 +153,7 @@ export async function slotRoutes(app: FastifyInstance): Promise<void> {
     return successBody(request, { slot });
   });
 
-  app.post('/slots/:slotId/cancel', async (request) => {
+  app.post('/slots/:slotId/cancel', { preHandler: slotMutateLimiter }, async (request) => {
     const user = await requireAuth(request);
     const params = slotIdParamsSchema.safeParse(request.params);
     if (!params.success) {
@@ -156,7 +184,7 @@ export async function slotRoutes(app: FastifyInstance): Promise<void> {
     });
   });
 
-  app.get('/me/slots/:slotId/claims', async (request) => {
+  app.get('/me/slots/:slotId/claims', { preHandler: providerClaimsLimiter }, async (request) => {
     const user = await requireAuth(request);
     const params = slotIdParamsSchema.safeParse(request.params);
     if (!params.success) {
