@@ -6,6 +6,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError } from '../lib/api';
+import {
+  debugPaymentsLog,
+  redactIntentForLog,
+  redactSdkArgsForLog,
+} from '../lib/debug-payments';
 import { getNimiqProvider, sendBasicTransactionWithData } from '../lib/nimiq';
 import {
   baseUnitsToSafeNumber,
@@ -41,6 +46,7 @@ export default function PaymentPanel({
       .then(({ intent: fetched }) => {
         if (!cancelled) {
           setIntent(fetched);
+          debugPaymentsLog('payment intent received', redactIntentForLog(fetched));
           setStep('idle');
         }
       })
@@ -83,17 +89,27 @@ export default function PaymentPanel({
         }
         let txString: string;
         try {
+          debugPaymentsLog(
+            'calling sendBasicTransactionWithData',
+            redactSdkArgsForLog({
+              recipient: current.expectedRecipient,
+              value,
+              data: current.expectedData,
+            }),
+          );
           txString = await sendBasicTransactionWithData(provider, {
             recipient: current.expectedRecipient,
             value,
             data: current.expectedData,
           });
+          debugPaymentsLog('sendBasicTransactionWithData returned', txString);
         } catch {
           throw new Error('Payment cancelled. Nothing was sent — try again.');
         }
         broadcastDone = true;
         setBusyLabel('Recording payment…');
         try {
+          debugPaymentsLog('submitting payment', { txHash: txString });
           await submitPayment(claim.id, txString);
         } catch (submitErr) {
           if (submitErr instanceof ApiError && submitErr.code === 'PAYMENT_ALREADY_SUBMITTED') {

@@ -13,6 +13,7 @@
     "packages/*"
   ],
   "scripts": {
+    "start": "npm run start --workspace takeover-api",
     "dev": "npm run dev --workspace takeover-api",
     "dev:web": "npm run dev --workspace takeover-web",
     "dev:api": "npm run dev --workspace takeover-api",

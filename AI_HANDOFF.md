@@ -69,7 +69,111 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 13 complete — full test / release candidate done (2026-09-12). E2E acceptance journey + concurrency sweep implemented, determinism proven over 3 consecutive full-suite runs, v0.1.0-rc1 tagged. Next: Phase 14 — Nimiq Pay deployment verification (NOT started, awaiting explicit instruction). No deployment was performed (locked).**
+**Phase 14a PARTIAL (2026-09-12) — backend live on Railway, frontend BLOCKED on a rejected
+Vercel token. Do NOT start Phase 14b (no reachable frontend) or Phase 14c. Resume: §8 of
+`docs/phase-14-deployment.md` (working Vercel token → link → env → deploy → CORS pass 2).**
+
+## Phase 14a implementation results — partial, blocked (2026-09-12)
+
+Backend deployed and healthy; frontend code prepared (Part 7 done, `VITE_API_BASE_URL` wired)
+but NOT deployed — `VERCEL_TOKEN` is rejected by `api.vercel.com` ("User not found"), so
+`vercel link` / `env add` / `deploy` are impossible. No Nimiq Pay round-trip run (14b, human).
+No product-behavior or architecture change. Full details: `docs/phase-14-deployment.md`;
+human script: `docs/phase-14-manual-test.md` (Vercel URL placeholder to fill after unblock).
+
+What changed (code):
+
+- `apps/web/src/lib/api.ts` — `apiBaseUrl()` + prefix in `apiFetch`. SMALL FIX (failure
+  protocol): `VITE_API_BASE_URL` never existed (`git log -S`: zero hits in all history); without
+  wiring, Part 4d's env var would be dead config and the Vercel app would call `/api` on its own
+  origin. Unset/blank → byte-identical same-origin behavior. No contract/state/auth change.
+- `apps/web/src/lib/debug-payments.ts` (new) + 4 call sites in `PaymentPanel.tsx` (Part 7):
+  intent (amount/data verbatim, recipient truncated, txHash redacted), SDK args (value/data
+  verbatim, recipient truncated), SDK return verbatim, submission body verbatim. Reconciliation
+  (in-code): "show recipient" vs "never full wallet addresses" → truncated display form; tx
+  hashes are public chain identifiers required by troubleshooting item B.
+- `apps/web/test/deployment-config.test.ts` (new, 13 tests): base-URL set/unset/slash, dev vs
+  prod fetch prefix, flag default-false + exact-'true' + gated logging, redaction (no full
+  address in output).
+- `package.json` — root `"start": "npm run start --workspace takeover-api"`. SMALL FIX: Railpack
+  0.39.0 (the actual builder, not Nixpacks) failed the first deploy with "No start command
+  detected". No product change.
+- `railway.json` (new, repo root): NIXPACKS builder, workspace build/start, `/health` check.
+  CLI warns Config-as-Code is deprecated (works until 2026-12-01); migrate only if ignored.
+- `docs/phase-14-deployment.md` + `docs/phase-14-manual-test.md` (new, required by the brief).
+
+Deployment (Railway, CLI 5.54.0, explicit `-s/-e/-p` flags — `link`/`add` reject the project
+token with Unauthorized, so no linked context exists; `up` with flags created and deployed):
+
+- Service `takeover-api` (id `b5cfa6c2-…`), env `production`, region sfo, Node 24.20.0.
+- URL: `https://takeover-api-production-1511.up.railway.app` (service domain, ACTIVE).
+- Vars: `NODE_ENV=production`, `CLAIM_HOLD_TTL_SECONDS=600`,
+  `PAYMENT_REVIEW_TIMEOUT_SECONDS=1800`, `DATABASE_URL` (dev Supabase, per brief),
+  `ADMIN_WALLET_ADDRESSES` (from `.env.txt`), `SESSION_SECRET` (fresh 64-hex, no dev reuse) —
+  secrets via `--stdin`, values never shown; key-only listing verified (6 + 7 `RAILWAY_*`).
+  `CORS_ORIGINS` unset (pass 1, fail closed); `NIMIQ_*` unset (absent locally → mainnet default);
+  `SENTRY_DSN` unset (not provided).
+- Smoke: `/health` → 200 `{"status":"ok"}`; `/api/v1/slots?limit=1` → 200 live rows (proves the
+  stdin-set DATABASE_URL is byte-correct).
+
+Blocked (token failure, per protocol stopped not worked around):
+
+- `VERCEL_TOKEN` (60 chars, present in `.env.txt`) → `vercel project list` fails "User not
+  found"; direct `GET api.vercel.com/v2/user` → 404 `{"error":{"code":"not_found",…}}`. Token
+  rejected (invalid/rotated/wrong type). Human: rotate/re-issue (no `VITE_` prefix) → resume §8.
+- Consequence: no Vercel URL → Railway pass 2 (CORS) pending; Vercel-curl + preflight
+  verifications pending; manual-test doc carries a `<vercel-url>` placeholder.
+
+Nimiq Pay framing (Part 6, cited in the deployment doc): mini app loads as the TOP-LEVEL
+WebView document with injected providers (nimiq.dev/mini-apps; SDK `init()` polls
+`window.nimiq`) — no iframe embedding exists, so NO CSP `frame-ancestors`/allow-framing work on
+either side. Reach path: Nimiq Pay → Mini Apps → Custom URL (+ deeplinks
+`nimiqpay://miniapp?url=` / `https://nimpay.app/miniapps/open/`). Origin header is officially
+undocumented; a community integrator doc tracks it as an open question (absent vs app URL vs
+extension-style). ORIGIN RISK UNRESOLVED: the Phase 12 CSRF guard 403s unlisted-Origin
+credentialed mutations — NOT weakened, nothing pre-added; 14b must record the actual Origin.
+Four risky assumptions (cookie/SDK-shape/data-transform/Origin) with verification steps are in
+both docs. Mainnet warning: testnet payments can never verify (mainnet RPC default).
+
+Verification (actual):
+
+- `run typecheck` → clean, exit 0. `run lint` → clean, exit 0.
+- `run test` → api 311 (27 files) + web 96 (11 files: 83 + 13 new) + shared 1, exit 0.
+- `run build` → clean, exit 0.
+- Railway `/health` → 200 `{"status":"ok"}`; `/api/v1/slots?limit=1` → 200 live rows.
+- Vercel curl + CORS preflight: BLOCKED (no frontend URL).
+- `VITE_DEBUG_PAYMENTS` default-false PROVEN by build experiment: flag set → debug code + base
+  URL present in dist; flag unset → zero `payments-debug`/`VITE_*` strings (Vite+esbuild folds
+  the check and drops the path); rebuilt clean afterwards.
+- `VITE_VERCEL_TOKEN`/`VITE_RAILWAY_TOKEN`: 0 matches repo-wide incl. `.env.txt`.
+- Token 8-char prefixes: 0 matches outside `.env.txt` (repo incl. dist scanned; node_modules/.git
+  excluded). Full token values: 0 matches in `apps/web/dist`.
+
+Secret handling: VERCEL/RAILWAY tokens, DATABASE_URL, SESSION_SECRET, admin wallets NEVER
+printed, echoed, or committed (key names + lengths + counts only; secrets via `--stdin` with
+stdout suppressed; prefix grep in-memory). `.env.txt` stays gitignored. NOTE: `VERCEL_TOKEN`
+and `RAILWAY_TOKEN` are now in root `.env.txt` and MUST be removed after Phase 15.
+
+```text
+CURRENT PHASE: Phase 14a partial — backend live, frontend blocked on Vercel token
+COMPLETED: Railway pass 1 (live + healthy) + API-base wiring + debug instrumentation (13 new
+  tests) + framing research + deployment + manual-test docs
+TESTS RUN: typecheck clean; lint clean; tests 311 api + 96 web + 1 shared pass; build clean;
+  /health 200 {"status":"ok"}; /slots 200 live rows; build-output flag experiment both ways
+RESULT: PARTIAL — awaiting human Vercel-token fix (resume docs/phase-14-deployment.md §8)
+KNOWN ISSUES: Vercel token rejected ("User not found"); CORS pass 2 + Vercel smoke + preflight
+  pending behind it; railway.json deprecation warning (functional until 2026-12-01)
+SECURITY NOTES: tokens/secrets never printed or committed; guard NOT weakened; no Nimiq Pay
+  origin pre-added; CORS still fail-closed (empty allowlist)
+FILES CHANGED: apps/web/src/lib/api.ts, apps/web/src/components/PaymentPanel.tsx,
+  package.json, apps/web/src/lib/debug-payments.ts (new),
+  apps/web/test/deployment-config.test.ts (new), railway.json (new),
+  docs/phase-14-deployment.md (new), docs/phase-14-manual-test.md (new), AI_HANDOFF.md
+GIT COMMIT: chore: phase 14a deployment and Nimiq Pay preparation
+NEXT TASK: human provides working VERCEL_TOKEN → finish 14a resume → Phase 14b round-trip
+  (do NOT start automatically)
+BLOCKED BY: working Vercel token (see deployment doc §8)
+```
 
 ## Phase 13 implementation results (2026-09-12)
 

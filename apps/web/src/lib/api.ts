@@ -1,5 +1,25 @@
-// Same-origin API client (dev: Vite proxies /api to the Fastify backend).
-// Cookies (takeover_session) ride along via credentials: 'include'.
+// Same-origin API client in dev (Vite proxies /api to the Fastify backend).
+// In production the backend lives on Railway, so Vercel bakes VITE_API_BASE_URL
+// into the bundle and every path below is resolved against it. Cookies
+// (takeover_session) ride along via credentials: 'include'.
+
+/**
+ * Phase 14a: production API base URL. Read lazily (per call, not at module
+ * load) so tests can stub the env per case. Unset or blank → '' (same-origin
+ * relative paths, exactly the pre-14a behavior). A trailing slash is stripped
+ * so `${base}/api/...` never gains a double slash.
+ */
+export function apiBaseUrl(): string {
+  const raw = import.meta.env.VITE_API_BASE_URL as string | undefined;
+  if (typeof raw !== 'string') {
+    return '';
+  }
+  const trimmed = raw.trim();
+  if (trimmed === '') {
+    return '';
+  }
+  return trimmed.replace(/\/+$/, '');
+}
 
 export interface ApiErrorEnvelope {
   error: { code: string; message: string };
@@ -44,7 +64,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   // while any cross-origin mutation attempt forces a CORS-gated preflight.
   const method = (init?.method ?? 'GET').toUpperCase();
   const mutating = method === 'POST' || method === 'PATCH' || method === 'PUT' || method === 'DELETE';
-  const res = await fetch(path, {
+  const res = await fetch(`${apiBaseUrl()}${path}`, {
     credentials: 'include',
     ...init,
     headers: {
