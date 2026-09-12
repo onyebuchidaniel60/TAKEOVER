@@ -71,7 +71,57 @@ Vercel frontend, Railway API
 
 **Phase 14a PARTIAL (2026-09-12) — backend live on Railway, frontend BLOCKED on a rejected
 Vercel token. Do NOT start Phase 14b (no reachable frontend) or Phase 14c. Resume: §8 of
-`docs/phase-14-deployment.md` (working Vercel token → link → env → deploy → CORS pass 2).**
+`docs/phase-14-deployment.md` (working Vercel token → link → env → deploy → CORS pass 2).
+Resume attempted 2026-09-12: the rotated token is rejected identically — see
+"Phase 14a resume attempt" below. Still blocked on human Vercel account/team diagnosis.**
+
+## Phase 14a resume attempt — stopped, Vercel token rejected again (2026-09-12)
+
+Resume of §8 stopped per the failure protocol at the first step: the rotated
+`VERCEL_TOKEN` in root `.env.txt` (present, 60 chars) is rejected identically to the
+Phase 14a token. No deployment variation attempted, no token inferred from any other
+source, no new Vercel project created, no code/config changed.
+
+Evidence (token values never printed, loaded from `.env.txt` into a shell var only):
+
+- `vercel.cmd project list --token $env:VERCEL_TOKEN` → `Error: User not found.`,
+  exit 1 (Vercel CLI 59.16.0; the failure exposes no team/account context).
+- Direct `GET https://api.vercel.com/v2/user` with the same bearer token → 404
+  `{"error":{"code":"not_found","message":"User not found."}}` — agrees with the CLI.
+- Live backend re-verified this session: `GET /health` → 200 `{"status":"ok"}`;
+  `GET /api/v1/slots?limit=1` → 200 with live rows. Railway pass 1 (empty
+  `CORS_ORIGINS`, fail-closed) untouched.
+- Fail-closed spot check: OPTIONS preflight with an unlisted Origin → 404 `NOT_FOUND`
+  envelope, no `Access-Control-Allow-Origin` echo — correct pass-1 behavior (the 404 comes
+  from `@fastify/cors` v11 calling `callNotFound()` when the origin callback returns
+  false; confirmed against the installed source). Allowlisted-origin echo remains
+  untestable without a Vercel URL.
+- Verification battery (code/config unchanged): `run typecheck` clean, exit 0;
+  `run lint` clean, exit 0; `run test` green — api 311 (27 files) + web 96 (11 files) +
+  shared 1, exit 0 (identical counts to Phase 14a); `run build` clean, exit 0.
+- Token-leak audit on the fresh `dist` (33 files, count-only): 0 token-prefix hits,
+  0 full-token hits, 0 `VITE_*TOKEN` names, 0 secret key names, 0 secret values.
+  Observation (no action taken — out of resume scope): the literal `payments-debug`
+  appears once in the CSS bundle because Tailwind scans `[takeover:payments-debug]`
+  (the debug log prefix in `apps/web/src/lib/debug-payments.ts:18`) as an
+  arbitrary-value class candidate and emits a dead rule. Zero hits in any JS chunk and
+  zero `VITE_DEBUG_PAYMENTS` hits, so the Phase 14a tree-shaking claim holds for code;
+  refining that claim to "zero in JS; one dead CSS rule" is a Phase 15-or-later nicety,
+  not a resume blocker. Locked decisions honored throughout: CSRF guard untouched,
+  no payment/auth/schema changes, no new dependencies, debug flag not enabled.
+
+```text
+CURRENT PHASE: Phase 14a still partial — backend live, frontend blocked (second Vercel token rejected)
+COMPLETED: resume evidence (CLI + direct-API rejection), backend liveness, fail-closed preflight spot check, full verification battery
+TESTS RUN: typecheck clean; lint clean; tests 311 api + 96 web + 1 shared pass; build clean; /health 200; /slots 200 live rows; preflight 404 + no ACAO (fail-closed); dist audit 0 secret hits
+RESULT: BLOCKED — awaiting human Vercel account/team diagnosis (resume docs/phase-14-deployment.md §8)
+KNOWN ISSUES: Vercel token rejected ("User not found", CLI + api.vercel.com agree); CORS pass 2 + Vercel smoke + allowlisted preflight pending behind it; railway.json deprecation (functional until 2026-12-01); dead takeover:payments-debug CSS rule (cosmetic, out of scope)
+SECURITY NOTES: tokens/secrets never printed or committed; guard NOT weakened; CORS still fail-closed (empty allowlist)
+FILES CHANGED: AI_HANDOFF.md (this checkpoint only)
+GIT COMMIT: chore: phase 14a resume — vercel token rejected again
+NEXT TASK: human diagnoses Vercel account/team ownership → finish 14a resume → Phase 14b round-trip (do NOT start automatically)
+BLOCKED BY: working Vercel token
+```
 
 ## Phase 14a implementation results — partial, blocked (2026-09-12)
 
