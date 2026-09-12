@@ -1,16 +1,24 @@
 # Phase 14a — Deployment and Nimiq Pay Preparation
 
-Date: 2026-09-12. Status: **PARTIAL — backend live, frontend blocked on a rejected Vercel token.**
+Date: 2026-09-12. Status: **FRONTEND DEPLOYED to Vercel; CORS pass 2 BLOCKED on Railway
+token scope (dashboard fallback documented in §8).**
 
 ## 1. Live endpoints
 
 - Backend (Railway, production): `https://takeover-api-production-1511.up.railway.app`
   - `GET /health` → 200 `{"status":"ok"}` (verified).
   - `GET /api/v1/slots?limit=1` → 200 with live DB rows (verified — DATABASE_URL is correct).
-- Frontend (Vercel): **not deployed.** The Vercel token in root `.env.txt` is rejected by
-  `api.vercel.com` (`{"error":{"code":"not_found",...}}`, "User not found"; also via
-  `vercel project list`). Per the failure protocol the Vercel path was stopped, not worked around.
-  Resume steps in §8.
+- Frontend (Vercel, production): `https://takeover-web-gamma.vercel.app` (production alias;
+  deployment `https://takeover-gnyxd4jmi-uhhh2.vercel.app`, READY 2026-09-12).
+  - Smoke: `GET /` → 200 TAKEOVER HTML; `/assets/*.js|css` → 200; `/favicon.svg` → 200.
+  - Bundle proof: deployed main chunk contains exactly one `takeover-api-production-1511`
+    hit inside `apiBaseUrl()` (`"https://takeover-api-production-1511.up.railway.app"`,
+    no trailing slash) — `VITE_API_BASE_URL` baked in from the Production env var.
+  - Project `uhhh2/takeover-web` is GitHub-connected (repo TAKEOVER, branch main) with
+    framework `vite`, Root Directory `apps/web`, default build/output commands.
+    CLI deploys MUST run from the repo root (see §8 lesson 2). The deployed JS chunk hash
+    differs from a local build exactly by the baked-in `VITE_API_BASE_URL` (expected);
+    the CSS hash is identical (`index-BBmUCMzo.css`).
 
 ## 2. Deploy method used
 
@@ -63,8 +71,11 @@ Verified via key-only listing (13 keys: the 6 above + 7 `RAILWAY_*`-injected). V
    `VITE_API_BASE_URL` (trailing slash stripped; unset/blank → identical same-origin behavior).
    No API contract, state machine, auth, or payment-logic change. Covered by
    `apps/web/test/deployment-config.test.ts` (13 tests).
-5. **Vercel deploy blocked** (see §1, resume in §8). Consequently there is no Vercel URL, no
-   `VITE_API_BASE_URL` value set anywhere yet, and Railway pass 2 (CORS) is pending.
+5. **Vercel deploy blocked in the first pass; completed in the second resume (see §9).**
+   The first-pass blockers were the rejected token (fixed by rotation) and the missing
+   pieces above (existing-project link, deploy-from-root, `.vercelignore`). Railway
+   pass 2 (CORS) is still pending, now blocked on Railway token scope (see §9.5) —
+   no longer on the Vercel URL.
 
 ## 5. Nimiq Pay framing research (Part 6)
 
@@ -143,3 +154,35 @@ Verified via key-only listing (13 keys: the 6 above + 7 `RAILWAY_*`-injected). V
    redeploy (`railway up --ci -p <id> -e production -s takeover-api`), run the OPTIONS preflight
    from Part 5c; on failure report headers verbatim and stop.
 5. Fill the `<vercel-url>` placeholder in `docs/phase-14-manual-test.md`, then run Phase 14b.
+
+## 9. Resume lessons learned 2026-09-12 (second resume — token worked)
+
+1. The token scope is `uhhh2`; a `takeover-web` project already existed there
+   (GitHub-connected, two dashboard deployments). `vercel link --yes` from `apps/web`
+   created a DUPLICATE project `web` instead of linking it — removed immediately via
+   `vercel remove web --yes` (zero deployments on it), then linked explicitly with
+   `vercel link --yes --project takeover-web`. Always pass `--project` when a project
+   already exists.
+2. `takeover-web` has Root Directory `apps/web` (correct for its git-connected flow).
+   A CLI deploy from `apps/web` uploads that dir as the deployment root, so the server
+   fails with `The specified Root Directory "apps/web" does not exist`. Fix: deploy from
+   the REPO ROOT (`vercel deploy . --prod --yes --project takeover-web`) — the payload
+   then contains `apps/web`, the server build matches the working git flow, and no
+   project setting changes. Do NOT clear Root Directory (it would break git deploys).
+3. The CLI does NOT honor `.gitignore` for uploads: `--dry` proved root `.env.txt`
+   (live secrets) plus all `dist/` output were in the 400-file payload. Fix: root
+   `.vercelignore` (committed) excludes `.env*` files and `dist/` (400 → 205 files).
+   Verify with `--dry` before every CLI deploy from root.
+4. One transient `Error: fetch failed` AFTER a full upload left no server-side deployment
+   (`vercel ls` showed only the old ones); retrying the identical command succeeded.
+5. **Railway token scope BLOCKER (CORS pass 2 pending):** the `RAILWAY_TOKEN` in root
+   `.env.txt` is rejected with `Unauthorized` on `variable list`, `variable set`,
+   `deployment list`, `logs`, and `whoami` (singular `variable` and plural `variables`
+   forms alike). It was able to `up` in the first 14a pass, but variable management is
+   outside its grants as it stands — so `CORS_ORIGINS` cannot be set from the CLI.
+   Dashboard fallback (human, 1 minute): Railway → `takeover-api` service → Variables →
+   add `CORS_ORIGINS=https://takeover-web-gamma.vercel.app` (exact alias, no trailing
+   slash, no wildcard) → the service redeploys automatically. Then re-run the preflight
+   from §5c against the Vercel origin (expect 204 + exact ACAO echo + credentials, no
+   wildcard) plus `/health` and `/api/v1/slots`. Pre-pass-2 state recorded 2026-09-12:
+   OPTIONS from the alias origin → 404 `NOT_FOUND`, no ACAO (fail-closed, correct).

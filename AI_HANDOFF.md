@@ -74,6 +74,61 @@ Vercel token. Do NOT start Phase 14b (no reachable frontend) or Phase 14c. Resum
 `docs/phase-14-deployment.md` (working Vercel token → link → env → deploy → CORS pass 2).
 Resume attempted 2026-09-12: the rotated token is rejected identically — see
 "Phase 14a resume attempt" below. Still blocked on human Vercel account/team diagnosis.**
+(Second resume 2026-09-12: a further-rotated token WORKED — frontend deployed, see
+"Phase 14a second resume" below. CORS pass 2 now blocked on Railway token scope.)
+
+## Phase 14a second resume — frontend DEPLOYED, CORS pass 2 blocked (2026-09-12)
+
+The re-sent resume prompt carried a further-rotated `VERCEL_TOKEN` that WORKS
+(scope `uhhh2`). §8 completed except CORS pass 2, which is blocked on Railway token
+scope (dashboard fallback documented). No product/auth/payment/schema changes, no new
+dependencies (except the `.vercelignore` upload filter — deployment config, not a code
+dependency), debug flag untouched, tokens stay in `.env.txt` per the Phase 15 rule.
+
+What happened (token/secret values never printed):
+
+- `vercel project list` → exit 0; pre-existing project `takeover-web`
+  (`https://takeover-web-gamma.vercel.app`, two dashboard deployments by
+  `onyebuchidaniel60-1034`). `vercel link --yes` created a DUPLICATE project `web` —
+  removed immediately (`vercel remove web --yes`, zero deployments on it), then linked
+  explicitly (`--project takeover-web`). Stray `apps/web/.gitignore` + `.env.local`
+  (OIDC only) deleted; `.vercel/` link dir kept (gitignored).
+- `vercel env ls` → empty, so the old production build had NO `VITE_API_BASE_URL`.
+  Added `VITE_API_BASE_URL=https://takeover-api-production-1511.up.railway.app`
+  (Production, no trailing slash; value piped via stdin).
+- First `deploy --prod` from `apps/web` failed (plus one transient `fetch failed` with
+  no server-side deployment left behind): `The specified Root Directory "apps/web" does
+  not exist` — the project's git-flow Root Directory conflicts with an `apps/web`
+  payload. Fixed by deploying from the REPO ROOT (payload contains `apps/web`; no
+  project setting touched, git flow preserved).
+- `--dry` caught a REAL secret leak before it happened: the CLI ignores `.gitignore`,
+  so root `.env.txt` + all `dist/` were in the 400-file payload. New committed root
+  `.vercelignore` excludes `.env*`, `dist/`, logs (400 → 205 files, `.env.txt` gone).
+- Deploy `dpl_GqSP4HNpDY1LiqFFSNMJ6F2c13se` → READY, production alias
+  `https://takeover-web-gamma.vercel.app`. Smoke: `GET /` → 200 TAKEOVER HTML;
+  both assets → 200; favicon → 200. Bundle proof: deployed chunk has exactly one
+  Railway-host hit inside `apiBaseUrl()`, zero token-name hits.
+- CORS pass 2 BLOCKED: `RAILWAY_TOKEN` → `Unauthorized` on `variable list/set`,
+  `deployment list`, `logs`, `whoami`. `CORS_ORIGINS` still empty (fail-closed);
+  preflight from the alias origin → 404 + no ACAO (correct before-state).
+  Human fallback: set `CORS_ORIGINS=https://takeover-web-gamma.vercel.app` in the
+  Railway dashboard (auto-redeploys), then re-run the allowlisted preflight check.
+- Battery: typecheck clean; lint clean; tests 311 api + 96 web + 1 shared pass;
+  build clean; fresh-dist leak audit 0 hits across the board.
+- `docs/phase-14-manual-test.md` placeholder filled with the production alias.
+
+```text
+CURRENT PHASE: Phase 14a nearly complete — frontend live, CORS pass 2 pending (Railway token scope)
+COMPLETED: Vercel deploy + smoke + bundle proof + .vercelignore + manual-test URL + full battery
+TESTS RUN: typecheck clean; lint clean; tests 311 api + 96 web + 1 shared pass; build clean; alias / → 200 + assets 200; deployed chunk 1 Railway-host hit / 0 token hits; preflight 404 + no ACAO (fail-closed before-state); dist audit 0 hits
+RESULT: partial — human sets CORS_ORIGINS in Railway dashboard (or grants variable scope), then allowlisted-preflight re-check
+KNOWN ISSUES: Railway CLI token Unauthorized for variable/log/deployment reads (up-scope from first pass untested, redeploy pointless without the var); railway.json deprecation (until 2026-12-01); dead takeover:payments-debug CSS rule (cosmetic)
+SECURITY NOTES: .env.txt nearly uploaded via CLI (caught by --dry, fixed by .vercelignore); tokens/secrets never printed or committed; CSRF guard untouched; CORS still fail-closed
+FILES CHANGED: .vercelignore (new), docs/phase-14-deployment.md (§1/§4/§9), docs/phase-14-manual-test.md (URL placeholder), AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: feat: deploy frontend to Vercel and harden CLI upload filter
+NEXT TASK: human sets CORS_ORIGINS → allowlisted preflight re-check → Phase 14b round-trip (do NOT start automatically)
+BLOCKED BY: Railway variable scope (dashboard fallback ready)
+```
 
 ## Phase 14a resume attempt — stopped, Vercel token rejected again (2026-09-12)
 

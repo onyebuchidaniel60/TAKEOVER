@@ -5,7 +5,7 @@ Vercel URL and the backend allows it in `CORS_ORIGINS`. This script uses mainnet
 testnet payments will NOT verify (backend checks mainnet RPC). All quoted copy below is the
 actual app copy as of Phase 14a; if the app shows anything else, stop and record it verbatim.
 
-- Vercel URL: `<vercel-url>` (fill in after the Vercel deploy)
+- Vercel URL: `https://takeover-web-gamma.vercel.app` (production alias, deployed 2026-09-12)
 - Backend: `https://takeover-api-production-1511.up.railway.app`
 - Price under test: 1 NIM. Each wallet needs > 1 NIM plus a little extra for fees.
 
@@ -18,7 +18,7 @@ before, accept and continue.
 
 ## Round-trip
 
-1. On device A, open the TAKEOVER Mini App via the Custom URL field above (`<vercel-url>`).
+1. On device A, open the TAKEOVER Mini App via the Custom URL field above (`https://takeover-web-gamma.vercel.app`).
 2. In the top bar press **Connect Wallet** and approve Wallet A in the native dialog.
 3. Open **/profile** (top bar). Confirm it shows Wallet A's truncated address with tap-to-copy.
 4. Go to **/sell/new**. Fill every field:

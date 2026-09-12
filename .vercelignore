@@ -1,0 +1,21 @@
+# TAKEOVER — Vercel CLI upload filter.
+# `vercel deploy` from the repo root uploads the working tree; the server then
+# builds inside apps/web (project Root Directory). This file keeps secrets and
+# rebuildable output out of the upload. Git-based deploys are unaffected
+# (.env.txt is untracked and never reaches the repo).
+#
+# Secrets — never upload. Root .env.txt holds DATABASE_URL, API tokens and
+# admin wallets for local/CI use only.
+.env.txt
+.env
+.env.local
+.env.*.local
+
+# Build outputs — the server rebuilds from source.
+dist/
+*.tsbuildinfo
+
+# Local-only artifacts.
+coverage/
+*.log
+npm-debug.log*
