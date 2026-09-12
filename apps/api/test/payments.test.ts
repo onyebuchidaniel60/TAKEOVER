@@ -28,6 +28,11 @@ describe.skipIf(!isDatabaseConfigured())('payment intents and submission (live)'
 
   const tag = randomUUID().slice(0, 8);
   const wallets: string[] = [];
+
+  // Phase 12 completion (F4): the CSRF guard requires an allowlisted Origin
+  // and the client header on every credentialed mutation. The test allowlist
+  // is the dev default (CORS_ORIGINS unset here).
+  const CSRF = { origin: 'http://localhost:5173', 'x-takeover-client': 'web' };
   const slotIds: string[] = [];
   const HOUR = 3_600_000;
 
@@ -118,7 +123,7 @@ describe.skipIf(!isDatabaseConfigured())('payment intents and submission (live)'
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${slotId}/claims`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: {},
     });
     expect(res.statusCode).toBe(200);
@@ -129,7 +134,7 @@ describe.skipIf(!isDatabaseConfigured())('payment intents and submission (live)'
     return app.inject({
       method: 'POST',
       url: `/api/v1/claims/${claimId}/payment-intent`,
-      ...(cookie ? { headers: { cookie } } : {}),
+      ...(cookie ? { headers: { cookie, ...CSRF } } : {}),
       payload: {},
     });
   }
@@ -142,7 +147,7 @@ describe.skipIf(!isDatabaseConfigured())('payment intents and submission (live)'
     return app.inject({
       method: 'POST',
       url: `/api/v1/claims/${claimId}/payment-submission`,
-      ...(cookie ? { headers: { cookie } } : {}),
+      ...(cookie ? { headers: { cookie, ...CSRF } } : {}),
       payload: body,
     });
   }

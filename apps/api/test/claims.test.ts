@@ -32,6 +32,11 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
   const slotIds: string[] = [];
   const HOUR = 3_600_000;
 
+  // Phase 12 completion (F4): the CSRF guard requires an allowlisted Origin
+  // and the client header on every credentialed mutation. The test allowlist
+  // is the dev default (CORS_ORIGINS unset here).
+  const CSRF = { origin: 'http://localhost:5173', 'x-takeover-client': 'web' };
+
   function randomWallet(): string {
     const publicKey = new Uint8Array(32).map(() => Math.floor(Math.random() * 256));
     const wallet = deriveNimiqAddress(publicKey);
@@ -115,7 +120,7 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     return app.inject({
       method: 'POST',
       url: `/api/v1/slots/${slotId}/claims`,
-      ...(cookie ? { headers: { cookie } } : {}),
+      ...(cookie ? { headers: { cookie, ...CSRF } } : {}),
       payload: {},
     });
   }
@@ -315,7 +320,7 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     const slotId = await makeSlot({});
     const created = await postClaim(cookie, slotId);
     const claimId = (created.json() as { data: { claim: { id: string } } }).data.claim.id;
-    const res = await app.inject({ method: 'GET', url: `/api/v1/claims/${claimId}`, headers: { cookie } });
+    const res = await app.inject({ method: 'GET', url: `/api/v1/claims/${claimId}`, headers: { cookie, ...CSRF } });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
       data: { claim: Record<string, unknown>; slot: Record<string, unknown> };
@@ -332,7 +337,7 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     const created = await postClaim(cookieA, slotId);
     const claimId = (created.json() as { data: { claim: { id: string } } }).data.claim.id;
     const cookieB = await loginAs(randomWallet());
-    const res = await app.inject({ method: 'GET', url: `/api/v1/claims/${claimId}`, headers: { cookie: cookieB } });
+    const res = await app.inject({ method: 'GET', url: `/api/v1/claims/${claimId}`, headers: { cookie: cookieB, ...CSRF } });
     expect(res.statusCode).toBe(404);
     expect((res.json() as { error: { code: string } }).error.code).toBe('CLAIM_NOT_FOUND');
   });
@@ -349,7 +354,7 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     const slotB = await makeSlot({ title: `P6 ${tag} beta` });
     await postClaim(cookieA, slotA);
     await postClaim(cookieB, slotB);
-    const resA = await app.inject({ method: 'GET', url: '/api/v1/me/claims', headers: { cookie: cookieA } });
+    const resA = await app.inject({ method: 'GET', url: '/api/v1/me/claims', headers: { cookie: cookieA, ...CSRF } });
     expect(resA.statusCode).toBe(200);
     const bodyA = resA.json() as {
       data: { claims: { slot_id: string; status: string }[]; total: number; limit: number; offset: number };
@@ -361,7 +366,7 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     const filtered = await app.inject({
       method: 'GET',
       url: '/api/v1/me/claims?status=active_hold',
-      headers: { cookie: cookieA },
+      headers: { cookie: cookieA, ...CSRF },
     });
     expect(filtered.statusCode).toBe(200);
     for (const claim of (filtered.json() as { data: { claims: { status: string }[] } }).data.claims) {

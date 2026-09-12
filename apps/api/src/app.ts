@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { sessionMiddleware } from './auth/session';
 import { parseCorsOrigins } from './env';
 import { AppError, errorBody } from './http/errors';
+import { createCsrfGuard } from './http/csrf';
 import { authRoutes, type AuthRouteOptions } from './routes/auth';
 import { adminRoutes, type AdminRouteOptions } from './routes/admin';
 import { claimRoutes, type ClaimRouteOptions } from './routes/claims';
@@ -62,10 +63,14 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
   // Infrastructure health: plain shape, no DB, no session work.
   app.get('/health', async () => ({ status: 'ok' }));
 
-  // Versioned API: enveloped JSON, session resolution, auth + slot + claim + payment routes.
+  // Versioned API: enveloped JSON, session resolution, CSRF guard for
+  // credentialed mutations, then auth + slot + claim + payment routes.
+  // The CSRF preHandler runs before every route-level preHandler (rate
+  // limiters): rejected cross-site mutations never consume rate budget.
   void app.register(
     async (api) => {
       api.addHook('onRequest', sessionMiddleware);
+      api.addHook('preHandler', createCsrfGuard(corsAllowlist));
       await api.register(authRoutes, opts);
       await api.register(slotRoutes, opts);
       await api.register(claimRoutes, opts);

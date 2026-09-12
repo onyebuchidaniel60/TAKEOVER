@@ -32,6 +32,11 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
 
   const tag = randomUUID().slice(0, 8);
   const wallets: string[] = [];
+
+  // Phase 12 completion (F4): the CSRF guard requires an allowlisted Origin
+  // and the client header on every credentialed mutation. The test allowlist
+  // is the dev default (CORS_ORIGINS unset here).
+  const CSRF = { origin: 'http://localhost:5173', 'x-takeover-client': 'web' };
   const slotIds: string[] = [];
   const HOUR = 3_600_000;
 
@@ -113,7 +118,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${slotId}/claims`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: {},
     });
     expect(res.statusCode).toBe(200);
@@ -124,7 +129,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     const intent = await app.inject({
       method: 'POST',
       url: `/api/v1/claims/${claimId}/payment-intent`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: {},
     });
     expect(intent.statusCode).toBe(200);
@@ -132,7 +137,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     const submission = await app.inject({
       method: 'POST',
       url: `/api/v1/claims/${claimId}/payment-submission`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { txHash: hash },
     });
     expect(submission.statusCode).toBe(200);
@@ -199,7 +204,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/v1/me/slots/${slotId}/claims`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
@@ -250,7 +255,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/v1/me/slots/${slotId}/claims`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
@@ -283,7 +288,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/v1/me/slots/${slotId}/claims`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
     });
     expect(res.statusCode).toBe(200);
     const payload = JSON.stringify(res.json());
@@ -316,7 +321,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     const foreign = await app.inject({
       method: 'GET',
       url: `/api/v1/me/slots/${slotId}/claims`,
-      headers: { cookie: stranger },
+      headers: { cookie: stranger, ...CSRF },
     });
     expect(foreign.statusCode).toBe(404);
     const anon = await app.inject({ method: 'GET', url: `/api/v1/me/slots/${slotId}/claims` });
@@ -329,13 +334,13 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     const res = await app.inject({
       method: 'PATCH',
       url: '/api/v1/me/provider-profile',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { display_name: 'Sunrise Yoga' },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: { providerProfile: { displayName: string } } };
     expect(body.data.providerProfile).toEqual({ displayName: 'Sunrise Yoga' });
-    const me = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie } });
+    const me = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie, ...CSRF } });
     expect(me.statusCode).toBe(200);
     const meBody = me.json() as {
       data: { user: { hasProviderProfile: boolean; providerProfile: { displayName: string } | null } };
@@ -350,14 +355,14 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     const first = await app.inject({
       method: 'PATCH',
       url: '/api/v1/me/provider-profile',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { display_name: 'First Name' },
     });
     expect(first.statusCode).toBe(200);
     const second = await app.inject({
       method: 'PATCH',
       url: '/api/v1/me/provider-profile',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { display_name: 'Second Name' },
     });
     expect(second.statusCode).toBe(200);
@@ -367,7 +372,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     const repeat = await app.inject({
       method: 'PATCH',
       url: '/api/v1/me/provider-profile',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { display_name: 'Second Name' },
     });
     expect(repeat.statusCode).toBe(200);
@@ -383,7 +388,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
       const res = await app.inject({
         method: 'PATCH',
         url: '/api/v1/me/provider-profile',
-        headers: { cookie },
+        headers: { cookie, ...CSRF },
         payload: { display_name: displayName },
       });
       expect(res.statusCode).toBe(400);
@@ -394,7 +399,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
   it('returns providerProfile null when absent', { timeout: 30_000 }, async () => {
     const wallet = randomWallet();
     const cookie = await loginAs(wallet);
-    const me = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie } });
+    const me = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie, ...CSRF } });
     expect(me.statusCode).toBe(200);
     const body = me.json() as {
       data: { user: { hasProviderProfile: boolean; providerProfile: null } };
@@ -409,7 +414,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     await app.inject({
       method: 'PATCH',
       url: '/api/v1/me/provider-profile',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { display_name: 'Café Corner' },
     });
     const db = getDb();
@@ -475,7 +480,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     await app.inject({
       method: 'PATCH',
       url: '/api/v1/me/provider-profile',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { display_name: 'Owner Name' },
     });
     const db = getDb();
@@ -502,7 +507,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/v1/slots/${slotId}`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: { slot: Record<string, unknown> } };

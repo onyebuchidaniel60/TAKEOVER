@@ -55,6 +55,11 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
 
   const tag = randomUUID().slice(0, 8);
   const wallets: string[] = [];
+
+  // Phase 12 completion (F4): the CSRF guard requires an allowlisted Origin
+  // and the client header on every credentialed mutation. The test allowlist
+  // is the dev default (CORS_ORIGINS unset here).
+  const CSRF = { origin: 'http://localhost:5173', 'x-takeover-client': 'web' };
   const slotIds: string[] = [];
   const HOUR = 3_600_000;
 
@@ -161,7 +166,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${slotId}/claims`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: {},
     });
     expect(res.statusCode).toBe(200);
@@ -172,7 +177,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const intent = await app.inject({
       method: 'POST',
       url: `/api/v1/claims/${claimId}/payment-intent`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: {},
     });
     expect(intent.statusCode).toBe(200);
@@ -180,7 +185,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const submission = await app.inject({
       method: 'POST',
       url: `/api/v1/claims/${claimId}/payment-submission`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { txHash },
     });
     expect(submission.statusCode).toBe(200);
@@ -238,7 +243,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/reports',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { slotId, reason: 'misleading_listing' },
     });
     expect(res.statusCode).toBe(201);
@@ -270,7 +275,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/api/v1/reports',
-        headers: { cookie },
+        headers: { cookie, ...CSRF },
         payload: { slotId, reason: 'prohibited_content', details: `report ${i}` },
       });
       expect(res.statusCode).toBe(201);
@@ -278,7 +283,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const blocked = await app.inject({
       method: 'POST',
       url: '/api/v1/reports',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { slotId, reason: 'prohibited_content' },
     });
     expect(blocked.statusCode).toBe(429);
@@ -292,28 +297,28 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const selfTarget = await app.inject({
       method: 'POST',
       url: '/api/v1/reports',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { targetUserId: ownId, reason: 'payment_issue' },
     });
     expect(selfTarget.statusCode).toBe(400);
     const noTarget = await app.inject({
       method: 'POST',
       url: '/api/v1/reports',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { reason: 'payment_issue' },
     });
     expect(noTarget.statusCode).toBe(400);
     const missing = await app.inject({
       method: 'POST',
       url: '/api/v1/reports',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { slotId: randomUUID(), reason: 'payment_issue' },
     });
     expect(missing.statusCode).toBe(404);
     const missingUser = await app.inject({
       method: 'POST',
       url: '/api/v1/reports',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { targetUserId: randomUUID(), reason: 'payment_issue' },
     });
     expect(missingUser.statusCode).toBe(404);
@@ -328,7 +333,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const denied = await app.inject({
       method: 'GET',
       url: '/api/v1/admin/reports',
-      headers: { cookie: userCookie },
+      headers: { cookie: userCookie, ...CSRF },
     });
     expect(denied.statusCode).toBe(403);
     expect((denied.json() as { error: { code: string } }).error.code).toBe('FORBIDDEN');
@@ -336,7 +341,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const ok = await app.inject({
       method: 'GET',
       url: '/api/v1/admin/reports',
-      headers: { cookie: admin.cookie },
+      headers: { cookie: admin.cookie, ...CSRF },
     });
     expect(ok.statusCode).toBe(200);
     const body = ok.json() as {
@@ -353,7 +358,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/api/v1/reports',
-      headers: { cookie: reporterCookie },
+      headers: { cookie: reporterCookie, ...CSRF },
       payload: { slotId, reason: 'unauthorized_listing' },
     });
     expect(created.statusCode).toBe(201);
@@ -362,7 +367,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const resolved = await app.inject({
       method: 'POST',
       url: `/api/v1/admin/reports/${reportId}/resolve`,
-      headers: { cookie: admin.cookie },
+      headers: { cookie: admin.cookie, ...CSRF },
       payload: { action: 'reviewed', resolutionNotes: 'Looked into it, valid listing.' },
     });
     expect(resolved.statusCode).toBe(200);
@@ -403,7 +408,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const verified = await app.inject({
       method: 'POST',
       url: `/api/v1/claims/${paidId}/verify-payment`,
-      headers: { cookie: paidCookie },
+      headers: { cookie: paidCookie, ...CSRF },
       payload: {},
     });
     expect(verified.statusCode).toBe(200);
@@ -412,7 +417,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/admin/slots/${slotId}/disable`,
-      headers: { cookie: admin.cookie },
+      headers: { cookie: admin.cookie, ...CSRF },
       payload: { reason: 'Confirmed policy violation on this listing.' },
     });
     expect(res.statusCode).toBe(200);
@@ -441,7 +446,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/admin/slots/${slotId}/disable`,
-      headers: { cookie: admin.cookie },
+      headers: { cookie: admin.cookie, ...CSRF },
       payload: { reason: 'Second attempt at disabling.' },
     });
     expect(res.statusCode).toBe(409);
@@ -458,7 +463,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/admin/users/${victimId}/disable`,
-      headers: { cookie: admin.cookie },
+      headers: { cookie: admin.cookie, ...CSRF },
       payload: { reason: 'Repeated abuse after warnings.' },
     });
     expect(res.statusCode).toBe(200);
@@ -473,7 +478,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const next = await app.inject({
       method: 'GET',
       url: '/api/v1/me',
-      headers: { cookie: victimCookie },
+      headers: { cookie: victimCookie, ...CSRF },
     });
     expect(next.statusCode).toBe(401);
     expect((next.json() as { error: { code: string } }).error.code).toBe('ACCOUNT_DISABLED');
@@ -486,7 +491,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/admin/users/${admin.userId}/disable`,
-      headers: { cookie: admin.cookie },
+      headers: { cookie: admin.cookie, ...CSRF },
       payload: { reason: 'Trying to disable myself here.' },
     });
     expect(res.statusCode).toBe(409);
@@ -509,7 +514,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/admin/payment-reviews',
-      headers: { cookie: admin.cookie },
+      headers: { cookie: admin.cookie, ...CSRF },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
@@ -543,7 +548,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/admin/payment-reviews/${claimId}/resolve`,
-      headers: { cookie: admin.cookie },
+      headers: { cookie: admin.cookie, ...CSRF },
       payload: { action: 'reject', resolutionNotes: 'No matching on-chain payment found.' },
     });
     expect(res.statusCode).toBe(200);
@@ -571,7 +576,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/admin/payment-reviews/${claimId}/resolve`,
-      headers: { cookie: admin.cookie },
+      headers: { cookie: admin.cookie, ...CSRF },
       payload: { action: 'confirm_paid', resolutionNotes: 'Operator confirmed funds arrived off-band.' },
     });
     expect(res.statusCode).toBe(200);
@@ -589,7 +594,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/admin/payment-reviews/${claimId}/resolve`,
-      headers: { cookie: admin.cookie },
+      headers: { cookie: admin.cookie, ...CSRF },
       payload: { action: 'reject', resolutionNotes: 'Trying to resolve a live hold.' },
     });
     expect(res.statusCode).toBe(409);
@@ -641,7 +646,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${id}/publish`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: {},
     });
     expect(res.statusCode).toBe(200);
@@ -674,7 +679,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${id}/cancel`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: {},
     });
     expect(res.statusCode).toBe(200);
@@ -689,7 +694,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${slotId}/claims`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: {},
     });
     expect(res.statusCode).toBe(200);
@@ -728,7 +733,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/claims/${claimId}/verify-payment`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: {},
     });
     expect(res.statusCode).toBe(200);
@@ -755,7 +760,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/claims/${claimId}/verify-payment`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: {},
     });
     expect(res.statusCode).toBe(200);
@@ -795,7 +800,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const first = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${slotId}/claims`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: {},
     });
     expect(first.statusCode).toBe(200);
@@ -803,7 +808,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const second = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${slotId}/claims`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: {},
     });
     expect(second.statusCode).toBe(200);
@@ -813,7 +818,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const resubmit = await app.inject({
       method: 'POST',
       url: `/api/v1/claims/${claimId}/payment-submission`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { txHash: hash },
     });
     expect(resubmit.statusCode).toBe(200);
@@ -830,13 +835,13 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const denied = await app.inject({
       method: 'GET',
       url: '/api/v1/admin/audit-events',
-      headers: { cookie: userCookie },
+      headers: { cookie: userCookie, ...CSRF },
     });
     expect(denied.statusCode).toBe(403);
     const ok = await app.inject({
       method: 'GET',
       url: '/api/v1/admin/audit-events?limit=5',
-      headers: { cookie: admin.cookie },
+      headers: { cookie: admin.cookie, ...CSRF },
     });
     expect(ok.statusCode).toBe(200);
     const body = ok.json() as {
@@ -861,7 +866,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const filtered = await app.inject({
       method: 'GET',
       url: '/api/v1/admin/audit-events?eventType=user.created&limit=5',
-      headers: { cookie: admin.cookie },
+      headers: { cookie: admin.cookie, ...CSRF },
     });
     expect(filtered.statusCode).toBe(200);
     const filteredBody = filtered.json() as { data: { events: Record<string, unknown>[] } };

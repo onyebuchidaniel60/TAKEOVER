@@ -63,6 +63,11 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 concurrency attacks (live)', 
   const slotIds: string[] = [];
   const HOUR = 3_600_000;
 
+  // Phase 12 completion (F4): the CSRF guard requires an allowlisted Origin
+  // and the client header on every credentialed mutation. The test allowlist
+  // is the dev default (CORS_ORIGINS unset here).
+  const CSRF = { origin: 'http://localhost:5173', 'x-takeover-client': 'web' };
+
   function randomWallet(): string {
     const publicKey = new Uint8Array(32).map(() => Math.floor(Math.random() * 256));
     const wallet = deriveNimiqAddress(publicKey);
@@ -202,8 +207,8 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 concurrency attacks (live)', 
     const buyerCookie = await loginAs(randomWallet());
     const { cookie: adminCookie } = await loginAdmin();
     const [claimRes, disableRes] = await Promise.all([
-      app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/claims`, headers: { cookie: buyerCookie }, payload: {} }),
-      app.inject({ method: 'POST', url: `/api/v1/admin/slots/${slotId}/disable`, headers: { cookie: adminCookie }, payload: { reason: 'concurrency probe' } }),
+      app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/claims`, headers: { cookie: buyerCookie, ...CSRF }, payload: {} }),
+      app.inject({ method: 'POST', url: `/api/v1/admin/slots/${slotId}/disable`, headers: { cookie: adminCookie, ...CSRF }, payload: { reason: 'concurrency probe' } }),
     ]);
     expect([200, 409]).toContain(claimRes.statusCode);
     expect([200, 409]).toContain(disableRes.statusCode);
@@ -234,13 +239,13 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 concurrency attacks (live)', 
   it('verify-payment during admin slot disable: no double transition, inventory coherent', async () => {
     const slotId = await makeSlot(2);
     const buyerCookie = await loginAs(randomWallet());
-    const claimRes = await app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/claims`, headers: { cookie: buyerCookie }, payload: {} });
+    const claimRes = await app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/claims`, headers: { cookie: buyerCookie, ...CSRF }, payload: {} });
     expect(claimRes.statusCode).toBe(200);
     const claimId = (claimRes.json() as { data: { claim: { id: string } } }).data.claim.id;
-    const intentRes = await app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/payment-intent`, headers: { cookie: buyerCookie }, payload: {} });
+    const intentRes = await app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/payment-intent`, headers: { cookie: buyerCookie, ...CSRF }, payload: {} });
     expect(intentRes.statusCode).toBe(200);
     const hash = freshHash();
-    const submitRes = await app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/payment-submission`, headers: { cookie: buyerCookie }, payload: { txHash: hash } });
+    const submitRes = await app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/payment-submission`, headers: { cookie: buyerCookie, ...CSRF }, payload: { txHash: hash } });
     expect(submitRes.statusCode).toBe(200);
     const db = getDb();
     const intentRows = await db.select().from(paymentIntents).where(eq(paymentIntents.claimId, claimId)).limit(1);
@@ -259,8 +264,8 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 concurrency attacks (live)', 
     try {
       const { cookie: adminCookie } = await loginAdmin();
       const [verifyRes, disableRes] = await Promise.all([
-        app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/verify-payment`, headers: { cookie: buyerCookie }, payload: {} }),
-        app.inject({ method: 'POST', url: `/api/v1/admin/slots/${slotId}/disable`, headers: { cookie: adminCookie }, payload: { reason: 'concurrency probe' } }),
+        app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/verify-payment`, headers: { cookie: buyerCookie, ...CSRF }, payload: {} }),
+        app.inject({ method: 'POST', url: `/api/v1/admin/slots/${slotId}/disable`, headers: { cookie: adminCookie, ...CSRF }, payload: { reason: 'concurrency probe' } }),
       ]);
       expect(verifyRes.statusCode).toBe(200);
       expect(disableRes.statusCode).toBe(200);
@@ -285,11 +290,11 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 concurrency attacks (live)', 
   it('verify-payment during admin payment-review resolution: single terminal state', async () => {
     const slotId = await makeSlot(2);
     const buyerCookie = await loginAs(randomWallet());
-    const claimRes = await app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/claims`, headers: { cookie: buyerCookie }, payload: {} });
+    const claimRes = await app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/claims`, headers: { cookie: buyerCookie, ...CSRF }, payload: {} });
     const claimId = (claimRes.json() as { data: { claim: { id: string } } }).data.claim.id;
-    await app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/payment-intent`, headers: { cookie: buyerCookie }, payload: {} });
+    await app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/payment-intent`, headers: { cookie: buyerCookie, ...CSRF }, payload: {} });
     const hash = freshHash();
-    await app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/payment-submission`, headers: { cookie: buyerCookie }, payload: { txHash: hash } });
+    await app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/payment-submission`, headers: { cookie: buyerCookie, ...CSRF }, payload: { txHash: hash } });
     const db = getDb();
     const intentRows = await db.select().from(paymentIntents).where(eq(paymentIntents.claimId, claimId)).limit(1);
     const intent = intentRows[0];
@@ -305,14 +310,14 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 concurrency attacks (live)', 
       blockNumber: 1_999_990,
     });
     try {
-      const reviewRes = await app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/verify-payment`, headers: { cookie: buyerCookie }, payload: {} });
+      const reviewRes = await app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/verify-payment`, headers: { cookie: buyerCookie, ...CSRF }, payload: {} });
       expect(reviewRes.statusCode).toBe(200);
       expect((reviewRes.json() as { data: { verification: { status: string } } }).data.verification.status).toBe('review');
       const { cookie: adminCookie } = await loginAdmin();
       const [resolveRes, ...verifyRess] = await Promise.all([
-        app.inject({ method: 'POST', url: `/api/v1/admin/payment-reviews/${claimId}/resolve`, headers: { cookie: adminCookie }, payload: { action: 'confirm_paid', resolutionNotes: 'override confirmed here' } }),
-        app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/verify-payment`, headers: { cookie: buyerCookie }, payload: {} }),
-        app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/verify-payment`, headers: { cookie: buyerCookie }, payload: {} }),
+        app.inject({ method: 'POST', url: `/api/v1/admin/payment-reviews/${claimId}/resolve`, headers: { cookie: adminCookie, ...CSRF }, payload: { action: 'confirm_paid', resolutionNotes: 'override confirmed here' } }),
+        app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/verify-payment`, headers: { cookie: buyerCookie, ...CSRF }, payload: {} }),
+        app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/verify-payment`, headers: { cookie: buyerCookie, ...CSRF }, payload: {} }),
       ]);
       expect(resolveRes.statusCode).toBe(200);
       // Race-noop semantics: a verify landing before the resolution sees
@@ -324,7 +329,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 concurrency attacks (live)', 
         expect(['review', 'verified']).toContain(seen);
       }
       // A second resolution must fail closed: the claim already left review.
-      const again = await app.inject({ method: 'POST', url: `/api/v1/admin/payment-reviews/${claimId}/resolve`, headers: { cookie: adminCookie }, payload: { action: 'reject', resolutionNotes: 'second attempt here' } });
+      const again = await app.inject({ method: 'POST', url: `/api/v1/admin/payment-reviews/${claimId}/resolve`, headers: { cookie: adminCookie, ...CSRF }, payload: { action: 'reject', resolutionNotes: 'second attempt here' } });
       expect(again.statusCode).toBe(409);
       expect((again.json() as { error: { code: string } }).error.code).toBe('CLAIM_NOT_IN_REVIEW');
       const claim = await readClaim(claimId);
@@ -341,15 +346,15 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 concurrency attacks (live)', 
   it('payment submission during hold expiry: no lost hash, no double restore', async () => {
     const slotId = await makeSlot(2);
     const buyerCookie = await loginAs(randomWallet());
-    const claimRes = await app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/claims`, headers: { cookie: buyerCookie }, payload: {} });
+    const claimRes = await app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/claims`, headers: { cookie: buyerCookie, ...CSRF }, payload: {} });
     expect(claimRes.statusCode).toBe(200);
     const claimId = (claimRes.json() as { data: { claim: { id: string } } }).data.claim.id;
-    expect((await app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/payment-intent`, headers: { cookie: buyerCookie }, payload: {} })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/payment-intent`, headers: { cookie: buyerCookie, ...CSRF }, payload: {} })).statusCode).toBe(200);
     const db = getDb();
     await db.update(claims).set({ holdExpiresAt: new Date(Date.now() - 1000) }).where(eq(claims.id, claimId));
     const hash = freshHash();
     const [submitRes, sweepRes] = await Promise.all([
-      app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/payment-submission`, headers: { cookie: buyerCookie }, payload: { txHash: hash } }),
+      app.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/payment-submission`, headers: { cookie: buyerCookie, ...CSRF }, payload: { txHash: hash } }),
       app.inject({ method: 'GET', url: `/api/v1/slots/${slotId}` }),
     ]);
     expect(sweepRes.statusCode).toBe(200);
@@ -365,7 +370,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 concurrency attacks (live)', 
     }
     // Repeated sweeps never restore twice: quantity stays capped at total.
     await app.inject({ method: 'GET', url: `/api/v1/slots/${slotId}` });
-    await app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/claims`, headers: { cookie: await loginAs(randomWallet()) }, payload: {} });
+    await app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/claims`, headers: { cookie: await loginAs(randomWallet()), ...CSRF }, payload: {} });
     const slot = await readSlot(slotId);
     expect(slot.availableQuantity).toBeLessThanOrEqual(slot.totalQuantity);
     expect(slot.availableQuantity).toBeGreaterThanOrEqual(0);
@@ -378,8 +383,8 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 concurrency attacks (live)', 
     const buyerId = await userIdFor(buyerWallet);
     const { cookie: adminCookie } = await loginAdmin();
     const [claimRes, disableRes] = await Promise.all([
-      app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/claims`, headers: { cookie: buyerCookie }, payload: {} }),
-      app.inject({ method: 'POST', url: `/api/v1/admin/users/${buyerId}/disable`, headers: { cookie: adminCookie }, payload: { reason: 'concurrency probe' } }),
+      app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/claims`, headers: { cookie: buyerCookie, ...CSRF }, payload: {} }),
+      app.inject({ method: 'POST', url: `/api/v1/admin/users/${buyerId}/disable`, headers: { cookie: adminCookie, ...CSRF }, payload: { reason: 'concurrency probe' } }),
     ]);
     expect(disableRes.statusCode).toBe(200);
     expect([200, 401]).toContain(claimRes.statusCode);
@@ -397,7 +402,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 concurrency attacks (live)', 
       expect(slot.availableQuantity).toBe(slot.totalQuantity);
     }
     // Either way the account stays disabled afterwards.
-    const me = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie: buyerCookie } });
+    const me = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie: buyerCookie, ...CSRF } });
     expect(me.statusCode).toBe(401);
     expect((me.json() as { error: { code: string } }).error.code).toBe('ACCOUNT_DISABLED');
   }, 30000);

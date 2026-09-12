@@ -69,7 +69,120 @@ Vercel frontend, Railway API
 
 ## Current phase
 
-**Phase 12 complete — security pass done (2026-09-12). Next: Phase 13 — Full test and release candidate (NOT started, awaiting explicit instruction).**
+**Phase 12 completion — F2 and F4 resolutions done (2026-09-12). This was a completion task, NOT a new phase: nothing added to IMPLEMENTATION_PLAN.md, nothing renumbered. Next: Phase 13 — Full test and release candidate (NOT started, awaiting explicit instruction).**
+
+## Phase 12 completion — F2 and F4 resolutions (2026-09-12)
+
+Both Phase 12 escalations resolved per the owner brief. No new features, no
+architecture change beyond the two listed updates, no payment-predicate
+change, no refunds/fund movement/provider verification. Phase 13 NOT
+started. No conflict with PROJECT_SPEC.md (no endpoint/shape change for
+compliant clients; FR flows via the web app send both signals; 403s reject
+only non-compliant cross-site or headerless mutations).
+
+F2 (drizzle-orm CVE): risk accepted, guard added. drizzle-orm NOT upgraded
+(0.36→0.45 breaking, out of scope). Guard location(s):
+`eslint.config.js` — `no-restricted-syntax` forbids `sql.raw(`,
+`sql.identifier(`, non-`sql``` `db.execute(` args, and string-concatenated
+`.where(` in `apps/api/src` + `db/` — proven with a planted 5-violation
+negative control (all caught, probe deleted) while legit static `sql```
+uses and `db/verify.ts` still lint clean; plus
+`apps/api/test/sql-identifier-guard.test.ts`, which greps the same sinks so
+skipping lint cannot drop the guard. `SECURITY_REVIEW.md` F2 notes
+acceptance + guard + Phase 15 revisit.
+
+F4 (CSRF): mechanism implemented. Server: `createCsrfGuard` in
+`apps/api/src/http/csrf.ts` — one auditable preHandler wired in `app.ts`
+for all `/api/v1` routes, ahead of rate limiters — requires an allowlisted
+Origin (missing/unlisted → 403 `FORBIDDEN_ORIGIN`) and
+`X-Takeover-Client: web` (missing/wrong → 403 `MISSING_CLIENT_HEADER`) on
+every credentialed POST/PATCH/PUT/DELETE; no-cookie and GET/HEAD/OPTIONS
+traffic skips. Client: `apps/web/src/lib/api.ts` `apiFetch` sends the
+header on mutations only (never GET). Docs: `ARCHITECTURE.md` §15 gains
+both codes; §16 CSRF rewritten to the concrete mechanism;
+`SECURITY_REVIEW.md` F4 → fixed, CSRF rows → verified, inventory extended
+to 54. Files changed: `apps/api/src/http/csrf.ts` (new),
+`apps/api/src/{app.ts}`, `apps/web/src/lib/api.ts`, `eslint.config.js`,
+`apps/api/test/{sql-identifier-guard.test.ts}` (new) + `security.test.ts`
+(+6 guard tests, form test layered) + `security-concurrency.test.ts` +
+7 older suites (CSRF test-helper headers), `apps/web/test/
+security.test.tsx` (+GET header test), `ARCHITECTURE.md`,
+`SECURITY_REVIEW.md`, `AI_HANDOFF.md` (this checkpoint).
+
+Tests (real, passing):
+
+- Server guard (all live, shared app, dev-default allowlist): credentialed
+  POST no-Origin → 403 `FORBIDDEN_ORIGIN` + zero rows; disallowed Origin →
+  403 + zero rows; allowed Origin without/wrong header → 403
+  `MISSING_CLIENT_HEADER`; allowed Origin + header → normal 200;
+  uncredentialed POST bad Origin → 200 (nothing to steal); GET bad Origin
+  → 200 (idempotent). Form POST layered: urlencoded → 415 pre-guard with
+  zero rows, then the JSON 403/403/200 matrix with exactly one claim.
+- Client: `apiFetch` attaches `X-Takeover-Client: web` on POST; sends no
+  such header on GET (default or explicit).
+- Guard: `sql-identifier-guard.test.ts` passes (1 test, no DB).
+
+Verification (actual, via `npm.cmd`; secrets loaded from local `.env.txt`
+into the shell, values never printed):
+
+- `run typecheck` → clean, exit 0 (api + web + shared + db).
+- `run lint` → clean, exit 0 (incl. the new F2 rule; negative control 5/5
+  caught on a temp probe, probe deleted).
+- `run test` (live DB) → api 303 pass (25 files) + web 83 pass (10 files)
+  + shared 1 pass. (Was 296+82+1; +6 guard server, +1 F2 guard, +1 web
+  GET.) One combined-run web failure observed once (unknown jsdom test
+  under load) with 83/83 green in three isolated reruns — recorded as
+  flake, not a product finding; API 303/303 in the final full run.
+- `run build` → clean (api tsc; web vite; shared tsc), exit 0.
+- `npm audit` not re-run: dependency surface untouched (no package.json /
+  lockfile change — verified via `git status`); Phase 12 audit stands.
+- Manual live-server demo (PORT=3112, tsx, REAL @nimiq/core wallet
+  signature through the production verifier, cookie in memory only):
+  curl credentialed POST no-Origin → 403 `{"error":{"code":
+  "FORBIDDEN_ORIGIN","message":"Cross-origin request not allowed."},
+  "requestId":"…"}`; curl with allowlisted Origin, no header → 403
+  `MISSING_CLIENT_HEADER` envelope; driver PATCH with Origin + header →
+  200 `{"data":{"providerProfile":{"displayName":"CSRF Demo"}},
+  "requestId":"…"}`. Residue removed (demo user + profile + sessions +
+  audits + challenges; 13 expired challenges swept globally); server
+  stopped, port free, Temp scripts/logs deleted before committing.
+
+IMPLEMENTATION DETAILS — AGENT DECIDED (locked scope preserved):
+
+- Guard is a single api-scope `preHandler` (not per-route options), so every
+  present and future `/api/v1` mutation is covered without touching route
+  files; it runs before route rate limiters, so rejected forgeries never
+  consume budget.
+- Header value is an exact `web` match; test Origin is the dev-default
+  allowlist entry (CORS_ORIGINS unset in this environment).
+- urlencoded bodies 415 before the guard (no parser registered) — asserted
+  as the outer layer, not the guard itself.
+- Existing suites needed only test-helper header spreads (no production
+  logic touched for them); `loginAs` challenge/verify are cookieless and
+  unchanged.
+
+Secret handling: DATABASE_URL, session secrets, and admin wallet addresses
+were NEVER printed in outputs, logs, commits, test assertions, or the curl
+demo (statuses + safe envelopes + counts only; session cookie held in
+memory, Temp artifacts deleted); `.env.txt` stays gitignored.
+
+```text
+CURRENT PHASE: Phase 12 completion — F2 and F4 resolutions
+COMPLETED: F2 guard (ESLint rule + grep test, negative control 5/5) + F4
+  Origin/header CSRF guard (server + apiFetch) + 8 new tests + docs
+TESTS RUN: typecheck clean; lint clean (incl. new rule); tests 303 api +
+  83 web + 1 shared pass; build clean; audit not re-run (deps untouched);
+  live curl + driver demo: 403/403/200 envelopes as specified
+RESULT: both escalations resolved; CSRF rows verified; no open Phase 12 items
+KNOWN ISSUES: none (one combined-run web flake, green ×3 isolated; F3/F5
+  still accepted, F6 info — see SECURITY_REVIEW.md §4)
+SECURITY NOTES: DATABASE_URL/session secrets/admin wallets never printed;
+  403s carry requestId envelopes; guard precedes rate limiters
+FILES CHANGED: see list above
+GIT COMMIT: chore: phase 12 completion — CSRF hardening and dependency guard
+NEXT TASK: Phase 13 — Full test and release candidate (do NOT start automatically)
+BLOCKED BY: none
+```
 
 ## Phase 12 implementation results (2026-09-12)
 

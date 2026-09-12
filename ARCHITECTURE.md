@@ -845,6 +845,8 @@ Minimum stable codes:
 - AUTH_INVALID
 - AUTH_EXPIRED
 - FORBIDDEN
+- FORBIDDEN_ORIGIN
+- MISSING_CLIENT_HEADER
 - NOT_FOUND
 - USER_DISABLED
 - SLOT_UNAVAILABLE
@@ -914,7 +916,9 @@ No user-provided HTML. Descriptions render as text/escaped Markdown only if a sa
 
 ### CSRF
 
-Cookie-based session requires SameSite and CSRF protections appropriate to the deployed embedding. State-changing endpoints should also require an anti-CSRF token/header if cross-site requests could be accepted.
+Origin allowlist validation + required X-Takeover-Client header on credentialed mutations, plus SameSite=None; Secure in production.
+
+Every state-changing request (POST/PATCH/PUT/DELETE) that carries the session cookie must also carry an allowlisted Origin header (missing or unlisted → 403 FORBIDDEN_ORIGIN) and the custom `X-Takeover-Client: web` header sent by the web client on mutations only (missing or wrong → 403 MISSING_CLIENT_HEADER). The custom header forces a CORS preflight for any cross-origin request, and preflight is already allowlist-gated, so a foreign page can neither send the header nor read the response. Requests without a session cookie (nothing to steal) and idempotent methods are unaffected.
 
 ### SSRF
 

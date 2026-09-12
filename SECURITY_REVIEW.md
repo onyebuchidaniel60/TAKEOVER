@@ -26,6 +26,15 @@ Proved the mitigations in ARCHITECTURE.md §16 work by attacking them:
   `apps/web/test/security.test.tsx` (6 tests). 46 adversarial tests, all
   passing. No product behavior changed except the rate-limit additions in §4
   (F1), which are config-scale and covered by the new 429 tests.
+- Phase 12 completion (F2/F4 resolutions, same brief scope — no new phase):
+  8 more tests (6 CSRF-guard server tests, 1 F2 identifier-guard test,
+  1 web GET-header test) for 54 total, all passing. F2 guard: ESLint
+  `no-restricted-syntax` block in `eslint.config.js` (proven with a planted
+  5-violation negative control) plus a grep test
+  (`apps/api/test/sql-identifier-guard.test.ts`) so skipping lint cannot
+  drop the guard. F4 fix: `createCsrfGuard` in `apps/api/src/http/csrf.ts`
+  (Origin allowlist + required `X-Takeover-Client: web` on credentialed
+  mutations, one auditable place) plus the `apiFetch` client header.
 
 ## 2. Threat matrix (ARCHITECTURE.md §16)
 
@@ -48,9 +57,10 @@ Proved the mitigations in ARCHITECTURE.md §16 work by attacking them:
 | SQL injection — search | verified | Evil `q`/`category` (`' OR…`, `%`, `_`, `\`) → 200 with zero matches (LIKE-escaped, exact category) |
 | XSS — API response | verified | `<script>`/`<img onerror>`/`javascript:` round-trip byte-exact as inert JSON, never rendered HTML |
 | XSS — frontend render | verified | Hostile title/description/category/location/display-name/error-message render as text; zero `dangerouslySetInnerHTML` in `apps/web/src` |
-| CSRF — cross-origin preflight | partial | Unlisted origin preflight → no ACAO header; allowlisted origin echoed with credentials (test on a state-changing route) |
-| CSRF — simple form POST | partial | urlencoded POST with valid cookie → 400/415, zero rows written (JSON-only strict bodies fail closed) |
-| CSRF — token hardening | escalated | No anti-CSRF token; prod `SameSite=None` sends cookies cross-site (required by the Vercel→Railway topology). See F4 |
+| CSRF — cross-origin preflight | verified | Unlisted origin preflight → no ACAO header; allowlisted origin echoed with credentials (test on a state-changing route) |
+| CSRF — credentialed mutations | verified | No Origin → 403 `FORBIDDEN_ORIGIN`; disallowed Origin → 403; allowed Origin without `X-Takeover-Client: web` → 403 `MISSING_CLIENT_HEADER`; both present → normal success; no-cookie and GET traffic unaffected (6 guard tests + live curl demo) |
+| CSRF — simple form POST | verified | urlencoded POST never reaches the guard (no parser → 415) with zero rows written; JSON without Origin/header → 403 via the guard; both present → exactly one claim |
+| CSRF — token hardening | fixed (was escalated) | See F4: header mechanism implemented instead of a token; prod `SameSite=None` remains topology-required |
 | SSRF | verified | Only `payments/rpc.ts` fetches server-side; fixed env-or-default base, never user input; URL-shaped hash rejected pre-fetch with zero RPC calls |
 | Brute force — auth endpoints | verified | Over-budget challenge/verify → 429 `RATE_LIMITED` with envelope |
 | Brute force — verify-payment | verified | Second rapid call → 429 `VERIFY_RATE_LIMITED` + `retry-after` |
@@ -93,7 +103,7 @@ Proved the mitigations in ARCHITECTURE.md §16 work by attacking them:
 15. Non-hex tx hash → 400; evil `q`/`category` (quotes, `%`, `_`, `\`) → 200 with zero matches.
 16. `<script>`/`<img onerror>`/`javascript:` round-trip as inert JSON.
 17. Preflight from unlisted origin → no ACAO; allowlisted origin echoed with credentials.
-18. urlencoded form POST with valid cookie → 400/415 with zero rows written.
+18. urlencoded form POST with valid cookie → 415 with zero rows; JSON without Origin → 403 `FORBIDDEN_ORIGIN`; without header → 403 `MISSING_CLIENT_HEADER`; both present → exactly one claim.
 19. Only `payments/rpc.ts` fetches; env-or-default URL unit-pinned; URL-shaped hash → 400 with zero RPC calls.
 20. Over-budget auth challenge → 429 `RATE_LIMITED` with requestId.
 21. Over-budget auth verify → 429 `RATE_LIMITED`.
@@ -127,16 +137,30 @@ Proved the mitigations in ARCHITECTURE.md §16 work by attacking them:
 43. Profile renders a hostile provider display name as inert text.
 44. A hostile server error message renders as inert text.
 45. No `dangerouslySetInnerHTML` (or raw `innerHTML`) in `apps/web/src`.
-46. State-changing client posts are JSON-only with `credentials: include`.
+46. State-changing client posts are JSON-only with `credentials: include` (+ `X-Takeover-Client` on POST).
+47. Credentialed POST with no Origin → 403 `FORBIDDEN_ORIGIN`, zero rows.
+48. Credentialed POST from a disallowed Origin → 403 `FORBIDDEN_ORIGIN`, zero rows.
+49. Credentialed POST with allowed Origin but no/wrong client header → 403 `MISSING_CLIENT_HEADER`.
+50. Credentialed POST with allowed Origin and client header → normal 200 success.
+51. Uncredentialed POST with a bad Origin → allowed through (challenge 200).
+52. GET with a bad Origin → allowed (idempotent reads unaffected).
+
+`apps/api/test/sql-identifier-guard.test.ts`:
+
+53. `sql.raw(` / `sql.identifier(` / non-`sql``` `.execute(` absent from `apps/api/src` and `db/` tooling.
+
+`apps/web/test/security.test.tsx` (added):
+
+54. GET requests carry no `X-Takeover-Client` header.
 
 ## 4. Findings
 
 | ID | Severity | Description | Disposition | Rationale |
 |---|---|---|---|---|
 | F1 | medium | Six mutating surfaces had no rate limit: `POST /slots/:id/claims`, `POST /slots`, PATCH/publish/cancel slot, `GET /me/slots/:id/claims`, `PATCH /me/provider-profile`, all `/admin/*` | fixed | Small scope, no arch change. Added per-IP budgets (claim-create 60/min; slot-mutate 60/min; provider-claims 120/min; profile 60/min; admin backstop 120/min) and a per-user slot-create budget (30/hour) via a new `createUserRateLimiter`; every budget trips to 429 in tests. Exact values are config per ARCH §14 |
-| F2 | high | `drizzle-orm` <0.45.2: SQL injection via identifiers (GHSA-gpj5-g38j-94v9); installed 0.36.4, fix 0.45.2 flagged semver-major | escalated | 0.36→0.45 in a 0.x line is not a safe targeted bump — do NOT upgrade blindly. Not reachable through our patterns: identifiers are static, user input travels only as parameterized values + Zod (proven by tests 13–15). Owner decision: schedule a dedicated dependency pass with full regression, or accept with this mitigation |
+| F2 | high | `drizzle-orm` <0.45.2: SQL injection via identifiers (GHSA-gpj5-g38j-94v9); installed 0.36.4, fix 0.45.2 flagged semver-major | accepted risk, guarded | Owner resolution: do NOT upgrade (breaking, out of scope). Guard enforces the unreachability property instead — ESLint `no-restricted-syntax` in `eslint.config.js` forbids `sql.raw(`, `sql.identifier(`, non-`sql``` `db.execute(` args, and string-concatenated `.where(` in `apps/api/src` + `db/` (negative control: 5 planted violations all caught; legit static `sql``` uses and `db/verify.ts` pass), plus `apps/api/test/sql-identifier-guard.test.ts` greps the same sinks so skipping lint cannot drop it. Revisit the upgrade in Phase 15 if time permits |
 | F3 | low | Dev-only vulns: vitest critical (UI server RCE), vite high + 6 moderates (traversal/dev-server) | accepted | Fixes require breaking majors (vitest 5, vite 8; Phase 11 pins vitest 2 + vite 5). Never shipped: devDependencies are absent from Railway/Vercel production bundles. Document and defer |
-| F4 | medium | No anti-CSRF token; prod `SameSite=None` (topology-required) sends cookies on cross-site requests | escalated | Current posture blocks what was tested (preflight rejects unlisted origins; non-JSON posts fail closed; HttpOnly+Secure). Adding token/header rotation changes the client/server contract and is architecture-adjacent — NOT implemented per phase scope. Owner decision for Phase 13/14 |
+| F4 | medium | No anti-CSRF token; prod `SameSite=None` (topology-required) sends cookies on cross-site requests | fixed | Owner resolution implemented: `createCsrfGuard` (`apps/api/src/http/csrf.ts`, wired once in `app.ts` for all `/api/v1` routes, ahead of rate limiters) requires an allowlisted Origin (missing/unlisted → 403 `FORBIDDEN_ORIGIN`) and `X-Takeover-Client: web` (missing/wrong → 403 `MISSING_CLIENT_HEADER`) on every credentialed POST/PATCH/PUT/DELETE; no-cookie and GET/HEAD/OPTIONS traffic skips. `apiFetch` sends the header on mutations only. The header forces a CORS-gated preflight for any cross-origin attempt. Codes added to ARCH §15, mechanism to ARCH §16; proven by tests 47–52, the web header tests, and a live curl demo |
 | F5 | low | All limiters (old and new) are in-memory per process | accepted | Documented standing note (single-region MVP). Multi-instance deployment needs shared storage — deployment item for Phase 14, fail-closed direction preserved |
 | F6 | info | `text/plain` POST yields 400 (parsed-then-Zod-rejected), not 415 | accepted | Observation only: still fails closed with the generic envelope; CSRF test asserts the closed outcome, not the code |
 
@@ -186,11 +210,12 @@ semantics.
 
 ## 7. Residual risks and Phase 14 items
 
-1. **Owner decision — F2**: accept the drizzle-orm mitigation or schedule
-   the 0.36→0.45 upgrade as a dedicated dependency pass with full
-   regression (test suite + manual claim→pay→verify loop).
-2. **Owner decision — F4**: accept the CORS+JSON-only CSRF posture or
-   approve anti-CSRF tokens (contract change, needs design).
+1. **Resolved (completion) — F2**: risk accepted with the ESLint + grep
+   guard described above; revisit the 0.36→0.45 upgrade in Phase 15 if time
+   permits (full regression: test suite + manual claim→pay→verify loop).
+2. **Resolved (completion) — F4**: Origin allowlist + required client
+   header implemented, tested (47–52, 54), and demonstrated live; no token
+   rotation outstanding.
 3. Public Nimiq RPC has no uptime guarantee (pre-existing): outage → 503 +
    client backoff, never a paid marking. Self-hosted fallback via
    `NIMIQ_RPC_URL` documented in `.env.example`.

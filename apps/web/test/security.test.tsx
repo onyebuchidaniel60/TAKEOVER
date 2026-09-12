@@ -151,5 +151,33 @@ describe('phase 12 frontend security pass', () => {
     expect(seen[0]?.credentials).toBe('include');
     const headers = seen[0]?.headers as Record<string, string>;
     expect(headers['content-type']).toBe('application/json');
+    // Phase 12 completion (F4): the CSRF guard requires this header on
+    // credentialed mutations; the browser then forces a CORS-gated preflight.
+    expect(headers['X-Takeover-Client']).toBe('web');
+  });
+
+  it('client posture: GET requests carry no client header', async () => {
+    const seen: RequestInit[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      seen.push(init ?? {});
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: () => Promise.resolve({ data: { slots: [] }, requestId: 'test' }),
+      } as unknown as Response;
+    }) as typeof fetch;
+    try {
+      await apiFetch<{ slots: unknown[] }>('/api/v1/slots?limit=5');
+      await apiFetch<{ slots: unknown[] }>('/api/v1/slots?limit=5', { method: 'GET' });
+    } finally {
+      globalThis.fetch = original;
+    }
+    expect(seen).toHaveLength(2);
+    for (const init of seen) {
+      const headers = (init.headers ?? {}) as Record<string, string>;
+      expect(headers['X-Takeover-Client']).toBeUndefined();
+    }
   });
 });

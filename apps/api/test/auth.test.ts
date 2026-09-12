@@ -28,6 +28,11 @@ describe.skipIf(!isDatabaseConfigured())('wallet auth (live)', () => {
 
   const wallets = new Set<string>();
 
+  // Phase 12 completion (F4): the CSRF guard requires an allowlisted Origin
+  // and the client header on every credentialed mutation. The test allowlist
+  // is the dev default (CORS_ORIGINS unset here).
+  const CSRF = { origin: 'http://localhost:5173', 'x-takeover-client': 'web' };
+
   function randomWallet(): string {
     const publicKey = new Uint8Array(32).map(() => Math.floor(Math.random() * 256));
     const wallet = deriveNimiqAddress(publicKey);
@@ -222,7 +227,7 @@ describe.skipIf(!isDatabaseConfigured())('wallet auth (live)', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/me',
-      headers: { cookie: cookie ?? '' },
+      headers: { cookie: cookie ?? '', ...CSRF },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
@@ -240,7 +245,7 @@ describe.skipIf(!isDatabaseConfigured())('wallet auth (live)', () => {
     const logout = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/logout',
-      headers: { cookie: cookie ?? '' },
+      headers: { cookie: cookie ?? '', ...CSRF },
     });
     expect(logout.statusCode).toBe(200);
     expect((logout.json() as { data: { ok: boolean } }).data.ok).toBe(true);
@@ -248,7 +253,7 @@ describe.skipIf(!isDatabaseConfigured())('wallet auth (live)', () => {
     const after = await app.inject({
       method: 'GET',
       url: '/api/v1/me',
-      headers: { cookie: cookie ?? '' },
+      headers: { cookie: cookie ?? '', ...CSRF },
     });
     expect(after.statusCode).toBe(401);
 
@@ -269,7 +274,7 @@ describe.skipIf(!isDatabaseConfigured())('wallet auth (live)', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/me',
-      headers: { cookie: forged },
+      headers: { cookie: forged, ...CSRF },
     });
     expect(res.statusCode).toBe(401);
   });
@@ -288,7 +293,7 @@ describe.skipIf(!isDatabaseConfigured())('wallet auth (live)', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/me',
-      headers: { cookie: cookie ?? '' },
+      headers: { cookie: cookie ?? '', ...CSRF },
     });
     expect(res.statusCode).toBe(401);
   });
@@ -301,12 +306,12 @@ describe.skipIf(!isDatabaseConfigured())('wallet auth (live)', () => {
     await app.inject({
       method: 'POST',
       url: '/api/v1/auth/logout',
-      headers: { cookie: cookie ?? '' },
+      headers: { cookie: cookie ?? '', ...CSRF },
     });
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/me',
-      headers: { cookie: cookie ?? '' },
+      headers: { cookie: cookie ?? '', ...CSRF },
     });
     expect(res.statusCode).toBe(401);
   });
@@ -332,7 +337,7 @@ describe.skipIf(!isDatabaseConfigured())('wallet auth (live)', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/me',
-      headers: { cookie: cookie ?? '' },
+      headers: { cookie: cookie ?? '', ...CSRF },
     });
     expect(res.statusCode).toBe(401);
   });

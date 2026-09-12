@@ -84,6 +84,11 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
   const reportIds: string[] = [];
   const HOUR = 3_600_000;
 
+  // Phase 12 completion (F4): the CSRF guard requires an allowlisted Origin
+  // and the client header on every credentialed mutation. The test allowlist
+  // is the dev default (CORS_ORIGINS unset here).
+  const CSRF = { origin: 'http://localhost:5173', 'x-takeover-client': 'web' };
+
   function randomWallet(): string {
     const publicKey = new Uint8Array(32).map(() => Math.floor(Math.random() * 256));
     const wallet = deriveNimiqAddress(publicKey);
@@ -205,7 +210,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     return app.inject({
       method: 'POST',
       url: `/api/v1/slots/${slotId}/claims`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: {},
     });
   }
@@ -214,7 +219,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     return app.inject({
       method: 'POST',
       url: `/api/v1/claims/${claimId}/payment-intent`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: {},
     });
   }
@@ -223,7 +228,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     return app.inject({
       method: 'POST',
       url: `/api/v1/claims/${claimId}/payment-submission`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { txHash },
     });
   }
@@ -232,7 +237,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     return app.inject({
       method: 'POST',
       url: `/api/v1/claims/${claimId}/verify-payment`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: {},
     });
   }
@@ -372,7 +377,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     const cookie = await loginAs(randomWallet());
     const raw = cookie.slice('takeover_session='.length);
     const forged = `takeover_session=${raw.slice(0, raw.indexOf('.'))}.${'A'.repeat(43)}`;
-    const res = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie: forged } });
+    const res = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie: forged, ...CSRF } });
     expect(res.statusCode).toBe(401);
     expect((res.json() as { error: { code: string } }).error.code).toBe('UNAUTHENTICATED');
   });
@@ -383,15 +388,15 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     const userId = await userIdFor(wallet);
     const db = getDb();
     await db.update(sessions).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(sessions.userId, userId));
-    const res = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie } });
+    const res = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie, ...CSRF } });
     expect(res.statusCode).toBe(401);
   });
 
   it('session theft: revoked session (logout) is rejected', async () => {
     const cookie = await loginAs(randomWallet());
-    const logout = await app.inject({ method: 'POST', url: '/api/v1/auth/logout', headers: { cookie } });
+    const logout = await app.inject({ method: 'POST', url: '/api/v1/auth/logout', headers: { cookie, ...CSRF } });
     expect(logout.statusCode).toBe(200);
-    const res = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie } });
+    const res = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie, ...CSRF } });
     expect(res.statusCode).toBe(401);
   });
 
@@ -404,7 +409,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     expect(claimRes.statusCode).toBe(200);
     const claimId = (claimRes.json() as { data: { claim: { id: string } } }).data.claim.id;
     const cookieB = await loginAs(randomWallet());
-    const foreign = await app.inject({ method: 'GET', url: `/api/v1/claims/${claimId}`, headers: { cookie: cookieB } });
+    const foreign = await app.inject({ method: 'GET', url: `/api/v1/claims/${claimId}`, headers: { cookie: cookieB, ...CSRF } });
     expect(foreign.statusCode).toBe(404);
     expect((foreign.json() as { error: { code: string } }).error.code).toBe('CLAIM_NOT_FOUND');
     const anon = await app.inject({ method: 'GET', url: `/api/v1/claims/${claimId}` });
@@ -428,13 +433,13 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     const patch = await app.inject({
       method: 'PATCH',
       url: `/api/v1/slots/${slotId}`,
-      headers: { cookie: cookieB },
+      headers: { cookie: cookieB, ...CSRF },
       payload: { title: 'hijacked' },
     });
     expect(patch.statusCode).toBe(404);
-    const publish = await app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/publish`, headers: { cookie: cookieB } });
+    const publish = await app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/publish`, headers: { cookie: cookieB, ...CSRF } });
     expect(publish.statusCode).toBe(404);
-    const cancel = await app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/cancel`, headers: { cookie: cookieB } });
+    const cancel = await app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/cancel`, headers: { cookie: cookieB, ...CSRF } });
     expect(cancel.statusCode).toBe(404);
     const db = getDb();
     const rows = await db.select().from(slots).where(eq(slots.id, slotId)).limit(1);
@@ -448,7 +453,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     const res = await app.inject({
       method: 'GET',
       url: `/api/v1/me/slots/${slotId}/claims`,
-      headers: { cookie: attacker },
+      headers: { cookie: attacker, ...CSRF },
     });
     expect(res.statusCode).toBe(404);
     const anon = await app.inject({ method: 'GET', url: `/api/v1/me/slots/${slotId}/claims` });
@@ -458,7 +463,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
   it('idor: non-owner never sees draft detail or the payout wallet', async () => {
     const slotId = await makeSlot(validPayout(), { status: 'draft' });
     const outsider = await loginAs(randomWallet());
-    const res = await app.inject({ method: 'GET', url: `/api/v1/slots/${slotId}`, headers: { cookie: outsider } });
+    const res = await app.inject({ method: 'GET', url: `/api/v1/slots/${slotId}`, headers: { cookie: outsider, ...CSRF } });
     expect(res.statusCode).toBe(404);
     expect(JSON.stringify(res.json())).not.toContain('payout_wallet');
     const anon = await app.inject({ method: 'GET', url: `/api/v1/slots/${slotId}` });
@@ -468,7 +473,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
 
   it('idor: /me/slots and /me/claims isolate by owner', async () => {
     const cookieA = await loginAs(randomWallet());
-    const create = await app.inject({ method: 'POST', url: '/api/v1/slots', headers: { cookie: cookieA }, payload: validDraftBody(`S12 ${tag} isolation`) });
+    const create = await app.inject({ method: 'POST', url: '/api/v1/slots', headers: { cookie: cookieA, ...CSRF }, payload: validDraftBody(`S12 ${tag} isolation`) });
     expect(create.statusCode).toBe(201);
     const ownedId = (create.json() as { data: { slot: { id: string } } }).data.slot.id;
     slotIds.push(ownedId);
@@ -476,11 +481,11 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     const claimRes = await claimAs(cookieA, slotId);
     const claimId = (claimRes.json() as { data: { claim: { id: string } } }).data.claim.id;
     const cookieB = await loginAs(randomWallet());
-    const slotsB = await app.inject({ method: 'GET', url: '/api/v1/me/slots', headers: { cookie: cookieB } });
+    const slotsB = await app.inject({ method: 'GET', url: '/api/v1/me/slots', headers: { cookie: cookieB, ...CSRF } });
     expect(slotsB.statusCode).toBe(200);
     const slotItems = (slotsB.json() as { data: { slots: { id: string }[] } }).data.slots;
     expect(slotItems.map((s) => s.id)).not.toContain(ownedId);
-    const claimsB = await app.inject({ method: 'GET', url: '/api/v1/me/claims', headers: { cookie: cookieB } });
+    const claimsB = await app.inject({ method: 'GET', url: '/api/v1/me/claims', headers: { cookie: cookieB, ...CSRF } });
     expect(claimsB.statusCode).toBe(200);
     const claimItems = (claimsB.json() as { data: { claims: { id: string }[] } }).data.claims;
     expect(claimItems.map((c) => c.id)).not.toContain(claimId);
@@ -494,14 +499,14 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     const forgedCreate = await app.inject({
       method: 'POST',
       url: '/api/v1/slots',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { ...validDraftBody(`S12 ${tag} roleforge`), role: 'admin' },
     });
     expect(forgedCreate.statusCode).toBe(400);
     const forgedProfile = await app.inject({
       method: 'PATCH',
       url: '/api/v1/me/provider-profile',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { display_name: 'Honest Name', role: 'admin', verified: true },
     });
     expect(forgedProfile.statusCode).toBe(400);
@@ -520,7 +525,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     const me = await app.inject({
       method: 'GET',
       url: '/api/v1/me',
-      headers: { cookie, 'x-role': 'admin', 'x-admin': 'true' },
+      headers: { cookie, ...CSRF, 'x-role': 'admin', 'x-admin': 'true' },
     });
     expect(me.statusCode).toBe(200);
     expect((me.json() as { data: { user: { role: string } } }).data.user.role).not.toBe('admin');
@@ -554,7 +559,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     const create = await app.inject({
       method: 'POST',
       url: '/api/v1/slots',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: validDraftBody(evilTitle),
     });
     expect(create.statusCode).toBe(201);
@@ -564,7 +569,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     const profile = await app.inject({
       method: 'PATCH',
       url: '/api/v1/me/provider-profile',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { display_name: evilName },
     });
     expect(profile.statusCode).toBe(200);
@@ -573,7 +578,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     const report = await app.inject({
       method: 'POST',
       url: '/api/v1/reports',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { slotId, reason: 'other', details: `'; DROP TABLE reports; --` },
     });
     expect(report.statusCode).toBe(201);
@@ -611,7 +616,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     const create = await app.inject({
       method: 'POST',
       url: '/api/v1/slots',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: validDraftBody(evilTitle),
     });
     expect(create.statusCode).toBe(201);
@@ -622,7 +627,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     const profile = await app.inject({
       method: 'PATCH',
       url: '/api/v1/me/provider-profile',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { display_name: evilName },
     });
     expect(profile.statusCode).toBe(200);
@@ -633,7 +638,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     const report = await app.inject({
       method: 'POST',
       url: '/api/v1/reports',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { slotId, reason: 'other', details: `javascript:alert(1)` },
     });
     expect(report.statusCode).toBe(201);
@@ -683,18 +688,129 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
   it('csrf: simple form POST with a valid cookie fails closed without mutation', async () => {
     const cookie = await loginAs(randomWallet());
     const slotId = await makeSlot();
-    const res = await app.inject({
+    const db = getDb();
+    const url = `/api/v1/slots/${slotId}/claims`;
+    // Non-JSON bodies never reach the guard: no urlencoded parser exists, so
+    // Fastify rejects them first — still fails closed with zero rows written.
+    const form = await app.inject({
       method: 'POST',
-      url: `/api/v1/slots/${slotId}/claims`,
+      url,
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
       payload: 'quantity=1',
     });
-    expect([400, 415]).toContain(res.statusCode);
-    const db = getDb();
-    const rows = await db.select().from(claims).where(eq(claims.slotId, slotId));
-    expect(rows).toHaveLength(0);
+    expect(form.statusCode).toBe(415);
+    expect(await db.select().from(claims).where(eq(claims.slotId, slotId))).toHaveLength(0);
+    // JSON body without Origin: the guard rejects before any handler runs.
+    const noOrigin = await app.inject({ method: 'POST', url, headers: { cookie }, payload: {} });
+    expect(noOrigin.statusCode).toBe(403);
+    expect((noOrigin.json() as { error: { code: string } }).error.code).toBe('FORBIDDEN_ORIGIN');
+    // Allowlisted Origin but no custom header: still rejected.
+    const noHeader = await app.inject({
+      method: 'POST',
+      url,
+      headers: { cookie, origin: 'http://localhost:5173' },
+      payload: {},
+    });
+    expect(noHeader.statusCode).toBe(403);
+    expect((noHeader.json() as { error: { code: string } }).error.code).toBe('MISSING_CLIENT_HEADER');
+    // Both present: the one legitimate claim lands, exactly once.
+    const ok = await app.inject({
+      method: 'POST',
+      url,
+      headers: { cookie, origin: 'http://localhost:5173', 'x-takeover-client': 'web' },
+      payload: {},
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(await db.select().from(claims).where(eq(claims.slotId, slotId))).toHaveLength(1);
     const slot = (await db.select().from(slots).where(eq(slots.id, slotId)).limit(1))[0];
-    expect(slot?.availableQuantity).toBe(slot?.totalQuantity);
+    expect(slot?.availableQuantity).toBe((slot?.totalQuantity ?? 0) - 1);
+  });
+
+  // -- CSRF guard (Phase 12 completion, F4) ---------------------------------------------
+
+  it('csrf guard: credentialed POST with no Origin is rejected', async () => {
+    const cookie = await loginAs(randomWallet());
+    const slotId = await makeSlot();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/slots/${slotId}/claims`,
+      headers: { cookie },
+      payload: {},
+    });
+    expect(res.statusCode).toBe(403);
+    const body = res.json() as { error: { code: string }; requestId: string };
+    expect(body.error.code).toBe('FORBIDDEN_ORIGIN');
+    expect(typeof body.requestId).toBe('string');
+    const db = getDb();
+    expect(await db.select().from(claims).where(eq(claims.slotId, slotId))).toHaveLength(0);
+  });
+
+  it('csrf guard: credentialed POST from a disallowed Origin is rejected', async () => {
+    const cookie = await loginAs(randomWallet());
+    const slotId = await makeSlot();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/slots/${slotId}/claims`,
+      headers: { cookie, origin: 'https://evil.test', 'x-takeover-client': 'web' },
+      payload: {},
+    });
+    expect(res.statusCode).toBe(403);
+    expect((res.json() as { error: { code: string } }).error.code).toBe('FORBIDDEN_ORIGIN');
+    const db = getDb();
+    expect(await db.select().from(claims).where(eq(claims.slotId, slotId))).toHaveLength(0);
+  });
+
+  it('csrf guard: credentialed POST with allowed Origin but no client header is rejected', async () => {
+    const cookie = await loginAs(randomWallet());
+    const slotId = await makeSlot();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/slots/${slotId}/claims`,
+      headers: { cookie, origin: 'http://localhost:5173' },
+      payload: {},
+    });
+    expect(res.statusCode).toBe(403);
+    expect((res.json() as { error: { code: string } }).error.code).toBe('MISSING_CLIENT_HEADER');
+    const wrong = await app.inject({
+      method: 'POST',
+      url: `/api/v1/slots/${slotId}/claims`,
+      headers: { cookie, origin: 'http://localhost:5173', 'x-takeover-client': 'native' },
+      payload: {},
+    });
+    expect(wrong.statusCode).toBe(403);
+    expect((wrong.json() as { error: { code: string } }).error.code).toBe('MISSING_CLIENT_HEADER');
+  });
+
+  it('csrf guard: credentialed POST with allowed Origin and client header succeeds', async () => {
+    const cookie = await loginAs(randomWallet());
+    const slotId = await makeSlot();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/slots/${slotId}/claims`,
+      headers: { cookie, origin: 'http://localhost:5173', 'x-takeover-client': 'web' },
+      payload: {},
+    });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { data: { claim: { id: string } } }).data.claim.id).toBeDefined();
+  });
+
+  it('csrf guard: uncredentialed POST with a bad Origin is allowed through', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/challenge',
+      headers: { origin: 'https://evil.test' },
+      payload: { walletAddress: randomWallet() },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('csrf guard: GET with a bad Origin is allowed (idempotent)', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/slots?limit=5',
+      headers: { origin: 'https://evil.test' },
+    });
+    expect(res.statusCode).toBe(200);
   });
 
   // -- SSRF ------------------------------------------------------------------------------------
@@ -788,7 +904,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
       const res = await app.inject({
         method: 'POST',
         url: '/api/v1/reports',
-        headers: { cookie },
+        headers: { cookie, ...CSRF },
         payload: { slotId, reason: 'other' },
       });
       expect(res.statusCode).toBe(201);
@@ -797,7 +913,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     const limited = await app.inject({
       method: 'POST',
       url: '/api/v1/reports',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { slotId, reason: 'other' },
     });
     expect(limited.statusCode).toBe(429);
@@ -836,7 +952,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
         const res = await claimApp.inject({
           method: 'POST',
           url: `/api/v1/slots/${slotId}/claims`,
-          headers: { cookie: await loginAs(randomWallet(), claimApp) },
+          headers: { cookie: await loginAs(randomWallet(), claimApp), ...CSRF },
           payload: {},
         });
         expect(res.statusCode).toBe(200);
@@ -844,7 +960,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
       const limited = await claimApp.inject({
         method: 'POST',
         url: `/api/v1/slots/${slotId}/claims`,
-        headers: { cookie: await loginAs(randomWallet(), claimApp) },
+        headers: { cookie: await loginAs(randomWallet(), claimApp), ...CSRF },
         payload: {},
       });
       expect(limited.statusCode).toBe(429);
@@ -869,7 +985,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
         const res = await slotApp.inject({
           method: 'POST',
           url: '/api/v1/slots',
-          headers: { cookie },
+          headers: { cookie, ...CSRF },
           payload: validDraftBody(`S12 ${tag} spam ${i}`),
         });
         expect(res.statusCode).toBe(201);
@@ -878,14 +994,14 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
       const limited = await slotApp.inject({
         method: 'POST',
         url: '/api/v1/slots',
-        headers: { cookie },
+        headers: { cookie, ...CSRF },
         payload: validDraftBody(`S12 ${tag} spam 3`),
       });
       expect(limited.statusCode).toBe(429);
       const other = await slotApp.inject({
         method: 'POST',
         url: '/api/v1/slots',
-        headers: { cookie: await loginAs(randomWallet(), slotApp) },
+        headers: { cookie: await loginAs(randomWallet(), slotApp), ...CSRF },
         payload: validDraftBody(`S12 ${tag} other user`),
       });
       expect(other.statusCode).toBe(201);
@@ -914,7 +1030,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
         const res = await mutateApp.inject({
           method: 'POST',
           url: '/api/v1/slots',
-          headers: { cookie },
+          headers: { cookie, ...CSRF },
           payload: validDraftBody(`S12 ${tag} mutate ${i}`),
         });
         expect(res.statusCode).toBe(201);
@@ -922,15 +1038,15 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
         ids.push(id);
         slotIds.push(id);
       }
-      expect((await mutateApp.inject({ method: 'POST', url: `/api/v1/slots/${ids[0]}/publish`, headers: { cookie } })).statusCode).toBe(200);
-      expect((await mutateApp.inject({ method: 'POST', url: `/api/v1/slots/${ids[1]}/publish`, headers: { cookie } })).statusCode).toBe(200);
-      const mutateLimited = await mutateApp.inject({ method: 'POST', url: `/api/v1/slots/${ids[2]}/publish`, headers: { cookie } });
+      expect((await mutateApp.inject({ method: 'POST', url: `/api/v1/slots/${ids[0]}/publish`, headers: { cookie, ...CSRF } })).statusCode).toBe(200);
+      expect((await mutateApp.inject({ method: 'POST', url: `/api/v1/slots/${ids[1]}/publish`, headers: { cookie, ...CSRF } })).statusCode).toBe(200);
+      const mutateLimited = await mutateApp.inject({ method: 'POST', url: `/api/v1/slots/${ids[2]}/publish`, headers: { cookie, ...CSRF } });
       expect(mutateLimited.statusCode).toBe(429);
       for (let i = 0; i < 2; i += 1) {
         const res = await mutateApp.inject({
           method: 'PATCH',
           url: '/api/v1/me/provider-profile',
-          headers: { cookie },
+          headers: { cookie, ...CSRF },
           payload: { display_name: `Profile Name ${i}` },
         });
         expect(res.statusCode).toBe(200);
@@ -938,14 +1054,14 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
       const profileLimited = await mutateApp.inject({
         method: 'PATCH',
         url: '/api/v1/me/provider-profile',
-        headers: { cookie },
+        headers: { cookie, ...CSRF },
         payload: { display_name: 'Third Name' },
       });
       expect(profileLimited.statusCode).toBe(429);
       const { cookie: adminCookie } = await loginAdmin(mutateApp);
-      expect((await mutateApp.inject({ method: 'GET', url: '/api/v1/admin/reports', headers: { cookie: adminCookie } })).statusCode).toBe(200);
-      expect((await mutateApp.inject({ method: 'GET', url: '/api/v1/admin/reports', headers: { cookie: adminCookie } })).statusCode).toBe(200);
-      const adminLimited = await mutateApp.inject({ method: 'GET', url: '/api/v1/admin/reports', headers: { cookie: adminCookie } });
+      expect((await mutateApp.inject({ method: 'GET', url: '/api/v1/admin/reports', headers: { cookie: adminCookie, ...CSRF } })).statusCode).toBe(200);
+      expect((await mutateApp.inject({ method: 'GET', url: '/api/v1/admin/reports', headers: { cookie: adminCookie, ...CSRF } })).statusCode).toBe(200);
+      const adminLimited = await mutateApp.inject({ method: 'GET', url: '/api/v1/admin/reports', headers: { cookie: adminCookie, ...CSRF } });
       expect(adminLimited.statusCode).toBe(429);
     } finally {
       await mutateApp.close();
@@ -996,15 +1112,15 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     const cookie = await loginAs(wallet);
     const payout = validPayout();
     const body = { ...validDraftBody(`S12 ${tag} immutable`), payout_wallet: payout };
-    const create = await app.inject({ method: 'POST', url: '/api/v1/slots', headers: { cookie }, payload: body });
+    const create = await app.inject({ method: 'POST', url: '/api/v1/slots', headers: { cookie, ...CSRF }, payload: body });
     expect(create.statusCode).toBe(201);
     const slotId = (create.json() as { data: { slot: { id: string } } }).data.slot.id;
     slotIds.push(slotId);
-    expect((await app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/publish`, headers: { cookie } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: `/api/v1/slots/${slotId}/publish`, headers: { cookie, ...CSRF } })).statusCode).toBe(200);
     const patch = await app.inject({
       method: 'PATCH',
       url: `/api/v1/slots/${slotId}`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { payout_wallet: validPayout() },
     });
     expect(patch.statusCode).toBe(409);
@@ -1055,11 +1171,11 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
 
   it('secret hygiene: every error envelope carries requestId and leaks nothing', async () => {
     const buyerCookie = await loginAs(randomWallet());
-    const draft = await app.inject({ method: 'POST', url: '/api/v1/slots', headers: { cookie: buyerCookie }, payload: validDraftBody(`S12 ${tag} errscan`) });
+    const draft = await app.inject({ method: 'POST', url: '/api/v1/slots', headers: { cookie: buyerCookie, ...CSRF }, payload: validDraftBody(`S12 ${tag} errscan`) });
     expect(draft.statusCode).toBe(201);
     const draftId = (draft.json() as { data: { slot: { id: string } } }).data.slot.id;
     slotIds.push(draftId);
-    expect((await app.inject({ method: 'POST', url: `/api/v1/slots/${draftId}/publish`, headers: { cookie: buyerCookie } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: `/api/v1/slots/${draftId}/publish`, headers: { cookie: buyerCookie, ...CSRF } })).statusCode).toBe(200);
 
     const tiny = buildApp({
       verifySignature: stubVerifier,
@@ -1116,12 +1232,12 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
           publishedAt: new Date(),
         });
         slotIds.push(doomedSlot);
-        const claimRes = await downApp.inject({ method: 'POST', url: `/api/v1/slots/${doomedSlot}/claims`, headers: { cookie: c }, payload: {} });
+        const claimRes = await downApp.inject({ method: 'POST', url: `/api/v1/slots/${doomedSlot}/claims`, headers: { cookie: c, ...CSRF }, payload: {} });
         expect(claimRes.statusCode).toBe(200);
         const claimId = (claimRes.json() as { data: { claim: { id: string } } }).data.claim.id;
-        expect((await downApp.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/payment-intent`, headers: { cookie: c }, payload: {} })).statusCode).toBe(200);
-        expect((await downApp.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/payment-submission`, headers: { cookie: c }, payload: { txHash: freshHash() } })).statusCode).toBe(200);
-        rpcDown = await downApp.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/verify-payment`, headers: { cookie: c }, payload: {} });
+        expect((await downApp.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/payment-intent`, headers: { cookie: c, ...CSRF }, payload: {} })).statusCode).toBe(200);
+        expect((await downApp.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/payment-submission`, headers: { cookie: c, ...CSRF }, payload: { txHash: freshHash() } })).statusCode).toBe(200);
+        rpcDown = await downApp.inject({ method: 'POST', url: `/api/v1/claims/${claimId}/verify-payment`, headers: { cookie: c, ...CSRF }, payload: {} });
         expect(rpcDown.statusCode).toBe(503);
       } finally {
         await downApp.close();
@@ -1130,9 +1246,9 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
       const cases: InjectResponse[] = [
         await app.inject({ method: 'POST', url: '/api/v1/auth/challenge', payload: { nope: 1 } }),
         await app.inject({ method: 'GET', url: '/api/v1/me' }),
-        await app.inject({ method: 'GET', url: '/api/v1/admin/reports', headers: { cookie: buyerCookie } }),
-        await app.inject({ method: 'GET', url: `/api/v1/claims/${randomUUID()}`, headers: { cookie: buyerCookie } }),
-        await app.inject({ method: 'POST', url: `/api/v1/slots/${draftId}/publish`, headers: { cookie: buyerCookie } }),
+        await app.inject({ method: 'GET', url: '/api/v1/admin/reports', headers: { cookie: buyerCookie, ...CSRF } }),
+        await app.inject({ method: 'GET', url: `/api/v1/claims/${randomUUID()}`, headers: { cookie: buyerCookie, ...CSRF } }),
+        await app.inject({ method: 'POST', url: `/api/v1/slots/${draftId}/publish`, headers: { cookie: buyerCookie, ...CSRF } }),
         await app.inject({ method: 'POST', url: '/api/v1/auth/challenge', payload: { walletAddress: 'x'.repeat(20000) } }),
         // text/plain is parsed as a string, then Zod rejects it: still fails closed.
         await app.inject({ method: 'POST', url: '/api/v1/auth/challenge', headers: { 'content-type': 'text/plain' }, payload: 'hi' }),
@@ -1287,7 +1403,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
       const anon = await app.inject({ method: route.method, url: route.url, payload: route.payload });
       expect(anon.statusCode).toBe(401);
       expect((anon.json() as { error: { code: string } }).error.code).toBe('UNAUTHENTICATED');
-      const buyer = await app.inject({ method: route.method, url: route.url, headers: { cookie: buyerCookie }, payload: route.payload });
+      const buyer = await app.inject({ method: route.method, url: route.url, headers: { cookie: buyerCookie, ...CSRF }, payload: route.payload });
       expect(buyer.statusCode).toBe(403);
       const body = buyer.json() as { error: { code: string }; requestId: string };
       expect(body.error.code).toBe('FORBIDDEN');

@@ -24,6 +24,11 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
 
   const tag = randomUUID().slice(0, 8);
   const wallets: string[] = [];
+
+  // Phase 12 completion (F4): the CSRF guard requires an allowlisted Origin
+  // and the client header on every credentialed mutation. The test allowlist
+  // is the dev default (CORS_ORIGINS unset here).
+  const CSRF = { origin: 'http://localhost:5173', 'x-takeover-client': 'web' };
   const slotIds: string[] = [];
 
   function randomWallet(): string {
@@ -84,7 +89,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/slots',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: validDraftBody(title),
     });
     expect(res.statusCode).toBe(201);
@@ -133,7 +138,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/slots',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: validDraftBody(`P5 ${tag} draft`),
     });
     expect(res.statusCode).toBe(201);
@@ -154,7 +159,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const wallet = randomWallet();
     const cookie = await loginAs(wallet);
     await createDraft(cookie, `P5 ${tag} rolecheck`);
-    const me = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie } });
+    const me = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie, ...CSRF } });
     expect((me.json() as { data: { user: { role: string } } }).data.user.role).toBe('buyer');
   });
 
@@ -163,7 +168,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/slots',
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { ...validDraftBody(`P5 ${tag} badpayout`), payout_wallet: 'NQ00 SEEDPAYOUT000000000001' },
     });
     expect(res.statusCode).toBe(400);
@@ -176,7 +181,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const res = await app.inject({
       method: 'PATCH',
       url: `/api/v1/slots/${id}`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { title: `P5 ${tag} edited`, total_quantity: 6 },
     });
     expect(res.statusCode).toBe(200);
@@ -193,7 +198,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const res = await app.inject({
       method: 'PATCH',
       url: `/api/v1/slots/${id}`,
-      headers: { cookie: otherCookie },
+      headers: { cookie: otherCookie, ...CSRF },
       payload: { title: 'hijacked' },
     });
     expect(res.statusCode).toBe(404);
@@ -206,13 +211,13 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const published = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${id}/publish`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
     });
     expect(published.statusCode).toBe(200);
     const res = await app.inject({
       method: 'PATCH',
       url: `/api/v1/slots/${id}`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
       payload: { title: 'too late' },
     });
     expect(res.statusCode).toBe(409);
@@ -225,7 +230,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${id}/publish`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: { slot: Record<string, unknown> } };
@@ -236,11 +241,11 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
   it('rejects publishing an already-published slot with 409', async () => {
     const cookie = await loginAs(randomWallet());
     const id = await createDraft(cookie, `P5 ${tag} twice`);
-    await app.inject({ method: 'POST', url: `/api/v1/slots/${id}/publish`, headers: { cookie } });
+    await app.inject({ method: 'POST', url: `/api/v1/slots/${id}/publish`, headers: { cookie, ...CSRF } });
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${id}/publish`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
     });
     expect(res.statusCode).toBe(409);
     expect((res.json() as { error: { code: string } }).error.code).toBe('SLOT_NOT_PUBLISHABLE');
@@ -253,7 +258,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${id}/publish`,
-      headers: { cookie: otherCookie },
+      headers: { cookie: otherCookie, ...CSRF },
     });
     expect(res.statusCode).toBe(404);
   });
@@ -264,7 +269,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${id}/cancel`,
-      headers: { cookie },
+      headers: { cookie, ...CSRF },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: { slot: Record<string, unknown> } };
@@ -279,7 +284,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const ownerWallet = randomWallet();
     const ownerCookie = await loginAs(ownerWallet);
     const id = await createDraft(ownerCookie, `P5 ${tag} cancelpub`);
-    await app.inject({ method: 'POST', url: `/api/v1/slots/${id}/publish`, headers: { cookie: ownerCookie } });
+    await app.inject({ method: 'POST', url: `/api/v1/slots/${id}/publish`, headers: { cookie: ownerCookie, ...CSRF } });
     const buyerWallet = randomWallet();
     const buyerCookie = await loginAs(buyerWallet);
     void buyerCookie;
@@ -294,7 +299,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${id}/cancel`,
-      headers: { cookie: ownerCookie },
+      headers: { cookie: ownerCookie, ...CSRF },
     });
     expect(res.statusCode).toBe(200);
     expect((res.json() as { data: { slot: { status: string } } }).data.slot.status).toBe('cancelled');
@@ -308,7 +313,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const db = getDb();
     const ownerCookie = await loginAs(randomWallet());
     const id = await createDraft(ownerCookie, `P5 ${tag} paidblock`);
-    await app.inject({ method: 'POST', url: `/api/v1/slots/${id}/publish`, headers: { cookie: ownerCookie } });
+    await app.inject({ method: 'POST', url: `/api/v1/slots/${id}/publish`, headers: { cookie: ownerCookie, ...CSRF } });
     const buyerWallet = randomWallet();
     await loginAs(buyerWallet);
     const buyer = await db.select().from(users).where(eq(users.walletAddress, buyerWallet)).limit(1);
@@ -322,7 +327,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${id}/cancel`,
-      headers: { cookie: ownerCookie },
+      headers: { cookie: ownerCookie, ...CSRF },
     });
     expect(res.statusCode).toBe(409);
     expect((res.json() as { error: { code: string } }).error.code).toBe('SLOT_NOT_CANCELLABLE');
@@ -332,7 +337,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const db = getDb();
     const ownerCookie = await loginAs(randomWallet());
     const id = await createDraft(ownerCookie, `P5 ${tag} pendingblock`);
-    await app.inject({ method: 'POST', url: `/api/v1/slots/${id}/publish`, headers: { cookie: ownerCookie } });
+    await app.inject({ method: 'POST', url: `/api/v1/slots/${id}/publish`, headers: { cookie: ownerCookie, ...CSRF } });
     const buyerWallet = randomWallet();
     await loginAs(buyerWallet);
     const buyer = await db.select().from(users).where(eq(users.walletAddress, buyerWallet)).limit(1);
@@ -346,7 +351,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${id}/cancel`,
-      headers: { cookie: ownerCookie },
+      headers: { cookie: ownerCookie, ...CSRF },
     });
     expect(res.statusCode).toBe(409);
     expect((res.json() as { error: { code: string } }).error.code).toBe('SLOT_NOT_CANCELLABLE');
@@ -359,7 +364,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/slots/${id}/cancel`,
-      headers: { cookie: otherCookie },
+      headers: { cookie: otherCookie, ...CSRF },
     });
     expect(res.statusCode).toBe(404);
   });
@@ -369,7 +374,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const cookieB = await loginAs(randomWallet());
     const idA = await createDraft(cookieA, `P5 ${tag} mineA`);
     const idB = await createDraft(cookieB, `P5 ${tag} mineB`);
-    const res = await app.inject({ method: 'GET', url: '/api/v1/me/slots', headers: { cookie: cookieA } });
+    const res = await app.inject({ method: 'GET', url: '/api/v1/me/slots', headers: { cookie: cookieA, ...CSRF } });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
       data: { slots: { id: string; payout_wallet: unknown }[]; total: number };
@@ -386,7 +391,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
   it('GET /slots/:id as owner of a draft returns the owner projection', async () => {
     const cookie = await loginAs(randomWallet());
     const id = await createDraft(cookie, `P5 ${tag} ownerdetail`);
-    const res = await app.inject({ method: 'GET', url: `/api/v1/slots/${id}`, headers: { cookie } });
+    const res = await app.inject({ method: 'GET', url: `/api/v1/slots/${id}`, headers: { cookie, ...CSRF } });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: { slot: Record<string, unknown> } };
     expect(body.data.slot['id']).toBe(id);

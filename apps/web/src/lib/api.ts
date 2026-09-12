@@ -38,10 +38,20 @@ function parseRetryAfterMs(res: Response): number | undefined {
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  // Phase 12 completion (F4): the server requires X-Takeover-Client on
+  // credentialed mutations. Send it on state-changing methods only — never
+  // on GET — so plain navigation and preflight-free reads stay untouched,
+  // while any cross-origin mutation attempt forces a CORS-gated preflight.
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const mutating = method === 'POST' || method === 'PATCH' || method === 'PUT' || method === 'DELETE';
   const res = await fetch(path, {
     credentials: 'include',
     ...init,
-    headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
+    headers: {
+      'content-type': 'application/json',
+      ...(mutating ? { 'X-Takeover-Client': 'web' } : {}),
+      ...(init?.headers ?? {}),
+    },
   });
   const requestId = res.headers.get('x-request-id') ?? undefined;
   let body: unknown;
