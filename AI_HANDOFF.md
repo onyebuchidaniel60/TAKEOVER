@@ -2883,3 +2883,67 @@ BLOCKED BY: owner approval (auth-contract change); optionally the 5-min
    live `GET /health` → 200 `{"status":"ok"}`; live challenge → 200, verify →
    200 + 1 redacted `Set-Cookie`; cleanup counts 1/1/1/1; `git status` clean
    except the two doc files (verified before commit).
+
+## Phase 14c completion — IMPLEMENTED, tested, pushed; DEPLOY BLOCKED on Railway (2026-09-14)
+
+Owner approved Option 2 (Bearer fallback; no Partitioned, no proxy). Implemented
+exactly per `docs/phase-14c-diagnosis.md` §6 as narrowed by the approval. No payment /
+claim / RPC / admin / slots / reports / CORS-allowlist changes. Phase 15 NOT started.
+Phase 14b re-test NOT run (human, real device).
+
+```text
+CURRENT PHASE: Phase 14c completion — code done + green + pushed; Railway
+  redeploy NOT observed → human triggers from dashboard → then Vercel deploy
+  + post-deploy verifications (all scripted below) → human 14b re-test
+COMPLETED: server Bearer fallback (verify-body sessionToken; cookie-or-Bearer
+  resolution, cookie preferred; approved Bearer-only CSRF exemption stated in
+  csrf.ts comments, guard logic byte-identical on the cookie path) + frontend
+  sessionStorage wiring (save on login, attach header, clear on logout,
+  in-memory fallback) + 13 api + 7 web tests + ARCH §4.2/§16 + SECURITY_REVIEW
+  threat row + inventory + this checkpoint; commit c1b5add pushed to origin/main
+TESTS RUN: typecheck clean exit 0; lint clean exit 0; full suite green —
+  api 28 files/324 pass (was 27/311, +13, none lowered/skipped) + web 12
+  files/103 pass (was 11/96, +7) + shared 1 pass, exit 0; tag-residue check 0
+RESULT: BLOCKED on deploy — 3 live probes over ~14 min after push all show the
+  OLD backend (verify body has NO sessionToken; Set-Cookie unchanged, as it
+  should be). Per the brief STOP rule: no Railway CLI, no improvisation, no
+  Vercel deploy yet (ordered after Railway). Human triggers the redeploy.
+KNOWN ISSUES: live fix not yet reachable (backend old, frontend old); Risks
+  B/C/D still UNTESTED; ARCH §4.2 sliding-renewal drift fixed doc-side (7-day
+  fixed expiry now stated to match code — no behavior change)
+SECURITY NOTES: cookie path + guard behavior unchanged (proven by precedence +
+  intact tests); exemption applies ONLY with no session cookie; token never
+  logged/returned elsewhere/stored outside sessionStorage (scans enforce);
+  forged/expired/revoked/disabled Bearer all 401; no secrets printed or
+  committed (tokens redacted; DATABASE_URL via shell var only); probe residues
+  removed every cycle (1/1/1/1 x3); temp scripts deleted; tokens stay in
+  .env.txt (Phase 15 task)
+FILES CHANGED: apps/api/src/auth/{session-token,session}.ts,
+  apps/api/src/http/csrf.ts (comments only), apps/api/src/routes/auth.ts,
+  apps/web/src/lib/api.ts, apps/web/src/store/auth.ts,
+  apps/api/test/bearer-auth.test.ts (new, 13), apps/web/test/bearer-auth.test.ts
+  (new, 7), ARCHITECTURE.md (§4.2 Bearer note + cookie/TTL accuracy, §16
+  exemption), SECURITY_REVIEW.md (threat row + inventory 55–68),
+  AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: c1b5add feat: phase 14c — bearer token fallback for cookie-blocking
+  webviews (pushed: 70a8953..c1b5add main -> main; confirmed on origin/main)
+NEXT TASK: (1) human: Railway dashboard → takeover-api → Redeploy (or confirm
+  git integration); (2) next pass: re-run the live probe (expect
+  hasSessionToken:true + Bearer /me 200), then from the REPO ROOT run
+  vercel deploy --dry --prod --yes --project takeover-web (confirm .env.txt +
+  dist/ absent), then vercel deploy . --prod --yes --project takeover-web,
+  then post-deploy checks (health 200, alias 200 HTML, preflight 204 + ACAO
+  echo, live verify with redacted token, fresh-dist leak audit 0 hits);
+  (3) human 14b re-test on device, then Risks B/C/D
+BLOCKED BY: Railway redeploy (dashboard trigger; CLI token scope-blocked)
+```
+
+1. Files changed: 10 in commit c1b5add (6 src + 2 new test files + 2 docs) plus this handoff checkpoint (to commit next).
+2. Test counts: before api 311 (27 files) + web 96 (11 files) + shared 1 → after api 324 (28 files) + web 103 (12 files) + shared 1. Zero existing tests lowered or skipped.
+3. Test proving the Bearer-only CSRF exemption: `apps/api/test/bearer-auth.test.ts` → "BEARER EXEMPTION: Bearer-only credentialed POST with no Origin and no client header succeeds" (Bearer-only claim POST, no Origin/header → 200).
+4. Test proving the cookie-present precedence rule: same file → "PRECEDENCE: valid cookie plus valid Bearer with a bad Origin is rejected" (cookie + Bearer + evil Origin → 403 FORBIDDEN_ORIGIN, zero rows).
+5. Commit `c1b5add` pushed to origin/main (confirmed via `git log origin/main -1`).
+6. Railway redeploy evidence: NONE — 3 probes (~4/8/14 min post-push) all show the old build (challenge 200, verify 200, one unchanged Set-Cookie, `hasSessionToken:false`). Health 200 throughout (non-discriminating).
+7. Vercel production URL: NOT deployed (ordered after Railway; alias state unchanged and unverified).
+8. Token-leak audit: NOT run (no fresh dist deployed; pre-deploy `dist/` untouched by this change — audit runs post-deploy per the brief).
+9. Deployed: NO — blocked. NOT ready for human Phase 14b re-test. Exact resume: dashboard redeploy → live probe → Vercel dry-run + deploy → post-deploy checks (§NEXT TASK above).
