@@ -2780,3 +2780,106 @@ The MVP does not automatically prove that an external business booking exists. T
 ## Implementation detail allowance
 
 The agent may choose low-level implementation details only when they do not change externally visible product behavior or architecture. Such decisions must be documented when material.
+
+## Phase 14c diagnosis — Nimiq Pay session cookie loss (Risk A root-caused, 2026-09-14)
+
+DIAGNOSE ONLY. No code changed (no auth/session/CSRF/deployment edits). Full
+diagnosis: `docs/phase-14c-diagnosis.md`. Owner approval required before any
+fix implementation (Bearer contract change + CSRF Bearer exemption).
+
+```text
+CURRENT PHASE: Phase 14c complete (diagnosis) — STOP for owner review; do NOT
+  implement the fix, do NOT re-run 14a/14b, do NOT begin Phase 15
+COMPLETED: all 6 drop-cause investigations + live Set-Cookie capture (throwaway
+  wallet, residue removed) + 3-option comparison with recommendation +
+  docs/phase-14c-diagnosis.md + this checkpoint
+TESTS RUN: typecheck clean exit 0; lint clean exit 0; full suite green —
+  api 311 pass (27 files) + web 96 pass (11 files) + shared 1 pass, exit 0;
+  live GET /health → 200 {"status":"ok"}; live POST /auth/challenge → 200;
+  live POST /auth/verify → 200 + exactly one Set-Cookie (attributes in §1
+  below); residue removed (users/sessions/audits/challenges 1 each, counts only)
+RESULT: Risk A root-caused — cross-site third-party session cookie dropped by
+  the Nimiq Pay Android WebView's third-party-cookie policy (per-WebView app
+  setting, defaults to deny on modern targets, undocumented by Nimiq Pay).
+  SameSite=None; Secure is necessary but not sufficient there. Recommended fix:
+  Option 2 Bearer-token fallback (same session token, alternate presentation;
+  cookie path retained; CSRF guard unchanged on cookie path, explicit exemption
+  for Bearer-only requests pending approval) + Partitioned as a one-line
+  companion. Option 3 (same-origin proxy) flagged as needing architecture approval.
+KNOWN ISSUES: Risks B/C/D still UNTESTED (blocked behind auth); SET-vs-SEND half
+  of the drop needs the chrome://inspect device check (fix-identical, non-blocking);
+  Nimiq Pay cookie policy / WebView version / Origin header undocumented;
+  minor doc drift: ARCH §4.2 "sliding renewal" vs fixed 7-day expiresAt in code
+SECURITY NOTES: no guard weakened (csrf.ts untouched); no secrets printed or
+  committed (token redacted in the doc; DATABASE_URL via shell var only);
+  Bearer trade-off stated (loses HttpOnly, XSS-bar context given, needs explicit
+  acceptance); no new dependency proposed; payment/claim logic untouched;
+  VERCEL/RAILWAY tokens stay in .env.txt (Phase 15 task)
+FILES CHANGED: docs/phase-14c-diagnosis.md (new), AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: docs: phase 14c — diagnose nimiq pay session cookie loss
+NEXT TASK: owner approves/rejects (a) verify-body token contract change and
+  (b) CSRF Bearer exemption → follow-up completion pass implements per
+  docs/phase-14c-diagnosis.md §6 → human re-tests 14b on-device (then B/C/D)
+BLOCKED BY: owner approval (auth-contract change); optionally the 5-min
+  chrome://inspect device check in diagnosis §5
+```
+
+1. What was confirmed about the cookie drop (with citations):
+   - Prod emits exactly `takeover_session=<token>; Path=/; HttpOnly; Secure;
+     SameSite=None` — no Domain, no Max-Age/Expires (host-only SESSION cookie).
+     Code: `apps/api/src/auth/session.ts:28-44` (options), `:192` (set on
+     verify). Live: throwaway `/auth/verify` → 200 with that header verbatim
+     (token redacted).
+   - Cross-site/third-party by topology: Vercel page origin vs Railway API
+     origin share no private suffix. Android WebView defaults to disallowing
+     third-party cookies (targetSdk 21+, per-WebView app policy):
+     `developer.android.com/.../webkit/CookieManager`; Chromium WebView
+     delegates cookie permissions to the app
+     (`chromium.../android_webview/docs/cookies.md`). Nimiq Pay documents no
+     cookie policy (full `nimiq.dev/mini-apps/faq` checked — only "call any
+     external API using fetch()", which is our pattern).
+   - Top-level-document note VERIFIED (no iframe; `nimiq.dev/mini-apps` "How It
+     Works" + SDK `init()` polling `window.nimiq`), with the clarification that
+     top-level does NOT make the API cookie first-party.
+   - The 401 (not 403) proves the cookie was absent: "authentication required"
+     is thrown only by `requireAuth` (`session.ts:105`); the CSRF guard
+     (`http/csrf.ts:29-45`) skips cookieless requests and 403s only when a
+     cookie is present. In-memory address (verify body, `store/auth.ts:55-59`)
+     vs cookie-dependent `/me`/claim explains observations 2 vs 3/4.
+   - `Partitioned` is available in installed `@fastify/cookie@11.1.2` types,
+     additive-safe, but unproven without a device (CHIPS needs WebView 114+;
+     partition binds to one frontend URL — alias discipline required).
+2. What could not be confirmed without a device: Nimiq Pay's CookieManager
+   policy, WebView version, partitioned-cookie delivery, SET-vs-SEND half
+   (fix-identical), actual `Origin` header, Risks B/C/D, `sessionStorage`
+   availability in the WebView.
+3. Three options compared (detail in diagnosis §3): Option 1 cookie-config
+   (only `Partitioned` plausible; `SameSite`/`Domain`/`Max-Age` ruled out with
+   reasons) — safe but not guaranteed; Option 2 Bearer fallback —
+   RECOMMENDED (same token/row/TTL/revocation; `sessionStorage`; cookie path
+   retained + guard unchanged; Bearer-only CSRF exemption justified by
+   no-auto-attach + preflight-gated `Authorization`, pending approval; logout
+   revokes both; theft bounded by 256-bit secret + 7-day TTL; HttpOnly loss
+   stated); Option 3 same-origin proxy — effective but flagged as
+   architecture-approval territory (ARCH §22 data path, IP/rate-limit,
+   proxy limits), not recommended.
+4. Exact human step(s) still needed: (a) approve/reject the two auth-contract
+   items; (b) optional 5-min `chrome://inspect` cookie/Network check
+   (storage present/absent, `set-cookie` seen, `cookie` sent, WebView version,
+   `Origin` value); (c) post-fix 14b re-test on-device, then B/C/D.
+5. Proposed implementation plan for the chosen fix (files, tests): diagnosis
+   §6 — `routes/auth.ts` (token in verify body), `auth/session.ts` (cookie-or-
+   Bearer resolution + `Partitioned` line), `http/csrf.ts` (approved exemption
+   only), `web/lib/api.ts` + `web/store/auth.ts` (sessionStorage wire + clear),
+   ARCH §4.2/§15/§16 docs (+ sliding-renewal drift fix); tests: Bearer `/me`,
+   Bearer claim→pay round-trip, 401 matrix (bad/revoked/disabled), CSRF matrix
+   both paths, logout revocation, `Partitioned` prod-only unit test, full suite.
+6. Files changed in this diagnostic session: `docs/phase-14c-diagnosis.md`
+   (new), `AI_HANDOFF.md` (this checkpoint). Temp probe script created, run,
+   and deleted (`Test-Path` → False). No auth/session/CSRF/deployment code touched.
+7. Commands actually run and their actual output: `npm.cmd run typecheck` →
+   clean exit 0; `npm.cmd run lint` → clean exit 0; `npm.cmd run test` (live
+   DB) → api 27 files/311 pass + web 11 files/96 pass + shared 1 pass, exit 0;
+   live `GET /health` → 200 `{"status":"ok"}`; live challenge → 200, verify →
+   200 + 1 redacted `Set-Cookie`; cleanup counts 1/1/1/1; `git status` clean
+   except the two doc files (verified before commit).
