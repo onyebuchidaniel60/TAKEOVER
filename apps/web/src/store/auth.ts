@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ApiError, apiFetch } from '../lib/api';
+import { ApiError, apiFetch, setSessionToken } from '../lib/api';
 import { connectWallet, signChallenge } from '../lib/nimiq';
 
 export type AuthStatus = 'unauthenticated' | 'authenticating' | 'authenticated';
@@ -52,10 +52,16 @@ export const useAuth = create<AuthState>()((set) => ({
         body: JSON.stringify({ walletAddress }),
       });
       const { publicKey, signature } = await signChallenge(provider, challenge.challenge);
-      const verified = await apiFetch<{ user: AuthUser }>('/api/v1/auth/verify', {
+      const verified = await apiFetch<{ user: AuthUser; sessionToken?: string }>('/api/v1/auth/verify', {
         method: 'POST',
         body: JSON.stringify({ walletAddress, nonce: challenge.nonce, signature, publicKey }),
       });
+      // Phase 14c Bearer fallback: keep the session token for cookie-blocking
+      // hosts. Stored in sessionStorage only (see lib/api); ignored when the
+      // backend predates the field.
+      if (typeof verified.sessionToken === 'string' && verified.sessionToken.length > 0) {
+        setSessionToken(verified.sessionToken);
+      }
       set({ status: 'authenticated', user: verified.user, error: null, initialized: true });
     } catch (err) {
       set({ status: 'unauthenticated', user: null, error: messageOf(err), initialized: true });
@@ -68,6 +74,9 @@ export const useAuth = create<AuthState>()((set) => ({
     } catch {
       // Server already forgot us or unreachable: still reset local state.
     }
+    // Phase 14c: dropping the Bearer token is part of logout — the server
+    // revokes the single underlying session, killing both credential paths.
+    setSessionToken(null);
     set({ status: 'unauthenticated', user: null, error: null, initialized: true });
   },
 

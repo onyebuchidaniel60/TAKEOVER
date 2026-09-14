@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
 import { sessions, users } from '../../../../db/schema';
 import { AppError } from '../http/errors';
-import { parseSessionToken, SESSION_COOKIE_NAME, sessionHashMatches } from './session-token';
+import { parseBearerToken, parseSessionToken, SESSION_COOKIE_NAME, sessionHashMatches } from './session-token';
 
 export interface AuthUser {
   sessionId: string;
@@ -44,9 +44,13 @@ export function sessionCookieOptions(): {
 }
 
 /**
- * Resolves the takeover_session cookie into req.user. Never throws for
- * missing/invalid sessions — it just leaves req.user undefined. A session
- * whose user is disabled sets req.accountDisabled (belt-and-suspenders with
+ * Resolves the session into req.user from the takeover_session cookie
+ * (preferred) or — Phase 14c Bearer fallback for cookie-blocking WebViews —
+ * from `Authorization: Bearer <sessionId>.<secret>`. Never throws for
+ * missing/invalid sessions — it just leaves req.user undefined. Both
+ * presentations resolve to the SAME session row with the SAME constant-time
+ * secret comparison, TTL, revocation, and disabled-user handling below.
+ * A session whose user is disabled sets req.accountDisabled (belt-and-suspenders with
  * the revoked-sessions delete on disable): requireAuth maps that to
  * 401 ACCOUNT_DISABLED so a disabled user is told why, instead of a bare
  * unauthenticated. Disabled status remains admin-only data elsewhere.
@@ -54,8 +58,11 @@ export function sessionCookieOptions(): {
 export async function sessionMiddleware(request: FastifyRequest): Promise<void> {
   request.user = undefined;
   request.accountDisabled = false;
-  const raw = request.cookies?.[SESSION_COOKIE_NAME];
-  const parsed = parseSessionToken(raw);
+  const rawCookie = request.cookies?.[SESSION_COOKIE_NAME];
+  const fromCookie = parseSessionToken(rawCookie);
+  // Cookie wins when it parses; Bearer is the fallback for hosts that drop
+  // the cookie (Nimiq Pay Android WebView third-party-cookie policy).
+  const parsed = fromCookie ?? parseBearerToken(request.headers.authorization);
   if (!parsed) {
     return;
   }

@@ -190,6 +190,11 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): 
         expiresAt: new Date(Date.now() + SESSION_TTL_MS),
       });
       setSessionCookie(reply, token.token);
+      // Phase 14c Bearer fallback (owner approved): the raw session token is
+      // ALSO returned in the body for hosts that drop the third-party session
+      // cookie (Nimiq Pay Android WebView). Same token, same session row, same
+      // TTL/revocation as the cookie. Never logged; never returned anywhere
+      // else; the frontend keeps it in sessionStorage only.
       return successBody(request, {
         user: {
           id: user.id,
@@ -197,6 +202,7 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): 
           role: user.role,
           status: user.status,
         },
+        sessionToken: token.token,
       });
     },
   );

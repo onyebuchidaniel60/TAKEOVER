@@ -52,6 +52,25 @@ export function parseSessionToken(token: unknown): { sessionId: string; secret: 
   return { sessionId, secret };
 }
 
+/**
+ * Phase 14c Bearer fallback: extracts the session token from an
+ * `Authorization: Bearer <sessionId>.<secret>` header. The extracted value
+ * flows through the same parseSessionToken validation (strict format) and the
+ * same constant-time sessionHashMatches comparison as the cookie path — the
+ * Bearer token IS the session token, not a second credential type. Returns
+ * null for any missing/malformed header.
+ */
+export function parseBearerToken(header: unknown): { sessionId: string; secret: Buffer } | null {
+  if (typeof header !== 'string') {
+    return null;
+  }
+  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
+  if (!match?.[1]) {
+    return null;
+  }
+  return parseSessionToken(match[1].trim());
+}
+
 /** Constant-time comparison of the stored hash against SHA-256(secret). */
 export function sessionHashMatches(storedHex: string, secret: Uint8Array): boolean {
   if (typeof storedHex !== 'string' || !HASH_RE.test(storedHex)) {

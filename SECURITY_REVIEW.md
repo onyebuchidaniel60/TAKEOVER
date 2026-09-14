@@ -45,6 +45,7 @@ Proved the mitigations in ARCHITECTURE.md §16 work by attacking them:
 | Session theft — forged cookie | verified | Valid sessionId + wrong secret → 401 (constant-time hash compare) |
 | Session theft — expired session | verified | Forced-expired session → 401 |
 | Session theft — revoked session | verified | Logout → old cookie 401 |
+| Session theft — bearer fallback token (Phase 14c, owner approved) | verified | The `/auth/verify` body token IS the session token (same row/TTL/revocation; cookie preferred); forged/expired/revoked Bearer → 401, disabled → 401 `ACCOUNT_DISABLED`, cookie+Bearer logout matrix revokes both paths; Bearer-only mutations skip the CSRF guard (token never auto-attached; cross-origin send is CORS-preflight-gated) while any cookie-bearing request keeps the full guard (precedence tested). Accepted trade-off: token lives in JS-accessible `sessionStorage` (HttpOnly lost — any XSS becomes session theft), bounded by the 7-day TTL, single-session revoke-on-logout, sessionStorage-only scope (never localStorage/cookie/global), no logging, and the app's no-user-HTML posture |
 | IDOR — foreign claim read | verified | Buyer B `GET /claims/:id` → 404 `CLAIM_NOT_FOUND`; anon → 401 |
 | IDOR — foreign payment actions | verified | B intent/submit/verify on A claim → 404 |
 | IDOR — foreign slot mutation | verified | B patch/publish/cancel on A draft → 404, row untouched |
@@ -152,6 +153,26 @@ Proved the mitigations in ARCHITECTURE.md §16 work by attacking them:
 `apps/web/test/security.test.tsx` (added):
 
 54. GET requests carry no `X-Takeover-Client` header.
+
+`apps/api/test/bearer-auth.test.ts` (Phase 14c, 13 tests):
+
+55. Verify body carries `sessionToken` equal to the `Set-Cookie` value (cookie emitted unchanged).
+56. Bearer `GET /me` with no cookie → 200 with the right wallet.
+57. BEARER EXEMPTION: Bearer-only claim POST with no Origin and no client header → 200.
+58. Cookie-bearing claim POST with no Origin → 403 `FORBIDDEN_ORIGIN` (guard intact).
+59. PRECEDENCE: valid cookie + valid Bearer with a bad Origin → 403 (guard applies).
+60. Logout via cookie revokes the Bearer path (→ 401); logout via Bearer revokes the cookie path (→ 401).
+61. Forged Bearer (valid session id, wrong secret) → 401.
+62. Expired session via Bearer → 401; revoked session via Bearer → 401; disabled user via Bearer → 401 `ACCOUNT_DISABLED`.
+63. Malformed Bearer values (5 shapes) → 401.
+64. Source scan: no `sessionToken`/`authorization`/`bearer` in any `request.log` call, no console output in `apps/api/src`.
+
+`apps/web/test/bearer-auth.test.ts` (Phase 14c, 7 tests):
+
+65. `apiFetch` attaches `Authorization: Bearer <token>` on GET and POST when set; sends none when unset.
+66. Token persists to `sessionStorage` (`takeover.sessionToken`); `localStorage` is never touched (throwing stub).
+67. Clear removes the token; `sessionStorage`-absent path falls back to memory (send + clear work).
+68. Explicit caller `Authorization` header still wins; no `localStorage` reference anywhere in `apps/web/src`.
 
 ## 4. Findings
 

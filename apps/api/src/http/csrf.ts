@@ -19,12 +19,20 @@ export function isMutatingMethod(method: string): boolean {
 /**
  * Rejects cross-site mutations that would otherwise ride the session cookie:
  * - skipped when the method is idempotent or no session cookie is present
- *   (no cookie means nothing to steal);
- * - otherwise requires an allowlisted Origin (missing or unlisted → 403
- *   FORBIDDEN_ORIGIN) and the custom client header (missing or wrong → 403
- *   MISSING_CLIENT_HEADER). The custom header forces a CORS preflight for
- *   any cross-origin request, and preflight is already allowlist-gated, so a
- *   foreign page can neither send the header nor read the response.
+ *   (no auto-attached credential means nothing to steal). Phase 14c (owner
+ *   approved): this skip explicitly covers requests authenticated SOLELY via
+ *   `Authorization: Bearer <session-token>` — a Bearer token is never
+ *   auto-attached by the browser, and sending it cross-origin forces a
+ *   CORS-preflight-gated custom header while preflight itself is already
+ *   allowlist-gated, so a foreign page can neither send the header nor read
+ *   the response. The CORS allowlist remains the boundary for that path.
+ * - when a session cookie IS present (even alongside a Bearer token — the
+ *   cookie path takes precedence), requires an allowlisted Origin
+ *   (missing or unlisted → 403 FORBIDDEN_ORIGIN) and the custom client
+ *   header (missing or wrong → 403 MISSING_CLIENT_HEADER). The custom header
+ *   forces a CORS preflight for any cross-origin request, and preflight is
+ *   already allowlist-gated, so a foreign page can neither send the header
+ *   nor read the response.
  */
 export function createCsrfGuard(allowlist: string[]) {
   return async function csrfGuard(request: FastifyRequest): Promise<void> {

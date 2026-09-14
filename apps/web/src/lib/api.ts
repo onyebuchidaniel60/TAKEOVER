@@ -2,6 +2,68 @@
 // In production the backend lives on Railway, so Vercel bakes VITE_API_BASE_URL
 // into the bundle and every path below is resolved against it. Cookies
 // (takeover_session) ride along via credentials: 'include'.
+//
+// Phase 14c Bearer fallback (owner approved): hosts that drop the third-party
+// session cookie (Nimiq Pay Android WebView) authenticate with
+// `Authorization: Bearer <session-token>` instead. The token is the SAME
+// server session the cookie carries (same row, TTL, revocation). Storage is
+// sessionStorage ONLY — never persistent client storage, never a cookie,
+// never window/global — with an in-memory fallback when sessionStorage
+// is unavailable (private mode / restricted WebView).
+
+/** sessionStorage key for the Bearer fallback token. */
+export const SESSION_TOKEN_KEY = 'takeover.sessionToken';
+
+let memoryToken: string | null = null;
+
+function sessionStore(): Storage | null {
+  try {
+    if (typeof sessionStorage === 'undefined') {
+      return null;
+    }
+    return sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** Current Bearer token, if the client holds one (sessionStorage, else memory). */
+export function getSessionToken(): string | null {
+  const store = sessionStore();
+  if (store) {
+    try {
+      const stored = store.getItem(SESSION_TOKEN_KEY);
+      if (stored !== null) {
+        return stored;
+      }
+    } catch {
+      // Fall through to the in-memory copy below.
+    }
+  }
+  return memoryToken;
+}
+
+/**
+ * Persist (or, with null, clear) the Bearer token. Always mirrors the
+ * in-memory copy so a store that appears/disappears mid-session cannot strand
+ * or resurrect a stale token.
+ */
+export function setSessionToken(token: string | null): void {
+  memoryToken = token;
+  const store = sessionStore();
+  if (!store) {
+    return;
+  }
+  try {
+    if (token === null) {
+      store.removeItem(SESSION_TOKEN_KEY);
+    } else {
+      store.setItem(SESSION_TOKEN_KEY, token);
+    }
+  } catch {
+    // sessionStorage write rejected (quota/private mode): memory copy stands.
+  }
+}
 
 /**
  * Phase 14a: production API base URL. Read lazily (per call, not at module
@@ -64,12 +126,17 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   // while any cross-origin mutation attempt forces a CORS-gated preflight.
   const method = (init?.method ?? 'GET').toUpperCase();
   const mutating = method === 'POST' || method === 'PATCH' || method === 'PUT' || method === 'DELETE';
+  // Phase 14c: attach the Bearer fallback token when the client holds one
+  // (cookie path stays preferred server-side; the header is redundant there).
+  // Explicit caller headers still win.
+  const bearer = getSessionToken();
   const res = await fetch(`${apiBaseUrl()}${path}`, {
     credentials: 'include',
     ...init,
     headers: {
       'content-type': 'application/json',
       ...(mutating ? { 'X-Takeover-Client': 'web' } : {}),
+      ...(bearer ? { authorization: `Bearer ${bearer}` } : {}),
       ...(init?.headers ?? {}),
     },
   });

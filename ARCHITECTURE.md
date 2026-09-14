@@ -86,11 +86,15 @@ The optional Nimiq Pay device identifier may be used as supplementary telemetry/
 
 ### 4.2 Session
 
-After successful signature verification, backend creates a random, opaque session identifier. Store the session hash server-side; return the raw session in an `HttpOnly`, `Secure`, `SameSite=Lax` cookie when browser embedding permits it.
+After successful signature verification, backend creates a random, opaque session identifier. Store the session hash server-side; return the raw session in an `HttpOnly` cookie — `SameSite=Lax` without `Secure` in dev, `SameSite=None` with `Secure=true` in production (locked Vercel → Railway cross-origin topology) — when browser embedding permits it.
 
-Session expiration: 7 days with sliding renewal on authenticated use, unless Nimiq Pay embedding constraints require a shorter period.
+Session expiration: 7 days fixed from issuance (the `expires_at` set at session creation; authenticated use refreshes `last_seen_at` only).
 
 Logout destroys/revokes the session server-side.
+
+#### Bearer fallback (Phase 14c, owner approved)
+
+Some hosts drop the third-party session cookie (confirmed: Nimiq Pay Android WebView third-party-cookie policy, Phase 14b). For those hosts, `POST /auth/verify` additionally returns the raw session token (`sessionToken`) in the success body, and the server accepts `Authorization: Bearer <sessionId>.<secret>` as an alternate presentation of the SAME session row (same constant-time secret comparison, same TTL, same revocation; cookie preferred when it parses). The token is never logged and never returned by any other endpoint. The frontend keeps it in `sessionStorage` only (in-memory fallback when `sessionStorage` is unavailable; never `localStorage`, never a cookie, never `window`/global) and clears it on logout; server-side logout revokes the single session, killing both presentations together. Precedence rule: when a session cookie IS present (even alongside a Bearer token), the cookie path — including the §16 CSRF guard — applies unchanged. The `HttpOnly`-loss trade-off (token in JS-accessible storage) is accepted and bounded by the 7-day TTL, revoke-on-logout, and sessionStorage-only scope; see SECURITY_REVIEW.md.
 
 ### 4.3 Challenge
 
@@ -918,7 +922,9 @@ No user-provided HTML. Descriptions render as text/escaped Markdown only if a sa
 
 Origin allowlist validation + required X-Takeover-Client header on credentialed mutations, plus SameSite=None; Secure in production.
 
-Every state-changing request (POST/PATCH/PUT/DELETE) that carries the session cookie must also carry an allowlisted Origin header (missing or unlisted → 403 FORBIDDEN_ORIGIN) and the custom `X-Takeover-Client: web` header sent by the web client on mutations only (missing or wrong → 403 MISSING_CLIENT_HEADER). The custom header forces a CORS preflight for any cross-origin request, and preflight is already allowlist-gated, so a foreign page can neither send the header nor read the response. Requests without a session cookie (nothing to steal) and idempotent methods are unaffected.
+Every state-changing request (POST/PATCH/PUT/DELETE) that carries the session cookie must also carry an allowlisted Origin header (missing or unlisted → 403 FORBIDDEN_ORIGIN) and the custom `X-Takeover-Client: web` header sent by the web client on mutations only (missing or wrong → 403 MISSING_CLIENT_HEADER). The custom header forces a CORS preflight for any cross-origin request, and preflight is already allowlist-gated, so a foreign page can neither send the header nor read the response. Requests without a session cookie (nothing auto-attached to steal) and idempotent methods are unaffected.
+
+Bearer exemption (Phase 14c, owner approved): a request authenticated SOLELY via `Authorization: Bearer <session-token>` — no session cookie present — skips the Origin/header requirement. Justification: unlike the cookie, the token is never auto-attached by the browser, and sending `Authorization` cross-origin forces a CORS preflight that is already allowlist-gated, so a foreign origin can neither send the header nor read the response; the CORS allowlist remains the boundary for this path. Precedence: when a session cookie IS present (even alongside a Bearer token), the cookie path — and this guard in full — applies unchanged.
 
 ### SSRF
 
