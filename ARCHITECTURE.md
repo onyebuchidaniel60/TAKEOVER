@@ -268,6 +268,18 @@ A payment is confirmed only according to a server-defined Nimiq verification pol
 
 **IMPLEMENTATION DETAIL — AGENT MAY DECIDE:** polling interval and exact RPC calls, provided verification is server-side and deterministic.
 
+### B2 deferred — intent on corrupt slot data (Phase 14c round 3, owner decided)
+
+`createPaymentIntent` canonicalizes the stored payout/sender and throws 500
+`INTERNAL_ERROR` when server data is corrupt (`canonicalizeOr500`). That
+semantics is deliberately retained: a canonicalization failure means the
+server-side invariant broke, and no softer code may paper over it.
+Corrupt rows are prevented at the boundary instead — publish-time
+`canonicalizePayoutWallet` rejects bad payouts (400), published commercial
+fields are immutable so a payout cannot rot post-publish, and production
+databases must not contain seed fixtures (see §9). The intent path itself is
+unchanged.
+
 ## 7. Slot/claim concurrency
 
 The final unit of a slot is scarce inventory and must be protected with a database transaction.
@@ -352,6 +364,13 @@ The same transaction cannot verify two successful payment intents.
 Reconciled to the implemented Phase 2 schema on 2026-09-11 (follow-up): the Phase 2
 schema is the source of truth. The migration SQL under `db/migrations/` is authoritative
 for DDL; this section describes it.
+
+The seed script (`db/seed.ts`) and its fixture data (`NQ00 SEED*` wallets,
+fixed `11111111-…`/`22222222-…` IDs) are development-only: `db:seed` refuses
+`NODE_ENV=production`, and production databases must not contain `NQ00 SEED*`
+rows. Fixture payouts deliberately fail address canonicalization, so any
+leaked seed row breaks payment-intent creation for claims on it (Phase 14c
+round 2); the one-time cleanup lives in `docs/phase-14c-seed-cleanup.sql`.
 
 ### users
 

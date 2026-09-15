@@ -2,7 +2,17 @@
 // Price is entered in NIM ("1.5"); the parent converts nothing — this form
 // emits exact base units via parseNimToBaseUnits.
 import { useState } from 'react';
-import { parseNimToBaseUnits, type OwnerSlot, type SlotWrite } from '../lib/slots';
+import {
+  parseNimToBaseUnits,
+  validateSlotEndsAt,
+  validateSlotPayout,
+  validateSlotPrice,
+  validateSlotQuantity,
+  validateSlotStartsAt,
+  validateSlotTitle,
+  type OwnerSlot,
+  type SlotWrite,
+} from '../lib/slots';
 import { formatNim } from '../lib/slots';
 
 export interface SlotFormValues {
@@ -58,6 +68,14 @@ export function initialValues(slot?: OwnerSlot): SlotFormValues {
   };
 }
 
+function FieldMessage({ message }: { message: string }): React.JSX.Element {
+  return (
+    <p className="mt-1 text-sm font-medium text-red-800" role="alert">
+      {message}
+    </p>
+  );
+}
+
 export default function SlotForm({
   initial,
   submitLabel,
@@ -72,7 +90,10 @@ export default function SlotForm({
   onSubmit: (body: SlotWrite) => void;
 }) {
   const [values, setValues] = useState<SlotFormValues>(initial);
-  const [fieldError, setFieldError] = useState<string | null>(null);
+  // Phase 14c round 3 (Fix C2): per-field inline reasons mirroring the
+  // server rules publish enforces. The server stays authoritative — these
+  // only block the request early with a clearer message.
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof SlotFormValues, string>>>({});
 
   const set =
     (key: keyof SlotFormValues) =>
@@ -82,32 +103,40 @@ export default function SlotForm({
 
   const handleSubmit = (event: React.FormEvent): void => {
     event.preventDefault();
-    if (!values.title.trim()) {
-      setFieldError('Give your opening a title.');
-      return;
-    }
+    const errors: Partial<Record<keyof SlotFormValues, string>> = {};
+    const titleError = validateSlotTitle(values.title);
+    if (titleError) errors.title = titleError;
     const startsAt = inputToIso(values.starts_at);
-    if (!startsAt) {
-      setFieldError('Pick a valid start date and time.');
+    const startsError = validateSlotStartsAt(startsAt);
+    if (startsError) errors.starts_at = startsError;
+    const endsError = validateSlotEndsAt(startsAt, values.ends_at);
+    if (endsError) errors.ends_at = endsError;
+    const priceError = validateSlotPrice(values.price);
+    if (priceError) errors.price = priceError;
+    const quantityError = validateSlotQuantity(values.total_quantity);
+    if (quantityError) errors.total_quantity = quantityError;
+    const payoutError = validateSlotPayout(values.payout_wallet);
+    if (payoutError) errors.payout_wallet = payoutError;
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       return;
     }
+    setFieldErrors({});
     let priceNim: string;
     try {
       priceNim = parseNimToBaseUnits(values.price);
     } catch (err) {
-      setFieldError(err instanceof Error ? err.message : 'Enter a valid price.');
+      // Unreachable when the validator above passes (same parser), kept as a
+      // backstop so a divergence can never submit a bad amount.
+      setFieldErrors({ price: err instanceof Error ? err.message : 'Enter a valid price.' });
       return;
     }
     const totalQuantity = Number(values.total_quantity);
-    if (!Number.isInteger(totalQuantity) || totalQuantity < 1) {
-      setFieldError('Spots must be a whole number of 1 or more.');
+    // Unreachable when validation above passes (narrowing for the type
+    // checker; the validators already rejected bad dates).
+    if (!startsAt) {
       return;
     }
-    if (!values.payout_wallet.trim()) {
-      setFieldError('Enter the wallet address that should receive payment.');
-      return;
-    }
-    setFieldError(null);
     const endsAt = inputToIso(values.ends_at);
     onSubmit({
       title: values.title.trim(),
@@ -138,6 +167,7 @@ export default function SlotForm({
           onChange={set('title')}
           maxLength={200}
         />
+        {fieldErrors.title ? <FieldMessage message={fieldErrors.title} /> : null}
       </div>
       <div>
         <label htmlFor="slot-description" className={labelClass}>
@@ -194,6 +224,7 @@ export default function SlotForm({
             value={values.starts_at}
             onChange={set('starts_at')}
           />
+          {fieldErrors.starts_at ? <FieldMessage message={fieldErrors.starts_at} /> : null}
         </div>
         <div>
           <label htmlFor="slot-ends" className={labelClass}>
@@ -206,6 +237,7 @@ export default function SlotForm({
             value={values.ends_at}
             onChange={set('ends_at')}
           />
+          {fieldErrors.ends_at ? <FieldMessage message={fieldErrors.ends_at} /> : null}
         </div>
         <div>
           <label htmlFor="slot-price" className={labelClass}>
@@ -221,6 +253,7 @@ export default function SlotForm({
             value={values.price}
             onChange={set('price')}
           />
+          {fieldErrors.price ? <FieldMessage message={fieldErrors.price} /> : null}
         </div>
         <div>
           <label htmlFor="slot-qty" className={labelClass}>
@@ -236,6 +269,7 @@ export default function SlotForm({
             value={values.total_quantity}
             onChange={set('total_quantity')}
           />
+          {fieldErrors.total_quantity ? <FieldMessage message={fieldErrors.total_quantity} /> : null}
         </div>
       </div>
       <div>
@@ -254,12 +288,8 @@ export default function SlotForm({
           spellCheck={false}
         />
         <p className="mt-1 text-xs text-slate-500">Buyers pay this address directly.</p>
+        {fieldErrors.payout_wallet ? <FieldMessage message={fieldErrors.payout_wallet} /> : null}
       </div>
-      {fieldError ? (
-        <p className="text-sm font-medium text-red-800" role="alert">
-          {fieldError}
-        </p>
-      ) : null}
       {serverError ? (
         <p className="text-sm font-medium text-red-800" role="alert">
           {serverError}

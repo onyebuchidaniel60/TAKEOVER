@@ -101,6 +101,169 @@ export interface SlotWrite {
   payout_wallet: string;
 }
 
+// Phase 14c round 3 (Fix C): client-side mirrors of the server validation
+// rules. UX layer ONLY — the server remains authoritative: every rule below
+// has a server-side twin (slots/validation.ts, provider-profiles/
+// validation.ts), and anything the server still rejects surfaces the
+// server's reason via ApiError. Each validator returns an inline message or
+// null when the value passes. Do NOT add rules here the server does not
+// enforce.
+
+const NIMIQ_ADDRESS_LENGTH = 36;
+const NIMIQ_ALPHABET = '0123456789ABCDEFGHJKLMNPQRSTUVXY';
+
+function nimiqIbanMod97(body: string, check: string): number {
+  const rearranged = `${body}NQ${check}`;
+  let remainder = 0;
+  for (const char of rearranged) {
+    const code = char.charCodeAt(0);
+    let digits: string;
+    if (code >= 48 && code <= 57) {
+      digits = char;
+    } else if (code >= 65 && code <= 90) {
+      digits = String(code - 55);
+    } else {
+      return -1;
+    }
+    for (const digit of digits) {
+      remainder = (remainder * 10 + (digit.charCodeAt(0) - 48)) % 97;
+    }
+  }
+  return remainder;
+}
+
+/**
+ * Exact client mirror of the server's canonicalizeNimiqAddress VALIDATION
+ * (apps/api/src/auth/nimiq-address.ts): strip spaces, uppercase, 36 chars,
+ * NQ prefix, numeric check digits, custom-base32 body, IBAN mod-97 == 1.
+ * No dependencies; no derivation (only validation).
+ */
+export function isValidNimiqAddress(input: string): boolean {
+  if (typeof input !== 'string') {
+    return false;
+  }
+  const compact = input.replace(/ /g, '').toUpperCase();
+  if (compact.length !== NIMIQ_ADDRESS_LENGTH) {
+    return false;
+  }
+  if (!compact.startsWith('NQ')) {
+    return false;
+  }
+  const check = compact.slice(2, 4);
+  const body = compact.slice(4);
+  if (!/^[0-9]{2}$/.test(check)) {
+    return false;
+  }
+  for (const char of body) {
+    if (!NIMIQ_ALPHABET.includes(char)) {
+      return false;
+    }
+  }
+  return nimiqIbanMod97(body, check) === 1;
+}
+
+/**
+ * Mirrors providerProfileBodySchema exactly: trim, 2–60 chars, no links
+ * (http(s):// or www. — the same two server regexes, nothing stricter, so a
+ * name the client accepts is never rejected for a rule the server lacks).
+ */
+export function validateDisplayName(input: string): string | null {
+  const value = input.trim();
+  if (value.length < 2) {
+    return 'Use at least 2 characters.';
+  }
+  if (value.length > 60) {
+    return 'Keep it to 60 characters or fewer.';
+  }
+  if (/https?:\/\//i.test(value) || /www\./i.test(value)) {
+    return 'Display name must not contain links.';
+  }
+  return null;
+}
+
+/** Mirrors the title rules enforced at create (non-blank) and publish. */
+export function validateSlotTitle(title: string): string | null {
+  if (!title.trim()) {
+    return 'Give your opening a title.';
+  }
+  return null;
+}
+
+/**
+ * Mirrors the publish gate (startsAt must be in the future). `nowMs` is a
+ * test seam; production passes the current time.
+ */
+export function validateSlotStartsAt(startsAtIso: string | undefined, nowMs: number = Date.now()): string | null {
+  if (!startsAtIso) {
+    return 'Pick a valid start date and time.';
+  }
+  const startsAt = new Date(startsAtIso).getTime();
+  if (Number.isNaN(startsAt)) {
+    return 'Pick a valid start date and time.';
+  }
+  if (!(startsAt > nowMs)) {
+    return 'Start must be in the future.';
+  }
+  return null;
+}
+
+/**
+ * Ends is optional, but when provided it must parse and fall after the start
+ * (publish gate). Pass the raw input: '' means "not provided".
+ */
+export function validateSlotEndsAt(
+  startsAtIso: string | undefined,
+  endsAtInput: string,
+): string | null {
+  if (!endsAtInput) {
+    return null;
+  }
+  const endsAt = new Date(endsAtInput).getTime();
+  if (Number.isNaN(endsAt)) {
+    return 'Pick a valid end date and time.';
+  }
+  if (startsAtIso) {
+    const startsAt = new Date(startsAtIso).getTime();
+    if (!Number.isNaN(startsAt) && !(endsAt > startsAt)) {
+      return 'End must be after the start.';
+    }
+  }
+  return null;
+}
+
+/** Reuses the exact base-unit parser the submit path uses. */
+export function validateSlotPrice(priceInput: string): string | null {
+  try {
+    parseNimToBaseUnits(priceInput);
+  } catch (err) {
+    return err instanceof Error ? err.message : 'Enter a valid price.';
+  }
+  return null;
+}
+
+/** Mirrors the quantity rule (whole number, at least 1). */
+export function validateSlotQuantity(quantityInput: string): string | null {
+  const totalQuantity = Number(quantityInput);
+  if (!Number.isInteger(totalQuantity) || totalQuantity < 1) {
+    return 'Spots must be a whole number of 1 or more.';
+  }
+  return null;
+}
+
+/**
+ * Payout must be a canonical Nimiq address — publish rejects anything else,
+ * so the form says so upfront instead of failing at publish time.
+ */
+export function validateSlotPayout(payoutInput: string): string | null {
+  if (!payoutInput.trim()) {
+    return 'Enter the wallet address that should receive payment.';
+  }
+  if (!isValidNimiqAddress(payoutInput)) {
+    return 'Enter a valid Nimiq wallet address (starts with NQ).';
+  }
+  return null;
+}
+
 /**
  * Parse a human NIM amount ("1.5") into exact base-unit string ("150000").
  * At most 5 decimals (1 NIM = 100,000 base units). Throws on garbage.
@@ -148,14 +311,21 @@ export function updateSlot(slotId: string, body: Partial<SlotWrite>): Promise<{ 
 }
 
 export function publishSlot(slotId: string): Promise<{ slot: OwnerSlot }> {
+  // Phase 14c round 3 (Fix A1): always send a JSON body — Fastify rejects an
+  // empty body under content-type: application/json (400), which broke
+  // bodyless mutations on real browsers while inject-based tests (no
+  // content-type header) stayed green.
   return apiFetch<{ slot: OwnerSlot }>(`/api/v1/slots/${encodeURIComponent(slotId)}/publish`, {
     method: 'POST',
+    body: JSON.stringify({}),
   });
 }
 
 export function cancelSlot(slotId: string): Promise<{ slot: OwnerSlot }> {
+  // Same Fix A1 rationale as publishSlot above.
   return apiFetch<{ slot: OwnerSlot }>(`/api/v1/slots/${encodeURIComponent(slotId)}/cancel`, {
     method: 'POST',
+    body: JSON.stringify({}),
   });
 }
 

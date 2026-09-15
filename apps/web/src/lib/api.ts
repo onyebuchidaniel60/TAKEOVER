@@ -126,6 +126,13 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   // while any cross-origin mutation attempt forces a CORS-gated preflight.
   const method = (init?.method ?? 'GET').toUpperCase();
   const mutating = method === 'POST' || method === 'PATCH' || method === 'PUT' || method === 'DELETE';
+  // Phase 14c round 3 (Fix A2): only declare a JSON content type when the
+  // caller actually provides a body. A bodyless POST under
+  // content-type: application/json is rejected by Fastify before routing
+  // (400) — this second layer keeps the whole class of bug from recurring
+  // even if a future call site forgets the `{}` body. Explicit caller
+  // headers still win.
+  const hasBody = init?.body !== undefined && init?.body !== null;
   // Phase 14c: attach the Bearer fallback token when the client holds one
   // (cookie path stays preferred server-side; the header is redundant there).
   // Explicit caller headers still win.
@@ -134,7 +141,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     credentials: 'include',
     ...init,
     headers: {
-      'content-type': 'application/json',
+      ...(hasBody ? { 'content-type': 'application/json' } : {}),
       ...(mutating ? { 'X-Takeover-Client': 'web' } : {}),
       ...(bearer ? { authorization: `Bearer ${bearer}` } : {}),
       ...(init?.headers ?? {}),

@@ -70,7 +70,9 @@ export const useAuth = create<AuthState>()((set) => ({
 
   logout: async () => {
     try {
-      await apiFetch('/api/v1/auth/logout', { method: 'POST' });
+      // Phase 14c round 3 (Fix A1): send a JSON body — a bodyless POST under
+      // content-type: application/json is rejected before it revokes anything.
+      await apiFetch('/api/v1/auth/logout', { method: 'POST', body: JSON.stringify({}) });
     } catch {
       // Server already forgot us or unreachable: still reset local state.
     }

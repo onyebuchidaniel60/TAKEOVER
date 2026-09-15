@@ -13,6 +13,7 @@ import {
   fetchMySlots,
   truncateWalletAddress,
   updateProviderProfile,
+  validateDisplayName,
   type MeUser,
 } from '../lib/slots';
 import { useAuth } from '../store/auth';
@@ -169,7 +170,7 @@ function ProviderSection({
   );
 }
 
-function DisplayNameForm({
+export function DisplayNameForm({
   initial,
   submitLabel,
   onSaved,
@@ -184,6 +185,14 @@ function DisplayNameForm({
 
   const handleSubmit = (event: React.FormEvent): void => {
     event.preventDefault();
+    // Phase 14c round 3 (Fix C1): validate against the server rules before
+    // sending, so rejections surface inline instead of as a failed request.
+    // The server stays authoritative for anything that still slips through.
+    const reason = validateDisplayName(value);
+    if (reason) {
+      setError(reason);
+      return;
+    }
     setError(null);
     setSaving(true);
     void updateProviderProfile(value)
