@@ -117,5 +117,94 @@ text-slate-500`. Neutral as-is presentation, no wallet/address jargon.
 Also visible in `SellDetail` (reuses `SlotDetail`; public-safe by
 design, no leak).
 
-Tests: `apps
+Tests: `apps/web/test/provider-display.test.tsx` (new, 4 tests):
+card/detail × profile-name/fallback, including a no-jargon assertion
+(the rendered line never matches /wallet|address/i).
+
+## 3. Item 3 — Category dropdown (UX, FIXED)
+
+`SLOT_CATEGORIES` (exact six, `as const`) lives in
+`apps/web/src/lib/slots.ts` (logic out of UI, per the coding rules).
+`SearchFilters.tsx`: category text input becomes a `<select>` with
+`All categories` (`value=""`) + the six. `values`/`onChange`/URL-param
+behavior unchanged (`Home.tsx` untouched — empty still drops the
+param). `SlotForm.tsx`: category becomes a `<select>` with `No
+category` + the six + a conditional disabled `Custom: <value>` option
+when the draft value is non-empty and off-list (shows instead of
+crashing/blanking; submits unchanged via the existing
+`trim() || undefined` mapping; picking a list value replaces it).
+Server accepts any string (unchanged — UX layer only). One-line
+`docs/phase-14-manual-test.md` fix: the script's `Category: any (e.g.
+dining)` example is no longer selectable → now `pick one from the
+dropdown (e.g. Restaurant / food)`.
+
+Tests: `apps/web/test/slot-categories.test.tsx` (new, 7 tests):
+filter exact-six + All; `onChange` emits the pick; feed round-trip
+(`?category=Event` renders selected, fetch carries it, change to Other
+refetches with Other); form exact-six + No category; submit sends the
+pick; custom `dining` renders disabled `Custom: dining`, submits
+`dining` untouched, and is replaceable with `Event`.
+
+Known edge (deliberate, reported): a non-list value in the filter URL
+(e.g. `?category=dining`) shows a blank select while the URL param
+still drives filtering (server exact-match). The brief prescribed no
+custom handling for the filter; stored data converges to the list over
+time.
+## 4. Item 4 — Client-side date validation (already implemented, VERIFIED)
+
+No production change needed: round 3 (Fix C2) already added
+`validateSlotStartsAt` (strictly future, `Start must be in the
+future.`) and `validateSlotEndsAt` (strictly after start, `End must be
+after the start.`) in `lib/slots.ts` plus submit-time wiring with
+inline `FieldMessage` errors on the start/end fields in `SlotForm.tsx`
+— exactly the prescribed Option A. Server validation and publish
+semantics untouched. Coverage: cases (a)/(b)/(d) by the existing
+round-3 form test + the `request-bodies.test.ts` validator matrix;
+added the missing case (c) — `form-validation.test.tsx` →
+`submits a valid future start with no end and omits ends_at`
+(submits once, no `ends_at` key in the body).
+Note: drafts with past starts (e.g. the human's "Table for ten") must
+have their date updated to save — expected, no exemption added.
+
+## 5. Live deploy evidence (2026-09-15)
+
+- Commit `4381194` pushed `c181faa..4381194` to `origin/main`
+  (follow-up docs commit `c553048` records the evidence below).
+- Railway: push auto-deploys. No backend code changed this round, so
+  any green build serves the `providerDisplay` contract; target probe
+  live: `GET /health` → 200, `GET /api/v1/slots?limit=5` → 200 with
+  `providerDisplay` on both rows.
+- Vercel: `--dry` clean (217 files, 16 ignored — `.env.txt` and all
+  `dist/` excluded). Deploy `dpl_DXfpvTvMyGLVxqXBESkiGyynXjbV`
+  (`https://takeover-f35j2cnlp-uhhh2.vercel.app`), READY, production
+  target. Alias `takeover-web-gamma.vercel.app` re-pointed, NOT
+  shifted → no `CORS_ORIGINS` change needed.
+- Alias bundle proof (entry chunk alone is not enough — route chunks
+  load lazily): entry `assets/index-DHJvbiil.js` references
+  `Home-BvAel_El.js` (contains `All categories`),
+  `slots-DZlCZHUP.js` (contains `Restaurant / food`),
+  `SlotForm-BjjWfC7b.js` (contains `No category` + `Custom:`), and
+  `SlotDetail-Dmoa_LsK.js` (contains `providerDisplay`).
+- Note: the direct deployment URL returns a Vercel
+  Deployment-Protection gate page, not the app — the production alias
+  is unaffected and is the only supported surface.
+- Post-deploy checks: `/health` → 200; alias `/` → 200 TAKEOVER HTML;
+  `OPTIONS` preflight for PATCH from the alias origin → 204, exact
+  `ACAO: https://takeover-web-gamma.vercel.app`,
+  `allow-methods: GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS`,
+  `credentials: true` (round-4 regression holds live).
+- Leak audit: fresh `apps/web/dist` (33 files) → 0 secret key names,
+  0 `VITE_*TOKEN` names, 0 value-prefix hits (12-char prefixes,
+  count-only, values never printed); served entry chunk → 0 secret
+  key names.
+
+## 6. Verification battery + residual issues
+
+- `typecheck` clean exit 0; `lint` clean exit 0; full suite green —
+  api 30 files/331 pass (unchanged) + web 16 files/129 pass (was
+  14/117: +4 provider-display, +7 slot-categories, +1 form-validation
+  case-c) + shared 1 pass; zero existing tests lowered or skipped.
+- Residual: (1) non-list filter URL values show a blank select while
+  still filtering (§3 edge); (2) no real testnet tx shape demonstrated
+  (§1 caveat, fail-closed); (3) Risks B/C/D untested (unchanged).
 ...[truncated 3880 chars]
