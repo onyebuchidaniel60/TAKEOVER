@@ -3,6 +3,71 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14d-2 completion — binding model and window clock (2026-09-15)
+
+Completion pass for 14d-2 (`345c06e`): closed the two review items so
+14d-3a can build on a correct deposit foundation. No new endpoints, states,
+codes, routes, UI, or Solidity.
+
+Carried-in decisions (implemented as stated, not re-litigated): (1) buyer
+binding model (B) — verification matches on `escrowId` + exact `amount`
+only; the on-chain `Deposited.buyer` is recorded for refund routing and is
+never compared against `users.wallet_address`; the escrowId is the
+capability (server-generated 32-byte random, buyer-scoped, on-chain
+single-deposit + exact-amount enforcement); (2) window clock
+`claims.deposit_submitted_at TIMESTAMPTZ NULL` — set on `active_hold →
+deposit_submitted`, cleared to NULL on expiry to `payment_review`, left in
+place on `escrow_funded` as historical record.
+
+Corrections: (1) `assessDeposit` drops `buyerWallet` (reason union now
+`amount | escrow_id`); service call site simplified; predicate tests now
+prove a differing EVM buyer still verifies plus an arbitrary-depositor
+match. (2) `0004_peaceful_callisto.sql` (single `ALTER TABLE claims ADD
+COLUMN deposit_submitted_at timestamptz`, generated diff clean, applied to
+live Supabase); service sets/clears/reads the column; `db/verify.ts`
+asserts it; expiry test asserts set-on-entry, untouched-by-resubmission,
+and cleared-on-review. Docs: ARCH §6 completion note (3 sentences), §9
+claims field, §13 verify wording (`escrow id → exact amount`); contract
+interface trust boundary (+1 sentence) plus the `plus buyer/amount` →
+`plus exact amount` consistency fix in the same file.
+
+```text
+CURRENT PHASE: Phase 14d-2 completion done — binding model B + clock live.
+  Do NOT begin Phase 14d-3a.
+COMPLETED: predicate buyer removal + deposit_submitted_at column/migration +
+  service clock switch + test rewrites + doc updates + this checkpoint
+TESTS RUN: typecheck clean exit 0 (all workspaces + db); lint clean exit 0;
+  full suite — api 34 files/368 pass (unchanged count: buyer tests replaced
+  by capability tests) + web 16 files/129 pass (unchanged) + shared 1 pass
+  (unchanged); build clean; db:verify green (11 tables, 4-state index, both
+  enum values, CHECK, deposit_submitted_at present); no public-RPC flake
+RESULT: single commit (message below); push gated on green battery +
+  expected file set
+KNOWN ISSUES:
+- LIVE DB / DOC DIVERGENCE (paid legacy enum value) — still open
+- paid-word residuals in PROJECT_SPEC.md and ARCHITECTURE.md
+- SECURITY_REVIEW.md payment rows + item 7 → 14d-8
+- README.md NIM-only intro → Phase 15
+- listSlotClaimsForProvider compat shim (14d-1) — still in place
+- Polygon buyer binding (model B) — RESOLVED: escrowId capability +
+  on-chain single-deposit/exact-amount rules are the boundary
+SECURITY NOTES: buyer-ownership (foreign 404) unchanged; no new codes;
+  capability is 32-byte random per escrow, buyer-scoped reads only; window
+  expiry still releases no inventory; no secrets involved
+FILES CHANGED: db/schema/claims.ts, db/migrations/0004_peaceful_callisto.sql
+  (new) + meta (_journal.json + 0004_snapshot.json), db/verify.ts,
+  apps/api/src/escrow/polygon/verify-deposit.ts,
+  apps/api/src/escrow/service.ts, apps/api/test/escrow-deposit.test.ts,
+  apps/api/test/escrow-service.test.ts, ARCHITECTURE.md (§6 note + §9 field
+  + §13 wording), docs/escrow-contract-interface.md, AI_HANDOFF.md (this
+  checkpoint)
+GIT COMMIT: chore: phase 14d-2 completion — escrowId capability and deposit
+  timestamp (single commit with this checkpoint; hash recorded at push)
+NEXT TASK: Phase 14d-3a — mark-delivered, confirm-receipt, release (do NOT
+  start automatically)
+BLOCKED BY: none
+```
+
 ## Phase 14d-2 — USDT escrow deposit (2026-09-15)
 
 Vertical slice live: client → verification → service → endpoints → tests.

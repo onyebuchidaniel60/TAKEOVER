@@ -196,7 +196,7 @@ payment is superseded. All new payments route through escrow.
 USDT-only on-demand deposit verification. The buyer polls
 `POST /claims/:claimId/verify-deposit`; each call reads the contract's
 `Deposited` event for the escrow's `on_chain_escrow_id` and assesses it
-against the escrow row (escrow id, buyer wallet, exact base-unit amount).
+against the escrow row (escrow id, exact base-unit amount).
 No background worker exists: polling is the verification trigger, mirroring
 the deprecated `verify-payment` pattern. NIM requested at escrow-intent
 time is rejected with 409 `ESCROW_TOKEN_UNSUPPORTED` (NIM escrow is a later
@@ -210,6 +210,13 @@ funding, enforced later). The escrow row is created at intent time
 `deposit_tx_hash`/`funded_at`/`delivery_deadline` in the same transaction
 as the claim's move to `escrow_funded`. `release()`/`refund()` remain
 not-implemented (14d-3).
+
+### Phase 14d-2 completion note (2026-09-15)
+
+Deposit verification matches on `escrowId` and exact `amount` only; the
+on-chain `buyer` is recorded by the contract for refund routing and is not
+verified backend-side. The verification window is measured from
+`claims.deposit_submitted_at`.
 
 ## 7. Slot/claim concurrency
 
@@ -411,6 +418,7 @@ Constraints:
   -- the live escrow flow uses active_hold -> deposit_submitted -> escrow_funded -> delivered -> released|refunded|disputed.
 - hold_expires_at TIMESTAMPTZ NOT NULL
 - claimed_at TIMESTAMPTZ NOT NULL
+- deposit_submitted_at TIMESTAMPTZ NULL
 - updated_at TIMESTAMPTZ NOT NULL
 
 Constraints:
@@ -793,8 +801,8 @@ Auth: session + buyer owner, and safe to call repeatedly (buyer polling;
 no background worker).
 
 Request: strict empty (`{}` accepted). Reads the contract `Deposited` event
-for the escrow's `on_chain_escrow_id` and assesses escrow id → buyer →
-exact amount. `pending` → 200 no-op `{ status: 'pending' }`; `mismatch` →
+for the escrow's `on_chain_escrow_id` and assesses escrow id → exact
+amount. `pending` → 200 no-op `{ status: 'pending' }`; `mismatch` →
 200 `{ status: 'mismatch', reason }` with no write (claim stays
 `deposit_submitted`); `matched` → one transaction funds both rows (escrow →
 `funded` with `deposit_tx_hash`/`funded_at`/`delivery_deadline`, claim →

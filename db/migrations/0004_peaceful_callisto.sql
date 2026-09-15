@@ -1,0 +1,1 @@
+ALTER TABLE "claims" ADD COLUMN "deposit_submitted_at" timestamp with time zone;

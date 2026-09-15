@@ -83,8 +83,8 @@ describe('USDT Deposited log decoding (no network)', () => {
   });
 });
 
-describe('assessDeposit predicate', () => {
-  const expected = { onChainEscrowId: ESCROW_ID, buyerWallet: BUYER, amountBaseUnits: AMOUNT };
+describe('assessDeposit predicate (model B: escrowId + amount only)', () => {
+  const expected = { onChainEscrowId: ESCROW_ID, amountBaseUnits: AMOUNT };
 
   it('null event → pending', () => {
     expect(assessDeposit(null, expected)).toEqual({ status: 'pending' });
@@ -97,11 +97,6 @@ describe('assessDeposit predicate', () => {
     expect(assessDeposit(event, expected)).toEqual({ status: 'mismatch', reason: 'escrow_id' });
   });
 
-  it('wrong buyer → mismatch(buyer)', () => {
-    const event = baseEvent({ participant: '0x5555555555555555555555555555555555555555' });
-    expect(assessDeposit(event, expected)).toEqual({ status: 'mismatch', reason: 'buyer' });
-  });
-
   it('wrong amount → mismatch(amount)', () => {
     const event = baseEvent({ amountBaseUnits: AMOUNT - 1n });
     expect(assessDeposit(event, expected)).toEqual({ status: 'mismatch', reason: 'amount' });
@@ -111,33 +106,31 @@ describe('assessDeposit predicate', () => {
     expect(assessDeposit(baseEvent(), expected)).toEqual({ status: 'matched' });
   });
 
-  it('canonicalizes the buyer wallet (spaced vs canonical)', () => {
-    const spaced = '0x2222 22222222 22222222 22222222 22222222 2222';
-    expect(assessDeposit(baseEvent(), { ...expected, buyerWallet: spaced })).toEqual({
-      status: 'matched',
-    });
-    const upper = BUYER.toUpperCase();
-    expect(assessDeposit(baseEvent({ participant: upper }), expected)).toEqual({
-      status: 'matched',
-    });
+  it('on-chain buyer differing from the Nimiq wallet does NOT cause a mismatch', () => {
+    // Model B: the EVM buyer is recorded for refund routing, never compared
+    // against users.wallet_address. A Nimiq identity next to an EVM depositor
+    // still verifies on escrowId + amount.
+    const nimiqWallet = 'NQ32 1234 5678 90AB CDEF GHIJ KLMN OPQR STUV';
+    void nimiqWallet;
+    const event = baseEvent({ participant: '0x9999999999999999999999999999999999999999' });
+    expect(assessDeposit(event, expected)).toEqual({ status: 'matched' });
   });
 
-  it('accepts the brief-named buyer field as an alias for participant', () => {
-    const aliased = { ...baseEvent(), buyer: BUYER } as unknown as DepositedEvent;
-    expect(assessDeposit(aliased, expected)).toEqual({ status: 'matched' });
+  it('arbitrary EVM depositor with correct escrowId and amount → matched', () => {
+    const event = baseEvent({ participant: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' });
+    expect(assessDeposit(event, expected)).toEqual({ status: 'matched' });
   });
 
-  it('checks fields in locked order (escrow_id beats buyer beats amount)', () => {
-    const allWrong = baseEvent({
+  it('matches escrowId case-insensitively', () => {
+    const event = baseEvent({ escrowId: ESCROW_ID.toUpperCase() });
+    expect(assessDeposit(event, expected)).toEqual({ status: 'matched' });
+  });
+
+  it('checks fields in locked order (escrow_id beats amount)', () => {
+    const bothWrong = baseEvent({
       escrowId: '0x9999999999999999999999999999999999999999999999999999999999999999',
-      participant: '0x5555555555555555555555555555555555555555',
       amountBaseUnits: 1n,
     });
-    expect(assessDeposit(allWrong, expected)).toEqual({ status: 'mismatch', reason: 'escrow_id' });
-    const buyerAndAmount = baseEvent({
-      participant: '0x5555555555555555555555555555555555555555',
-      amountBaseUnits: 1n,
-    });
-    expect(assessDeposit(buyerAndAmount, expected)).toEqual({ status: 'mismatch', reason: 'buyer' });
+    expect(assessDeposit(bothWrong, expected)).toEqual({ status: 'mismatch', reason: 'escrow_id' });
   });
 });

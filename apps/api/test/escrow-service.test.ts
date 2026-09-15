@@ -316,7 +316,12 @@ describe.skipIf(!isDatabaseConfigured())('USDT escrow deposit (live DB, mocked P
     const txHash = freshTxHash();
     const submission = await submitAs(cookie, claimId, txHash);
     expect(submission.statusCode).toBe(200);
-    programDeposit(onChainEscrowId, { buyer: buyerWallet, amount: SLOT_PRICE });
+    // Model B: the depositor is an arbitrary EVM address the backend never
+    // knew — verification keys on escrowId + exact amount only.
+    programDeposit(onChainEscrowId, {
+      buyer: '0x9999999999999999999999999999999999999999',
+      amount: SLOT_PRICE,
+    });
     const verify = await verifyAs(cookie, claimId);
     expect(verify.statusCode).toBe(200);
     const verifyBody = verify.json() as {
@@ -335,6 +340,10 @@ describe.skipIf(!isDatabaseConfigured())('USDT escrow deposit (live DB, mocked P
     const fundedAt = new Date(verifyBody.data.escrow.funded_at).getTime();
     const deadline = new Date(verifyBody.data.escrow.delivery_deadline).getTime();
     expect(deadline - fundedAt).toBe(86400 * 1000);
+    // The clock stays in place on funding as historical record.
+    const db = getDb();
+    const fundedClaim = await db.select().from(claims).where(eq(claims.id, claimId));
+    expect(fundedClaim[0]?.depositSubmittedAt).toBeInstanceOf(Date);
   });
 
   it('second intent on the same claim returns the same escrow id', async () => {
@@ -381,22 +390,32 @@ describe.skipIf(!isDatabaseConfigured())('USDT escrow deposit (live DB, mocked P
     expect(escrowRows[0]?.fundedAt).toBeNull();
   });
 
-  it('expired window + pending → payment_review, inventory NOT released', async () => {
+  it('expired window + pending → payment_review, clock cleared, inventory NOT released', async () => {
     resetFake();
     const db = getDb();
-    const { cookie, claimId } = await submittedSetup();
-    const before = await db.select().from(claims).where(eq(claims.id, claimId));
-    const slotId = before[0]?.slotId;
+    const { cookie, claimId, txHash } = await submittedSetup();
+    // Clock is set on entry to deposit_submitted.
+    const entered = await db.select().from(claims).where(eq(claims.id, claimId));
+    expect(entered[0]?.status).toBe('deposit_submitted');
+    expect(entered[0]?.depositSubmittedAt).toBeInstanceOf(Date);
+    const clockAtEntry = entered[0]?.depositSubmittedAt?.getTime() as number;
+    // An unrelated write (idempotent same-hash re-submission) does not move it.
+    const again = await submitAs(cookie, claimId, txHash);
+    expect(again.statusCode).toBe(200);
+    const reread = await db.select().from(claims).where(eq(claims.id, claimId));
+    expect(reread[0]?.depositSubmittedAt?.getTime()).toBe(clockAtEntry);
+    const slotId = entered[0]?.slotId;
     const slotBefore = (await db.select().from(slots).where(eq(slots.id, slotId as string)))[0];
     await db
       .update(claims)
-      .set({ updatedAt: new Date(Date.now() - 2000 * 1000) })
+      .set({ depositSubmittedAt: new Date(Date.now() - 2000 * 1000) })
       .where(eq(claims.id, claimId));
     const res = await verifyAs(cookie, claimId);
     expect(res.statusCode).toBe(200);
     expect((res.json() as { data: { status: string } }).data.status).toBe('review');
     const claimRows = await db.select().from(claims).where(eq(claims.id, claimId));
     expect(claimRows[0]?.status).toBe('payment_review');
+    expect(claimRows[0]?.depositSubmittedAt).toBeNull();
     const slotAfter = (await db.select().from(slots).where(eq(slots.id, slotId as string)))[0];
     expect(slotAfter?.availableQuantity).toBe(slotBefore?.availableQuantity);
   });
@@ -641,7 +660,7 @@ describe.skipIf(!isDatabaseConfigured())('verify-deposit rate limit (live DB, de
       onChainEscrowId: `0x${'ab'.repeat(32)}`,
       depositTxHash: `ratelimit${Date.now()}`,
     });
-    await db.update(claims).set({ status: 'deposit_submitted', updatedAt: new Date() }).where(eq(claims.id, claimId));
+    await db.update(claims).set({ status: 'deposit_submitted', depositSubmittedAt: new Date(), updatedAt: new Date() }).where(eq(claims.id, claimId));
     void claimRows;
     const first = await limited.inject({
       method: 'POST',

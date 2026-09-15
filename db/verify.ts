@@ -111,6 +111,13 @@ async function main(): Promise<void> {
   if (!fundedCheck) {
     throw new Error('escrows CHECK constraint on the funded-fields tuple is missing');
   }
+
+  // Phase 14d-2 completion: verification-window clock column.
+  const hasDepositSubmittedAt = present.has('claims.deposit_submitted_at');
+  console.log(`claims.deposit_submitted_at present: ${hasDepositSubmittedAt}`);
+  if (!hasDepositSubmittedAt) {
+    throw new Error('claims.deposit_submitted_at column is missing');
+  }
 }
 
 main().catch((err: unknown) => {

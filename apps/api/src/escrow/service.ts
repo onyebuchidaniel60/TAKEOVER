@@ -5,20 +5,19 @@
 // (the NIM-denominated price is used as the USDT base-unit amount). This is
 // the current pricing model and out of scope to change here.
 //
-// Buyer-binding note: expected.buyerWallet for deposit verification comes
-// from users.wallet_address (the Nimiq identity). The schema carries no
-// Polygon buyer column this phase (no schema changes allowed), so the
-// on-chain Polygon buyer (0x…) is compared against the Nimiq wallet with a
-// generic case/space-insensitive canonicalizer. Mocked-client tests use the
-// same wallet string on both sides; a production Polygon-vs-Nimiq format gap
-// remains and is recorded in AI_HANDOFF KNOWN ISSUES for a later phase to
-// bind the Polygon buyer address explicitly.
+// Buyer-binding note (model B, owner-decided): deposit verification matches
+// on escrowId and exact amount only. The on-chain Deposited.buyer (an EVM
+// address recorded by the contract for refund routing) is NOT compared
+// against users.wallet_address (a Nimiq address) — impossible across chains.
+// The escrowId is the capability: server-generated 32-byte random, returned
+// only to the authenticated buyer, single-deposit-per-escrowId enforced
+// on-chain with an exact-amount check. Claim buyer-ownership (foreign → 404)
+// is unchanged.
 //
-// Window-timing note: claims carries no deposit_submitted_at column (no
-// schema changes). The verification-window clock uses claims.updated_at as
-// the deposit_submitted-entry proxy — safe because no other write occurs
-// while a claim sits in deposit_submitted (submission sets it; verify moves
-// it out). Labeled IMPLEMENTATION DETAIL where used.
+// Window-timing note: the verification window is measured from
+// claims.deposit_submitted_at, set on the active_hold → deposit_submitted
+// transition, cleared to NULL on expiry to payment_review, left in place on
+// escrow_funded as historical record.
 import { and, eq } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { getDb } from '../../../../db/client';
@@ -299,7 +298,7 @@ export async function submitDepositReference(
     if (claim.status === 'active_hold') {
       const moved = await tx
         .update(claims)
-        .set({ status: 'deposit_submitted', updatedAt: now })
+        .set({ status: 'deposit_submitted', depositSubmittedAt: now, updatedAt: now })
         .where(and(eq(claims.id, claim.id), eq(claims.status, 'active_hold')))
         .returning();
       if (moved[0]) {
@@ -322,12 +321,12 @@ export type VerifyDepositStatus = 'pending' | 'mismatch' | 'review' | 'funded';
 
 export interface VerifyDepositResult {
   status: VerifyDepositStatus;
-  reason?: 'amount' | 'buyer' | 'escrow_id' | 'timeout';
+  reason?: 'amount' | 'escrow_id' | 'timeout';
   escrow: EscrowView;
   claim: ClaimView;
 }
 
-/** True when the deposit_submitted window has elapsed (updated_at proxy — see file note). */
+/** True when the deposit_submitted window has elapsed (measured from deposit_submitted_at). */
 export function isDepositVerificationTimedOut(
   depositSubmittedAt: Date | null,
   now: Date,
@@ -407,15 +406,10 @@ export async function verifyDeposit(
     }
     throw err;
   }
-  const buyerRows = await db
-    .select({ walletAddress: users.walletAddress })
-    .from(users)
-    .where(eq(users.id, options.buyerId))
-    .limit(1);
-  const buyerWallet = buyerRows[0]?.walletAddress ?? '';
+  // Model B: escrowId + exact amount only. The on-chain buyer is recorded
+  // by the contract for refund routing and is not compared here.
   const assessment = assessDeposit(event, {
     onChainEscrowId: escrow.onChainEscrowId,
-    buyerWallet,
     amountBaseUnits: escrow.amountBaseUnits,
   });
   if (assessment.status === 'mismatch') {
@@ -428,7 +422,7 @@ export async function verifyDeposit(
   }
   if (assessment.status === 'pending') {
     const timedOut = isDepositVerificationTimedOut(
-      claim.updatedAt,
+      claim.depositSubmittedAt,
       now,
       getEscrowDepositVerificationSeconds(),
     );
@@ -462,7 +456,7 @@ export async function verifyDeposit(
       }
       const moved = await tx
         .update(claims)
-        .set({ status: 'payment_review', updatedAt: now })
+        .set({ status: 'payment_review', depositSubmittedAt: null, updatedAt: now })
         .where(and(eq(claims.id, fresh.id), eq(claims.status, 'deposit_submitted')))
         .returning();
       const finalClaim = moved[0] ?? fresh;

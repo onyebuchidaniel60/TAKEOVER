@@ -77,7 +77,7 @@ event Disputed(bytes32 indexed escrowId, address indexed buyer)
 
 Every state transition emits exactly one event, after state is written
 (see Invariants). The backend matches events to its DB rows by escrow ID
-(plus buyer/amount for deposits) against the configured contract address
+(plus exact amount for deposits) against the configured contract address
 only.
 
 ## Invariants
@@ -95,7 +95,10 @@ only.
 What the contract does NOT do: it does not know about delivery, it does
 not know about dispute windows beyond the timestamp it enforces, and it
 does not resolve disputes. Those are backend decisions that trigger
-`release` or `refund`.
+`release` or `refund`. The backend does not verify the depositing EVM
+address against a Nimiq wallet; the escrowId functions as a bearer
+capability and the contract's single-deposit and exact-amount rules are
+the boundary.
 
 ## Provider binding decision (model (b), owner-decided)
 
