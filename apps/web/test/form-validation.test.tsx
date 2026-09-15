@@ -127,6 +127,41 @@ describe('SlotForm client validation', () => {
     }
   });
 
+  it('submits a valid future start with no end and omits ends_at', async () => {
+    // Phase 14c round 5 (Item 4, case c): ends_at stays optional — a valid
+    // future start with no end must submit, with no ends_at key in the body.
+    // Cases a/b/d are covered by the tests above and the validator matrix in
+    // request-bodies.test.ts.
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <SlotForm
+        initial={{
+          ...emptyInitial,
+          title: 'Table for two',
+          starts_at: '2030-01-01T10:00',
+          ends_at: '',
+          price: '1',
+          total_quantity: '2',
+          payout_wallet: VALID_PAYOUT,
+        }}
+        submitLabel="Save draft"
+        submitting={false}
+        serverError={null}
+        onSubmit={onSubmit}
+      />,
+    );
+    try {
+      await user.click(screen.getByRole('button', { name: /save draft/i }));
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      const body = onSubmit.mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(body.starts_at).toBeDefined();
+      expect('ends_at' in body).toBe(false);
+    } finally {
+      unmount();
+    }
+  });
+
   it('renders a server rejection reason when the server still says no (guardrail 7)', async () => {
     const { unmount } = render(
       <SlotForm

@@ -24,7 +24,7 @@ before, accept and continue.
 4. Go to **/sell/new**. Fill every field:
    - Title: `Phase 14 test slot`
    - Description: any short text
-   - Category: any (e.g. `dining`)
+    - Category: pick one from the dropdown (e.g. `Restaurant / food`)
    - Area: any (e.g. `Mitte`)
    - Starts: 24h from now (datetime picker)
    - Ends: 1h after Starts

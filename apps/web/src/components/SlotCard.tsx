@@ -14,6 +14,7 @@ export default function SlotCard({ slot }: { slot: PublicSlot }) {
         <h2 className="text-base font-semibold leading-snug">{slot.title}</h2>
         <PriceDisplay priceNim={slot.price_nim} />
       </div>
+      <p className="mt-0.5 text-xs text-slate-500">By {slot.providerDisplay}</p>
       {slot.description ? (
         <p className="mt-1 line-clamp-2 text-sm text-slate-600">{slot.description}</p>
       ) : null}

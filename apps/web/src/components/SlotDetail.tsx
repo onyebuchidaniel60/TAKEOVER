@@ -21,6 +21,7 @@ export default function SlotDetail({ slot }: { slot: PublicSlot }) {
           <AvailabilityBadge available={slot.available_quantity} />
         </div>
         <h1 className="mt-3 text-2xl font-bold tracking-tight">{slot.title}</h1>
+        <p className="mt-1 text-sm text-slate-500">By {slot.providerDisplay}</p>
         {slot.description ? <p className="mt-2 text-sm leading-relaxed text-slate-600">{slot.description}</p> : null}
         <dl className="mt-5 grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2">
           <div>

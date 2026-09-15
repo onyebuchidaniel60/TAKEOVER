@@ -42,6 +42,20 @@ export interface SlotFilters {
 export const LUNA_PER_NIM = 100_000;
 
 /**
+ * Phase 14c round 5: owner-approved fixed category list. UX layer ONLY —
+ * the server still accepts any string for category, so values outside this
+ * list (older rows, direct URLs) keep working and must never crash a form.
+ */
+export const SLOT_CATEGORIES = [
+  'Restaurant / food',
+  'Fitness / class',
+  'Sports court',
+  'Salon / service',
+  'Event',
+  'Other',
+] as const;
+
+/**
  * Format a base-unit price string as "1.5 NIM" using exact BigInt math —
  * never floats, so large values stay precise.
  */

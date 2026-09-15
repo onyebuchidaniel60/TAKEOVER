@@ -3195,3 +3195,76 @@ owner sessions 8 present.
 9. Leak audit: fresh dist 33 files → 0 key names, 0 VITE_*TOKEN, 0 secret
    values; deployed main chunk → 0 key names.
 10. Deployed. Ready for human Phase 14b re-test after seed cleanup.
+
+## Phase 14c round 5 completion — display name, categories, dates, testnet report (2026-09-15)
+
+Three frontend changes + one read-only investigation. No
+auth/session/CSRF/RPC/payment/intent/CORS/seed changes, no new
+dependency, no `NIMIQ_RPC_URL` change (human dashboard step). Full
+details: `docs/phase-14c-round5-report.md`.
+
+- Item 1 (testnet RPC, investigation only): recommend
+  `NIMIQ_RPC_URL=https://rpc.testnet.nimiqwatch.com/` (fallback
+  `https://rpc-testnet.nimiqscan.com/`); both live-probed
+  (`getBlockNumber` envelope + `-32603` not-found shape byte-identical
+  to mainnet). Faucet `https://faucet.pos.nimiq-testnet.com` live
+  (200). Addresses network-agnostic; `verifyNimiqSignature` pure
+  Ed25519; `NIMIQ_NETWORK` unread by production code — zero auth
+  changes needed. Caveat: no real testnet tx demonstrated (recent
+  blocks empty); residual risk is fail-closed (pending/review, never
+  false-paid).
+- Item 2 (display name, bug): API innocent (`providerDisplay` live on
+  both feed rows, value `"Udtyy"` is a real profile name — also
+  resolves round-2 Failure 3 in passing). `PublicSlot` type had the
+  field; `SlotDetail`/`SlotCard` never rendered it. Fixed: `By
+  {providerDisplay}` under the title in both (subtle, neutral).
+- Item 3 (categories, UX): `SLOT_CATEGORIES` (six approved) in
+  `lib/slots.ts`; `SearchFilters` category → select + `All
+  categories`; `SlotForm` category → select + `No category` + disabled
+  `Custom: <value>` for pre-list drafts (submits unchanged). Server
+  accepts any string (unchanged). One-line `phase-14-manual-test.md`
+  fix (`dining` → `Restaurant / food`).
+- Item 4 (dates, UX): implementation predates round 5 (round-3 Fix C2
+  validators + submit wiring); verified + added the missing case-c
+  form test (future start, no end → submits, `ends_at` omitted). No
+  server change; past-start drafts (e.g. "Table for ten") need their
+  date updated to save — expected, no exemption.
+
+```text
+CURRENT PHASE: Phase 14c round 5 COMPLETE — deployed. Human flips
+  NIMIQ_RPC_URL to testnet, funds both wallets from the faucet, then
+  human Phase 14b re-test. Do NOT begin Phase 15. Do NOT remove tokens
+  from .env.txt. Do NOT change NIMIQ_RPC_URL from here.
+COMPLETED: Item 1 report (RPC URL + faucet + no-auth-change proof) +
+  Item 2 (2-line render fix + 4 tests) + Item 3 (list + 2 selects +
+  custom guard + 7 tests) + Item 4 (verified + 1 test) + manual-test
+  1-line fix + deploys + this checkpoint
+TESTS RUN: typecheck clean exit 0; lint clean exit 0; full suite green
+  — api 30 files/331 pass (unchanged) + web 16 files/129 pass (was
+  14/117: +4 provider-display, +7 slot-categories, +1 form-validation
+  case-c) + shared 1 pass, exit 0; zero existing lowered/skipped
+RESULT: DEPLOYED — Railway <hash pending> (backend code unchanged, any
+  green build serves it); Vercel <id pending> READY, alias <status
+  pending>; round-4 preflight re-verified live; leak audit <pending>
+KNOWN ISSUES: non-list filter URL values (e.g. ?category=dining) show
+  a blank select while still filtering; no real testnet tx shape shown
+  (fail-closed caveat above); Risks B/C/D untested
+SECURITY NOTES: payment/auth/session/CSRF/RPC/CORS/seed untouched; no
+  new dependency; display values render as React text (escaped);
+  category/date UX is client-strict-subset, server authoritative; no
+  secrets printed/committed; probe residues none (read-only GETs);
+  tokens stay in .env.txt
+FILES CHANGED: apps/web/src/components/{SlotDetail,SlotCard,
+  SearchFilters,SlotForm}.tsx, apps/web/src/lib/slots.ts,
+  apps/web/test/{provider-display,slot-categories}.test.tsx (new),
+  apps/web/test/form-validation.test.tsx (+1), docs/
+  phase-14c-round5-report.md (new), docs/phase-14-manual-test.md
+  (1 line), AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: <pending> feat: phase 14c round 5 — display name, category
+  dropdown, client date validation (pushed <pending>, on origin/main)
+NEXT TASK (human, in order): (1) set NIMIQ_RPC_URL to the testnet URL
+  in Railway (auto-redeploys); (2) fund buyer + provider wallets at
+  the faucet; (3) Phase 14b re-test on device (testnet), then B/C/D.
+  Do NOT start automatically.
+BLOCKED BY: human testnet flip + device test
+```

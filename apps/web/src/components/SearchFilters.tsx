@@ -1,3 +1,5 @@
+import { SLOT_CATEGORIES } from '../lib/slots';
+
 export interface FilterValues {
   q: string;
   category: string;
@@ -18,9 +20,11 @@ export default function SearchFilters({
   onChange: (next: FilterValues) => void;
   onClear: () => void;
 }) {
-  const set = (key: keyof FilterValues) => (event: React.ChangeEvent<HTMLInputElement>) => {
-    onChange({ ...values, [key]: event.target.value });
-  };
+  const set =
+    (key: keyof FilterValues) =>
+    (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      onChange({ ...values, [key]: event.target.value });
+    };
 
   return (
     <form
@@ -48,15 +52,19 @@ export default function SearchFilters({
           <label htmlFor="slot-category" className="mb-1 block text-xs font-medium text-slate-600">
             Category
           </label>
-          <input
+          <select
             id="slot-category"
-            type="text"
-            autoComplete="off"
             className={inputClass}
-            placeholder="dining, fitness, sports…"
             value={values.category}
             onChange={set('category')}
-          />
+          >
+            <option value="">All categories</option>
+            {SLOT_CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label htmlFor="slot-location" className="mb-1 block text-xs font-medium text-slate-600">

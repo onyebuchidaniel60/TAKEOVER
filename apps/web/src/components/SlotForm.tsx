@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import {
   parseNimToBaseUnits,
+  SLOT_CATEGORIES,
   validateSlotEndsAt,
   validateSlotPayout,
   validateSlotPrice,
@@ -97,7 +98,7 @@ export default function SlotForm({
 
   const set =
     (key: keyof SlotFormValues) =>
-    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       setValues((prev) => ({ ...prev, [key]: event.target.value }));
     };
 
@@ -187,16 +188,27 @@ export default function SlotForm({
           <label htmlFor="slot-category" className={labelClass}>
             Category
           </label>
-          <input
+          <select
             id="slot-category"
-            type="text"
-            autoComplete="off"
             className={inputClass}
-            placeholder="dining, fitness, sports…"
             value={values.category}
             onChange={set('category')}
-            maxLength={100}
-          />
+          >
+            <option value="">No category</option>
+            {SLOT_CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+            {/* Drafts predating the fixed list keep their value visible instead
+                of crashing or blanking; picking a list value replaces it. */}
+            {values.category &&
+            !(SLOT_CATEGORIES as readonly string[]).includes(values.category) ? (
+              <option value={values.category} disabled>
+                Custom: {values.category}
+              </option>
+            ) : null}
+          </select>
         </div>
         <div>
           <label htmlFor="slot-location" className={labelClass}>
