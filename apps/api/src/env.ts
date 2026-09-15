@@ -24,6 +24,10 @@ const envSchema = z.object({
     emptyToUndefined,
     z.coerce.number().int().positive().optional(),
   ),
+  ESCROW_DELIVERY_WINDOW_SECONDS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().positive().optional(),
+  ),
   POLYGON_RPC_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
   USDT_ESCROW_CONTRACT_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   USDT_TOKEN_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
@@ -103,6 +107,28 @@ export function getEscrowDepositVerificationSeconds(
     }
   }
   return DEFAULT_ESCROW_DEPOSIT_VERIFICATION_SECONDS;
+}
+
+/**
+ * Delivery window in seconds: funded → delivery deadline. Tolerant by design:
+ * missing, blank, or invalid values fall back to the 86400s (24h) default
+ * instead of crashing the escrow path. Declared in .env.example alongside the
+ * existing escrow vars. Phase 14d-2 only sets delivery_deadline on verified
+ * deposit; enforcement (release/refund) is 14d-3+.
+ */
+export const DEFAULT_ESCROW_DELIVERY_WINDOW_SECONDS = 86400;
+
+export function getEscrowDeliveryWindowSeconds(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): number {
+  const raw = env.ESCROW_DELIVERY_WINDOW_SECONDS;
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const parsed = Number(raw);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return DEFAULT_ESCROW_DELIVERY_WINDOW_SECONDS;
 }
 
 /**

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_ESCROW_DELIVERY_WINDOW_SECONDS,
   DEFAULT_ESCROW_DEPOSIT_VERIFICATION_SECONDS,
+  getEscrowDeliveryWindowSeconds,
   getEscrowDepositVerificationSeconds,
   loadEnv,
   parseEnv,
@@ -47,6 +49,19 @@ describe('env validation', () => {
     expect(getEscrowDepositVerificationSeconds({ ESCROW_DEPOSIT_VERIFICATION_SECONDS: '900' })).toBe(900);
     expect(parseEnv({ ESCROW_DEPOSIT_VERIFICATION_SECONDS: '900' })).toMatchObject({
       ESCROW_DEPOSIT_VERIFICATION_SECONDS: 900,
+    });
+  });
+
+  it('delivery window getter defaults tolerantly and parses set values', () => {
+    expect(DEFAULT_ESCROW_DELIVERY_WINDOW_SECONDS).toBe(86400);
+    expect(getEscrowDeliveryWindowSeconds({})).toBe(86400);
+    expect(getEscrowDeliveryWindowSeconds({ ESCROW_DELIVERY_WINDOW_SECONDS: '' })).toBe(86400);
+    expect(getEscrowDeliveryWindowSeconds({ ESCROW_DELIVERY_WINDOW_SECONDS: 'garbage' })).toBe(86400);
+    expect(getEscrowDeliveryWindowSeconds({ ESCROW_DELIVERY_WINDOW_SECONDS: '0' })).toBe(86400);
+    expect(getEscrowDeliveryWindowSeconds({ ESCROW_DELIVERY_WINDOW_SECONDS: '-5' })).toBe(86400);
+    expect(getEscrowDeliveryWindowSeconds({ ESCROW_DELIVERY_WINDOW_SECONDS: '3600' })).toBe(3600);
+    expect(parseEnv({ ESCROW_DELIVERY_WINDOW_SECONDS: '3600' })).toMatchObject({
+      ESCROW_DELIVERY_WINDOW_SECONDS: 3600,
     });
   });
 });

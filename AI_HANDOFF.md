@@ -3,6 +3,96 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14d-2 — USDT escrow deposit (2026-09-15)
+
+Vertical slice live: client → verification → service → endpoints → tests.
+USDT deposit path on Polygon end to end. No NIM deposit, release, refund,
+dispute, or UI.
+
+Carried-in decisions (implemented as stated, not re-litigated): (1) claim
+flow `active_hold → deposit_submitted → escrow_funded`, `active_hold →
+expired` without a deposit reference, `deposit_submitted → payment_review`
+on verification-window expiry; (2) escrow flow `created → funded`, nothing
+past `funded`; (3) `ESCROW_DEPOSIT_VERIFICATION_SECONDS` default 1800 from
+`deposit_submitted` entry; (4) escrow row created at intent (`created`, NULL
+funded fields) → `funded` with `deposit_tx_hash`/`funded_at`/
+`delivery_deadline` in the same transaction as the claim transition; (5)
+`release(bytes32 escrowId, address toProvider)` unchanged — client method
+left as a not-implemented throw with a `// Phase 14d-3` marker (same for
+`refund`); (6) USDT only — `NIM` at intent → 409 `ESCROW_TOKEN_UNSUPPORTED`;
+(7) no background worker — buyer polling of `verify-deposit` mirrors
+deprecated `verify-payment`; (8) bigint base units, USDT 6 decimals, never
+float/number; (9) exact-amount approval only in the intent instruction.
+
+EVM library: `viem` 2.56.5 in `apps/api` (single authorized exception).
+Justification: nothing in the tree can ABI-decode logs or sign EVM
+transactions; viem is lighter/modern vs ethers v6 with clean event decoding
+(`decodeEventLog`, typed `getLogs`) and HTTP transport. Base library only —
+no Polygon kit. No second runtime dependency added.
+
+Env: new `ESCROW_DELIVERY_WINDOW_SECONDS` (default 86400, tolerant getter in
+`env.ts`, declared in `.env.example`); now read in this phase:
+`POLYGON_RPC_URL` (event reads; unset → `EscrowContractUnavailableError`),
+`USDT_ESCROW_CONTRACT_ADDRESS` (event filter + instruction; unset/malformed
+→ same error, never hardcoded).
+
+Behavior notes (locked scope preserved): intent is idempotent pre-funding
+(same escrow id) and 409 `ESCROW_ALREADY_FUNDED` post-funding; submission
+conflict (different hash while submitted) is 409 `PAYMENT_ALREADY_SUBMITTED`
+— chosen over `CONFLICT` for consistency with the deprecated path,
+documented in `service.ts`; window clock uses `claims.updated_at` as the
+`deposit_submitted`-entry proxy (no `deposit_submitted_at` column exists and
+schema changes were forbidden; safe — no other write occurs in that state);
+expected buyer comes from `users.wallet_address` (no Polygon-buyer column
+exists; mocked tests use the same string both sides — production
+Polygon-vs-Nimiq format gap recorded below); `DepositedEvent.participant`
+is read with a `buyer` alias (shared type vs brief naming); submission
+accepts optional `0x` (Polygon hashes; Nimiq path stays hex-only).
+
+```text
+CURRENT PHASE: Phase 14d-2 complete — USDT escrow deposit live. Do NOT
+  begin Phase 14d-3.
+COMPLETED: viem Polygon client (deposit/dispute reads, release/refund
+  14d-3 stubs) + pure assessDeposit + escrow service
+  (intent/submission/verify/read) + 4 endpoints + 25 new tests + ARCH §6
+  note + §13 endpoint docs + delivery-window env
+TESTS RUN: typecheck clean exit 0 (all workspaces + db); lint clean exit 0;
+  full suite — api 34 files/368 pass (343 + 11 pure + 13 integration + 1 env)
+  + web 16 files/129 pass (unchanged) + shared 1 pass (unchanged); build
+  clean (api tsc + web vite + shared tsc); db:verify green (11 tables,
+  4-state index, both enum values, CHECK); no public-RPC flake this run
+RESULT: single commit (message below); push gated on green battery +
+  expected file set
+KNOWN ISSUES:
+- LIVE DB / DOC DIVERGENCE (paid legacy enum value) — still open
+- paid-word residuals in PROJECT_SPEC.md and ARCHITECTURE.md
+- SECURITY_REVIEW.md payment rows + item 7 → 14d-8
+- README.md NIM-only intro → Phase 15
+- listSlotClaimsForProvider compat shim (14d-1) — still in place
+- Polygon buyer binding gap (14d-2): verify compares the on-chain buyer
+  against users.wallet_address (Nimiq identity); a later phase must bind
+  the Polygon buyer address explicitly (new column or registration step)
+SECURITY NOTES: buyer-owner on all four (foreign 404, anon 401); no new
+  codes (UNSUPPORTED/NOT_FOUND/ALREADY_FUNDED/CONTRACT_UNAVAILABLE +
+  PAYMENT_ALREADY_SUBMITTED reuse); events filtered by configured contract
+  only; RPC failure → 503 with zero state change; conditional writes make
+  concurrent verifies fail closed; audit metadata carries ids/states/reasons
+  only (no wallets/hashes/secrets); keys never logged/printed/returned
+FILES CHANGED: apps/api/src/escrow/polygon/client.ts (new),
+  apps/api/src/escrow/polygon/verify-deposit.ts (new),
+  apps/api/src/escrow/service.ts (new), apps/api/src/escrow/validation.ts
+  (new), apps/api/src/routes/escrow.ts (new), apps/api/src/app.ts,
+  apps/api/src/env.ts, .env.example, apps/api/package.json + lockfile
+  (viem), apps/api/test/escrow-deposit.test.ts (new, 11),
+  apps/api/test/escrow-service.test.ts (new, 13), apps/api/test/env.test.ts
+  (+1), ARCHITECTURE.md (§6 note + §13 deposit endpoints), AI_HANDOFF.md
+  (this checkpoint)
+GIT COMMIT: feat: phase 14d-2 — USDT escrow deposit and Polygon client
+  (single commit with this checkpoint; hash recorded at push)
+NEXT TASK: Phase 14d-3 — USDT release and refund (do NOT start automatically)
+BLOCKED BY: none
+```
+
 ## Phase 14d-1 completion — release binding and enum alignment (2026-09-15)
 
 Completion pass for 14d-1 (`f2490ce`): closed the three review items so

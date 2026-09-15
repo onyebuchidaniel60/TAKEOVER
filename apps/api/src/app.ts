@@ -9,6 +9,7 @@ import { createCsrfGuard } from './http/csrf';
 import { authRoutes, type AuthRouteOptions } from './routes/auth';
 import { adminRoutes, type AdminRouteOptions } from './routes/admin';
 import { claimRoutes, type ClaimRouteOptions } from './routes/claims';
+import { escrowRoutes, type EscrowRouteOptions } from './routes/escrow';
 import { reportRoutes } from './routes/reports';
 import { paymentRoutes, type PaymentRouteOptions } from './routes/payments';
 import { providerRoutes, type ProviderRouteOptions } from './routes/provider';
@@ -19,6 +20,7 @@ export type AppOptions = AuthRouteOptions &
   SlotRouteOptions &
   ClaimRouteOptions &
   ProviderRouteOptions &
+  EscrowRouteOptions &
   AdminRouteOptions & {
     /** Explicit CORS allowlist override (tests). Defaults to parseCorsOrigins(). */
     corsOrigins?: string[];
@@ -79,6 +81,7 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
       await api.register(slotRoutes, opts);
       await api.register(claimRoutes, opts);
       await api.register(paymentRoutes, opts);
+      await api.register(escrowRoutes, opts);
       await api.register(providerRoutes, opts);
       await api.register(reportRoutes);
       await api.register(adminRoutes, opts);

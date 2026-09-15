@@ -1,0 +1,30 @@
+// Phase 14d-2: escrow endpoint validation. Strict shapes, no unknown fields.
+import { z } from 'zod';
+
+export const escrowIntentBodySchema = z.object({ token: z.enum(['NIM', 'USDT_POLYGON']) }).strict();
+
+/**
+ * Deposit reference shape: hex with optional 0x prefix (Polygon tx hashes
+ * are 0x-prefixed; the deprecated Nimiq path is hex-only). Hex part stays
+ * 1–256 chars per the existing payment-submission bound.
+ */
+const polygonTxHashSchema = z
+  .string()
+  .min(1, { message: 'Transaction hash is required.' })
+  .max(258, { message: 'Transaction hash is too long.' })
+  .regex(/^(0x)?[0-9a-fA-F]+$/, { message: 'Transaction hash must be hex.' })
+  .refine((v) => (v.startsWith('0x') || v.startsWith('0X') ? v.slice(2).length : v.length) >= 1, {
+    message: 'Transaction hash is required.',
+  })
+  .refine((v) => (v.startsWith('0x') || v.startsWith('0X') ? v.slice(2).length : v.length) <= 256, {
+    message: 'Transaction hash is too long.',
+  });
+
+export const escrowSubmissionBodySchema = z
+  .object({ transactionHash: polygonTxHashSchema })
+  .strict();
+
+export const verifyDepositBodySchema = z.preprocess(
+  (value: unknown) => (value === undefined ? {} : value),
+  z.object({}).strict(),
+);

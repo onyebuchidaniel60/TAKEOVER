@@ -191,6 +191,26 @@ Ledger invariant (NIM only):
 Note: the previous Phase 8 note about direct buyer-to-provider
 payment is superseded. All new payments route through escrow.
 
+### Phase 14d-2 implementation note (2026-09-15)
+
+USDT-only on-demand deposit verification. The buyer polls
+`POST /claims/:claimId/verify-deposit`; each call reads the contract's
+`Deposited` event for the escrow's `on_chain_escrow_id` and assesses it
+against the escrow row (escrow id, buyer wallet, exact base-unit amount).
+No background worker exists: polling is the verification trigger, mirroring
+the deprecated `verify-payment` pattern. NIM requested at escrow-intent
+time is rejected with 409 `ESCROW_TOKEN_UNSUPPORTED` (NIM escrow is a later
+phase). Env read: `POLYGON_RPC_URL` (event reads, fail-closed when unset),
+`USDT_ESCROW_CONTRACT_ADDRESS` (event filter + deposit instruction, never
+hardcoded), `ESCROW_DEPOSIT_VERIFICATION_SECONDS` (default 1800, pending →
+`payment_review` on expiry, inventory stays reserved), and the new
+`ESCROW_DELIVERY_WINDOW_SECONDS` (default 86400; `delivery_deadline` set on
+funding, enforced later). The escrow row is created at intent time
+(`created`, NULL funded fields) and moves to `funded` with
+`deposit_tx_hash`/`funded_at`/`delivery_deadline` in the same transaction
+as the claim's move to `escrow_funded`. `release()`/`refund()` remain
+not-implemented (14d-3).
+
 ## 7. Slot/claim concurrency
 
 The final unit of a slot is scarce inventory and must be protected with a database transaction.
@@ -736,27 +756,56 @@ Auth: session + buyer owner, and safe to call repeatedly.
 
 Server re-queries Nimiq state and attempts deterministic verification.
 
-### POST /api/v1/claims/:claimId/escrow-intent
+### POST /api/v1/claims/:claimId/escrow-intent (Phase 14d-2: USDT live)
+
+Auth: session + buyer owner (foreign → 404 `CLAIM_NOT_FOUND`, anonymous → 401).
+
+Request: `{ token: 'NIM' | 'USDT_POLYGON' }` (strict, no unknown fields).
+`NIM` → 409 `ESCROW_TOKEN_UNSUPPORTED` (no row created); wrong claim state →
+409 `CLAIM_NOT_PAYABLE`; funded → 409 `ESCROW_ALREADY_FUNDED`.
+
+Response: `{ escrow, claim, depositInstruction }` where the instruction
+carries `contractAddress`, `usdtAmount` (string, 6-decimal base units),
+`onChainEscrowId`, `approveTo` (= contractAddress), `approveAmount` (exact, =
+usdtAmount — exact-amount approval only, never infinite), and `buyerWallet`
+(frontend sanity-check). Existing escrow pre-funding → returned as-is
+(idempotent, no new row).
+
+Rate limit: per-IP 10/60s (matches the deprecated intent path).
+
+### POST /api/v1/claims/:claimId/escrow-submission (Phase 14d-2: USDT live)
 
 Auth: session + buyer owner.
 
-Creates the escrow for one claim with the buyer-selected token (NIM or USDT) and returns the deposit instruction. Must not mint multiple escrows for one claim.
+Request: `{ transactionHash: string }` (hex with optional `0x`, hex part
+1–256 chars, matching the payment-submission bound). Sets `deposit_tx_hash`
+on the escrow row and moves the claim `active_hold` → `deposit_submitted`.
+Idempotent on identical hash; different hash while submitted → 409
+`PAYMENT_ALREADY_SUBMITTED`; no escrow → 404 `ESCROW_NOT_FOUND`; funded →
+409 `ESCROW_ALREADY_FUNDED`. The hash is an unverified buyer reference;
+verification happens in `verify-deposit`.
 
-Idempotency-Key required.
+Rate limit: per-IP 10/60s.
 
-### POST /api/v1/claims/:claimId/escrow-submission
+### POST /api/v1/claims/:claimId/verify-deposit (Phase 14d-2: USDT live)
 
-Auth: session + buyer owner.
+Auth: session + buyer owner, and safe to call repeatedly (buyer polling;
+no background worker).
 
-Records the buyer's deposit transaction reference for the escrow.
+Request: strict empty (`{}` accepted). Reads the contract `Deposited` event
+for the escrow's `on_chain_escrow_id` and assesses escrow id → buyer →
+exact amount. `pending` → 200 no-op `{ status: 'pending' }`; `mismatch` →
+200 `{ status: 'mismatch', reason }` with no write (claim stays
+`deposit_submitted`); `matched` → one transaction funds both rows (escrow →
+`funded` with `deposit_tx_hash`/`funded_at`/`delivery_deadline`, claim →
+`escrow_funded`). Expired window + `pending` → `payment_review` with
+`{ status: 'review' }` (inventory NOT released); `matched` past the window
+still verifies. Already funded → 200 `{ status: 'funded' }` without an RPC
+call. RPC/contract misconfiguration → 503 `ESCROW_CONTRACT_UNAVAILABLE`
+with no state change.
 
-Idempotency-Key required.
-
-### POST /api/v1/claims/:claimId/verify-deposit
-
-Auth: session + buyer owner, and safe to call repeatedly.
-
-Verifies the escrow deposit on-chain (NIM: escrow-wallet receipt; USDT: contract Deposited event) and moves the claim to escrow_funded.
+Rate limit: per-claim 1/5s (same as deprecated `verify-payment`) → 429
+`VERIFY_RATE_LIMITED` with `Retry-After`.
 
 ### POST /api/v1/claims/:claimId/mark-delivered
 
@@ -776,11 +825,12 @@ Auth: session + buyer owner only, within the dispute window.
 
 Opens a dispute; claim moves to disputed for admin resolution.
 
-### GET /api/v1/claims/:claimId/escrow
+### GET /api/v1/claims/:claimId/escrow (Phase 14d-2: USDT live)
 
-Auth: session + buyer or provider owner of slot, with field-level response restrictions.
+Auth: session + buyer owner (foreign → 404, anonymous → 401).
 
-Returns the escrow state for the claim.
+Returns `{ escrow, claim }` for the claim's escrow (`ESCROW_NOT_FOUND` when
+none exists). No rate limiter beyond the shared API backstops.
 
 ### GET /api/v1/me/claims
 
