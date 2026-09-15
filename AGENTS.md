@@ -2,7 +2,7 @@
 
 ## Project
 
-TAKEOVER is a Nimiq Pay Mini App: a last-minute marketplace for released/scarce capacity. Providers publish available slots; buyers claim them; buyers pay in NIM through Nimiq Pay; the backend verifies the real transaction before marking a claim paid.
+TAKEOVER is a Nimiq Pay Mini App: a last-minute marketplace for released/scarce capacity. Providers publish available slots; buyers claim them and fund a dual-token escrow (NIM through Nimiq Pay, or USDT on Polygon); the backend verifies the on-chain deposit before the claim moves to escrow_funded.
 
 TAKEOVER is a consumer marketplace. Nimiq is payment/wallet infrastructure, not the product identity.
 

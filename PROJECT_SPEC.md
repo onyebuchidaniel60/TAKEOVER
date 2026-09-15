@@ -106,10 +106,8 @@ The future concept of a customer transferring an existing booking is explicitly 
 - Slot detail page.
 - Buyer claim/hold flow.
 - Exact claim expiration before payment starts.
-- NIM payment initiation through Nimiq Pay.
-- Backend verification of the submitted NIM transaction.
 - Transaction binding to the intended claim.
-- Paid/confirmed claim state.
+- Escrow-funded / confirmed claim state.
 - Buyer “My Claims” view.
 - Provider “My Slots” view.
 - Admin report/disable capability.
@@ -161,7 +159,7 @@ Anything not explicitly listed above is out of scope unless required to make a M
 
 ### Buyer
 
-Can browse active public slots, view details, create a claim, initiate payment, submit a transaction hash, and view their own claim status/history.
+Can browse active public slots, view details, create a claim, select a payment token, create an escrow intent, submit the deposit reference, confirm receipt, and dispute within the window, and view their own claim status/history.
 
 Cannot edit another user’s slot, change a slot price, mark a payment verified, cancel another user’s claim, or access private provider/admin data.
 
@@ -214,7 +212,7 @@ Processing: Return only publishable, non-expired, non-cancelled slots whose capa
 
 Acceptance criteria:
 - Expired/cancelled slots never appear as claimable.
-- Paid/claimed slots are not shown as available.
+- Escrow-funded or otherwise unavailable slots are not shown as available.
 - Public responses do not expose seller-only data.
 
 ### FR-03 Create slot
@@ -259,20 +257,20 @@ Rules:
 
 ### FR-05 Claim slot
 
-Purpose: Reserve a slot for one buyer while payment is initiated.
+Purpose: Reserve a slot for one buyer while the buyer prepares the escrow deposit.
 
 Processing:
 1. Lock the slot row in a DB transaction.
 2. Re-check slot state and time.
 3. Reject if no capacity remains.
 4. Reject if buyer already has an active claim for the same slot.
-5. Create claim.
+5. Create claim in `active_hold`.
 6. Reserve the relevant capacity atomically.
 7. Return claim ID and payment instructions.
 
-Hold window: 10 minutes from claim creation when no transaction has been submitted.
+Hold window: 10 minutes from claim creation. If the hold expires before a deposit is verified, its reserved quantity is returned atomically.
 
-After a transaction hash is submitted, the claim enters PAYMENT_PENDING and is held for up to 30 minutes while the backend verifies the transaction. If a hold expires before payment submission, its reserved quantity is returned atomically. If a submitted payment remains unverified after the pending window, the claim enters PAYMENT_REVIEW and the slot remains unavailable until an admin resolves it; the system must never silently release a claim that may have an on-chain payment associated with it.
+Everything from token selection onward (escrow intent, deposit, deposit verification, delivery, release, refund, disputes) is owned by FR-06 and FR-12, not by this requirement.
 
 Acceptance criteria:
 - Two concurrent buyers cannot both reserve the final available unit.
@@ -367,7 +365,7 @@ The MVP is complete only when a clean user can:
 3. Browse a seeded or provider-created active slot.
 4. View all commercial details.
 5. Claim an available slot.
-6. Initiate NIM payment through Nimiq Pay.
+6. Initiate payment (NIM or USDT) through the escrow flow.
 7. Have the backend verify the real transaction.
 7a. See their funds held in escrow (on-chain for USDT, escrow wallet for NIM).
 7b. As the provider, mark the service delivered.

@@ -3,6 +3,89 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14d-0 completion — reconcile escrow spec gaps (2026-09-15)
+
+Completion pass for 14d-0 (`42dd0a8`): reconciled internal
+contradictions and stale NIM-only language against the escrow decision.
+No new states, codes, endpoints, fields, rules, windows, or thresholds.
+AGENTS.md touched once (concrete contradiction: project intro was
+NIM-only + `paid`; now dual-token + escrow_funded). SECURITY_REVIEW.md
+and README.md read-only (residuals below). Dated history untouched.
+
+Files changed (before → after):
+- PROJECT_SPEC.md §3 MUST HAVE (dropped NIM-only bullets + `Paid/confirmed`
+  → `Escrow-funded / confirmed`), §4 Buyer (escrow verbs), FR-02 (`paid`
+  → escrow-funded wording), FR-05 (rewritten to end at `active_hold`,
+  defers to FR-06/FR-12, old pending/review/30-min language removed),
+  §6 step 6 (dual-token).
+- ARCHITECTURE.md §1 (Polygon verification line), §2 (Nimiq read-back
+  arrow), §5 (`own escrows`), §8 (payment states relabeled legacy +
+  escrow pointer), §9 (claims enum minus `paid` plus escrow states,
+  `escrows`/`escrow_ledger` tables, intents deprecated note,
+  `deposit_tx_hash` comment, ledger `tx_hash NOT NULL`, repeatable-rows
+  note minus `paid`), §10 (3 relationship lines), §11 (2 privacy lines),
+  §13 (3 DEPRECATED marks + 7 escrow + 2 admin-escrow endpoints), §15
+  (13 codes), §16 (Secrets line + custody subsection), §17 (Polygon RPC),
+  §22 (6 deploy lines), §24 (invariants 5+6).
+- AI_HANDOFF.md (this checkpoint only, otherwise).
+
+Grep verification (post-edit): `own payment intents` in ARCH §5 = 0;
+`NIM payment initiation`/`NIM transaction` in PROJECT_SPEC = 0;
+`PAYMENT_PENDING`/`PAYMENT_REVIEW` in PROJECT_SPEC = 0;
+`CREATED -> SUBMITTED` = 1, under the legacy §8 heading. `paid`-word
+residuals: PROJECT_SPEC 5 (L172 §4-cannot, L318 FR-07, L326/L328 FR-09,
+L375 baseline-9) and ARCHITECTURE 8, of which 1 is the new enum-removal
+note (L264) and 7 are 14d-1 ripples (slot-state notes L238/244/246,
+deprecated-flow admin endpoints L799/828, §17 note L1041, UX badge rule
+L1161).
+
+Ambiguity stops: none. Every correction matched its described text.
+Correction 15's guard passed (all ledger entry types carry an on-chain
+tx), so `tx_hash TEXT NOT NULL` was applied.
+
+14d-1 open question: the "deposit submitted but not yet verified" timing
+is unspecified in the docs (FR-05 ends at `active_hold`; FR-06/FR-12 set
+no deposit-verification timeout). 14d-1 must decide the window and the
+unverified-deposit state path. No number was invented here.
+
+Residual (14d-8 security pass): SECURITY_REVIEW.md payment rows
+(replay/amount/recipient/sender/data) and residual item 7 describe the
+deprecated direct-payment flow and cross-reference the modified §16;
+historically superseded by the escrow decision, reconciliation deferred
+to 14d-8. No contradiction was introduced by the §16 edits (new
+subsection is additive; Secrets line tightens key handling).
+
+Residual (Phase 15 submission readiness): README.md:5-7 still describes
+the NIM-only direct-payment flow with the removed `paid` state.
+Untouched per scope; update in Phase 15.
+
+```text
+CURRENT PHASE: Phase 14d-0 completion done — documents internally
+  consistent for the escrow decision. Do NOT begin Phase 14d-1.
+COMPLETED: corrections 1-15 (6 spec + 9 arch, incl. schema-field
+  clarifications 14-15) + AGENTS.md intro fix + this checkpoint
+TESTS RUN: typecheck clean exit 0; lint clean exit 0; full suite —
+  api 331 pass (30 files) + web 129 pass (16 files) + shared 1 pass;
+  one transient public-RPC timeout in nimiq-rpc-live (5s budget on
+  third-party endpoint, sibling test green) proven green on isolated
+  re-run 2/2; docs-only diff, zero behavior change
+RESULT: reconciled in a single docs-only commit (message below);
+  push gated on green battery + 4-file diff scope
+KNOWN ISSUES: paid-word residuals listed above (14d-1 ripples);
+  deposit-timing gap open (14d-1 question); review/README residuals
+  deferred as stated
+SECURITY NOTES: no code/schema/config touched (4 md files only); no new
+  deps; no secrets involved; escrow key-handling language added
+  (KMS prod / env competition gap, never logged/printed/returned)
+FILES CHANGED: PROJECT_SPEC.md, ARCHITECTURE.md, AGENTS.md (intro fix
+  only), AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: chore: phase 14d-0 completion — reconcile escrow spec gaps
+  (single commit with this checkpoint; hash recorded at push)
+NEXT TASK: Phase 14d-1 — schema + escrow contract interface (do NOT
+  start automatically)
+BLOCKED BY: none
+```
+
 ## Phase 14d-0 — dual-token escrow in source-of-truth specs (2026-09-15)
 
 Phase 14d-0 complete: source-of-truth documents updated for dual-token

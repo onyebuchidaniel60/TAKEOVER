@@ -20,7 +20,7 @@ TAKEOVER uses a deliberately boring architecture:
 - Payments: NIM (native Nimiq) and USDT (ERC-20 on Polygon).
   Escrow: custodial backend wallet for NIM; non-custodial smart
   contract on Polygon for USDT.
-- Blockchain verification: Nimiq JSON-RPC/read API from server
+- Blockchain verification: Nimiq JSON-RPC/read API + Polygon contract-event verification, from server
 - File/media storage: none for MVP; image URLs only
 - Background jobs: none required for core correctness; expired records are resolved lazily plus optional periodic maintenance job
 - Notifications: in-app state only in MVP
@@ -44,12 +44,14 @@ Buyer
 Nimiq Pay Mini App
   |
   +--> NIM  --> Nimiq chain  --> Backend escrow wallet
-  |
+  |                                    |
+  |                                    | read-back
+  |                                    v
+  |                              Fastify backend
+  |                                    ^
+  |                                    | events
+  |                                    |
   +--> USDT --> Polygon chain --> Escrow smart contract
-                                     |
-                                     | events
-                                     v
-                                 Fastify backend
 ```
 
 ## 3. Architectural principles
@@ -135,7 +137,7 @@ plus the installed oracle implementation:
 Authorization is resource based.
 
 - Public: published active slot summary/detail.
-- Buyer-owned: own claims, own payment intents.
+- Buyer-owned: own claims, own escrows.
 - Provider-owned: own slots, claims attached to own slots.
 - Admin-only: reports, audit events, moderation controls, user disable state.
 
@@ -261,7 +263,7 @@ active_hold -> cancelled
 
 Remove "paid" from the claim_status enum. Terminal states are released, refunded, expired, cancelled.
 
-### Payment states
+### Legacy payment_intents states (deprecated — historical rows only)
 
 ```text
 CREATED -> SUBMITTED -> VERIFIED
@@ -269,7 +271,7 @@ CREATED -> SUBMITTED -> VERIFIED
                     \-> REVIEW
 ```
 
-The same transaction cannot verify two successful payment intents.
+The same transaction cannot verify two successful payment intents. The current escrow flow is represented by the claim state machine above plus the `escrow_status` values (`funded`, `delivered`, `disputed`, `released`, `refunded`).
 
 ## 9. Database model
 
@@ -370,8 +372,8 @@ Constraints:
 
 Unique/partial-index requirement:
 - one live (active_hold, payment_pending, payment_review) claim per buyer+slot.
-  paid, expired, and cancelled rows may repeat, so a buyer can accumulate multiple
-  paid claims on a multi-quantity slot while holding only one live claim at a time.
+  expired, cancelled, released, and refunded rows may repeat, so a buyer can accumulate multiple
+  released claims on a multi-quantity slot while holding only one live claim at a time.
 
 ### payment_intents
 
@@ -399,7 +401,7 @@ Deprecated: the payment_intents table is kept for historical rows only. All new 
 - payment_token ENUM('NIM','USDT_POLYGON') NOT NULL
 - amount_base_units BIGINT NOT NULL
 - status ENUM(escrow_status: 'funded','delivered','disputed','released','refunded') NOT NULL
-- deposit_tx_hash TEXT UNIQUE NOT NULL
+- deposit_tx_hash TEXT UNIQUE NOT NULL   -- on-chain deposit tx: NIM transfer hash, or Polygon tx hash containing the escrow contract's Deposited event
 - release_tx_hash TEXT UNIQUE NULL
 - refund_tx_hash TEXT UNIQUE NULL
 - contract_address TEXT NULL            -- USDT only
@@ -423,7 +425,7 @@ Deprecated: the payment_intents table is kept for historical rows only. All new 
 - debit_account TEXT NOT NULL
 - credit_account TEXT NOT NULL
 - amount_base_units BIGINT NOT NULL
-- tx_hash TEXT NULL
+- tx_hash TEXT NOT NULL
 - created_at TIMESTAMPTZ NOT NULL
 
 ### reports
@@ -461,6 +463,9 @@ users 1---* slots
 users 1---* claims (buyer)
 slots 1---* claims
 claims 1---1 payment_intents
+claims 1---1 escrows
+escrows 1---* escrow_ledger
+users 1---* escrows (buyer + provider)
 users 1---* reports
 users 1---* audit_events
 ```
@@ -1035,6 +1040,14 @@ Auth: public RPC if supported; otherwise server-side API credential.
 
 Failure: payment remains PAYMENT_PENDING/REVIEW; never mark paid based on timeout.
 
+### Polygon JSON-RPC — mandatory
+
+Purpose: server-side verification of USDT escrow `Deposited` / `Released` / `Refunded` events from the configured escrow contract address.
+
+Auth: public RPC if supported; otherwise server-side API credential. Endpoint configurable via `POLYGON_RPC_URL` (see §22).
+
+Failure: fail closed — escrow state unchanged, never optimistic; the claim stays in its current state until the event is observed.
+
 ### Supabase Postgres — mandatory infrastructure choice
 
 Purpose: persistent database.
@@ -1207,6 +1220,13 @@ Minimum operational metrics:
 - payment verification attempts
 - payment verification failures
 - successful payments
+- escrows funded
+- deliveries marked
+- escrow releases
+- escrow refunds
+- disputes opened
+- dispute resolutions
+- NIM ledger reconciliation checks
 - errors
 
 ## 24. Architecture invariants
