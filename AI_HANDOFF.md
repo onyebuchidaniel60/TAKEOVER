@@ -2947,3 +2947,59 @@ BLOCKED BY: Railway redeploy (dashboard trigger; CLI token scope-blocked)
 7. Vercel production URL: NOT deployed (ordered after Railway; alias state unchanged and unverified).
 8. Token-leak audit: NOT run (no fresh dist deployed; pre-deploy `dist/` untouched by this change — audit runs post-deploy per the brief).
 9. Deployed: NO — blocked. NOT ready for human Phase 14b re-test. Exact resume: dashboard redeploy → live probe → Vercel dry-run + deploy → post-deploy checks (§NEXT TASK above).
+
+## Phase 14c deployment COMPLETE — both services live (2026-09-14)
+
+Resume session, deploy-and-verify only. No server/frontend code modified (this
+session touched docs + temp scripts only). Prior blocker resolved by the human:
+Railway GitHub source connected (branch main), green deploy from c1b5add.
+
+```text
+CURRENT PHASE: Phase 14c COMPLETE — deployed, ready for human 14b re-test
+  on device. Do NOT begin Phase 15. Do NOT remove tokens from .env.txt.
+COMPLETED: Railway new-build probe (sessionToken live) + Vercel prod deploy
+  (alias unmoved) + both-services verification + leak audit + this checkpoint
+TESTS RUN: no code changed this session, so no test re-run (prior battery
+  stands: api 324 + web 103 + shared 1, typecheck/lint clean). Live:
+  challenge 200 → verify 200 with sessionToken (shape ok) → Bearer /me 200;
+  health 200; alias 200 HTML; preflight 204 + ACAO echo + credentials;
+  deployed chunk carries Bearer wiring; fresh dist 33 files, 0 leak hits.
+RESULT: DEPLOYED — Railway serves c1b5add (Bearer fallback live); Vercel
+  serves the matching frontend on the unchanged alias. CORS_ORIGINS still
+  correct (alias did not shift — no dashboard change needed).
+KNOWN ISSUES: Risks B/C/D still UNTESTED (now unblocked — 14b re-test can
+  reach them); SET-vs-SEND half still needs the optional device check
+SECURITY NOTES: Set-Cookie attributes byte-identical to the 14c diagnosis
+  (Path=/; HttpOnly; Secure; SameSite=None); no secrets printed or committed
+  (token redacted everywhere; DATABASE_URL/VERCEL_TOKEN via shell vars only);
+  probe residue removed (1/1/1/1); temp scripts deleted; dry-run proved
+  .env.txt + dist/ excluded before upload; tokens stay in .env.txt
+FILES CHANGED: AI_HANDOFF.md (this checkpoint only)
+GIT COMMIT: docs: phase 14c deployment complete — bearer fallback live
+NEXT TASK: human Phase 14b re-test on a real device inside Nimiq Pay
+  (connect → /me without re-login → claim → pay → verify → paid), then
+  Risks B/C/D per docs/phase-14-manual-test.md. Do NOT start automatically.
+BLOCKED BY: none (human device test)
+```
+
+1. Railway redeploy evidence: throwaway-wallet probe → challenge 200,
+   verify 200 with `hasSessionToken:true` + shape ok, Bearer-only `/me` 200,
+   `SET-COOKIE: takeover_session=<redacted>; Path=/; HttpOnly; Secure;
+   SameSite=None` (unchanged). Residue removed (1/1/1/1).
+2. Vercel deploy: dry-run from repo root → 208 files, `.env.txt` + `dist/`
+   excluded (ignored list confirmed). Real deploy →
+   `dpl_95DpbtnqxtWo4jgzkZKwXBxJVjYJ`, production URL
+   `https://takeover-5cm2adr1v-uhhh2.vercel.app`, READY. Alias
+   `https://takeover-web-gamma.vercel.app` re-pointed to it (▲ Aliased) —
+   did NOT shift, so Railway `CORS_ORIGINS` needs no change.
+3. Both-services verification: API `/health` 200 `{"status":"ok"}`; alias `/`
+   200 HTML (`<title>TAKEOVER - Last-minute marketplace</title>`); OPTIONS
+   preflight from the alias origin → 204 + `ACAO: <alias>` echo +
+   `allow-credentials: true` + `ACAH` echoes `authorization` (Bearer
+   preflight allowed); deployed chunk `/assets/index-BsOuKLGx.js` (new hash)
+   contains `takeover.sessionToken` (1 hit) + Railway host (1 hit).
+4. Leak audit: fresh local `dist/` 33 files → 0 key-name hits (5 names),
+   0 `VITE_*TOKEN` hits, 0 secret-value hits (DATABASE_URL +
+   ADMIN_WALLET_ADDRESSES values, count-only); deployed chunk → 0 key-name
+   hits. `git status` clean (dist/ ignored, temp scripts deleted).
+5. Deployed. Ready for human Phase 14b re-test on device.
