@@ -60,7 +60,7 @@ export interface DisputedEvent {
 export interface EscrowContractClient {
   getDepositEvent(escrowId: string): Promise<DepositedEvent | null>;
   getDisputeEvent(escrowId: string): Promise<DisputedEvent | null>;
-  release(escrowId: string): Promise<{ txHash: string }>;
+  release(escrowId: string, toProvider: string): Promise<{ txHash: string }>;
   refund(escrowId: string): Promise<{ txHash: string }>;
 }
 
@@ -85,7 +85,10 @@ export const ESCROW_CONTRACT_ABI = [
     type: 'function',
     name: 'release',
     stateMutability: 'nonpayable',
-    inputs: [{ name: 'escrowId', type: 'bytes32' }],
+    inputs: [
+      { name: 'escrowId', type: 'bytes32' },
+      { name: 'toProvider', type: 'address' },
+    ],
     outputs: [],
   },
   {

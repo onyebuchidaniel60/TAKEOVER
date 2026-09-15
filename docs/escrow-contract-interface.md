@@ -30,10 +30,10 @@ accepts the same ID twice for funding.
 - Buyer: `msg.sender` of the first (and only) successful `deposit` for
   the escrow ID. A second `deposit` for the same ID reverts, so the
   buyer is fixed at funding time.
-- Provider: OPEN — see "Open question" below. The fixed function list
-  gives the contract no provider input, so the binding mechanism is
-  undecided here and must be settled by the owner / contract repo
-  before `release()` can be implemented.
+- Provider: supplied by the trusted signer as the `toProvider` argument
+  to `release()` (model (b), decided — see "Provider binding decision"
+  below). No on-chain provider registration step; no pre-deposit
+  transaction.
 
 ## Function signatures
 
@@ -43,7 +43,7 @@ All state-changing functions are `nonpayable` and reentrancy-guarded.
 
 ```
 deposit(bytes32 escrowId, uint256 amount)   // buyer-called; requires prior approval of exact `amount`
-release(bytes32 escrowId)                    // ESCROW_SIGNER only; backend calls after Delivered + confirm/window-expiry
+release(bytes32 escrowId, address toProvider)   // ESCROW_SIGNER only; backend calls after Delivered + confirm/window-expiry
 refund(bytes32 escrowId)                     // ESCROW_SIGNER only; backend calls after Funded-timeout or dispute resolution
 dispute(bytes32 escrowId)                    // buyer-called; while Funded and unterminated
 ```
@@ -97,16 +97,20 @@ not know about dispute windows beyond the timestamp it enforces, and it
 does not resolve disputes. Those are backend decisions that trigger
 `release` or `refund`.
 
-## Open question (blocks the contract repo — owner decision required)
+## Provider binding decision (model (b), owner-decided)
 
-**Provider binding for `release()`.** The contract must send USDT to the
-provider, but none of the four fixed functions gives it the provider
-address (deposit carries no provider argument; the server-generated
-escrow ID is opaque on-chain). Candidate resolutions, each changing the
-fixed list above and therefore requiring explicit approval:
-- (a) add a signer-only creation function recording `(escrowId,
-  provider)` before the first deposit;
-- (b) extend `release` to take the provider address from the trusted
-  signer at call time.
-No choice is made in this document. Do not implement `release()` until
-this is settled.
+`release()` takes the provider address as a `toProvider` parameter and
+pays it out. The signer key is already trusted with release authority;
+letting it also specify the destination does not expand the threat
+surface (a compromised signer could already release to a provider it
+controlled under any registration model). No pre-deposit transaction is
+needed, so gas cost and failure modes are lower. Auditability is
+preserved because the `Released` event records the actual destination.
+
+## Open question (resolved — retained as decision record)
+
+**Provider binding for `release()`.** Decided as model (b) above; option
+(a) (signer-only creation function) was rejected. Original analysis
+retained: the contract must send USDT to the provider, but the
+pre-decision function list gave it no provider input (deposit carries no
+provider argument; the server-generated escrow ID is opaque on-chain).

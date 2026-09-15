@@ -386,7 +386,9 @@ Constraints:
 - slot_id UUID FK slots.id
 - buyer_id UUID FK users.id
 - quantity INTEGER NOT NULL DEFAULT 1
-- status ENUM(claim_status: active_hold, expired, payment_pending, payment_review, cancelled, escrow_funded, delivered, disputed, released, refunded) NOT NULL DEFAULT active_hold
+- status ENUM(claim_status: active_hold, expired, deposit_submitted, payment_pending, paid, payment_review, cancelled, escrow_funded, delivered, disputed, released, refunded) NOT NULL DEFAULT active_hold
+  -- payment_pending and paid are legacy values retained for historical rows;
+  -- the live escrow flow uses active_hold -> deposit_submitted -> escrow_funded -> delivered -> released|refunded|disputed.
 - hold_expires_at TIMESTAMPTZ NOT NULL
 - claimed_at TIMESTAMPTZ NOT NULL
 - updated_at TIMESTAMPTZ NOT NULL

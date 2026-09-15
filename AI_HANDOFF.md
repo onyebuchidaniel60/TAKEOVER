@@ -3,6 +3,78 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14d-1 completion — release binding and enum alignment (2026-09-15)
+
+Completion pass for 14d-1 (`f2490ce`): closed the three review items so
+14d-2 can start. No new states, codes, endpoints, fields, rules,
+migrations, services, routes, UI, or Solidity.
+
+Carried-in decisions (implemented as stated, not re-litigated): (1)
+`release()` takes the provider address — `release(bytes32 escrowId,
+address toProvider)`, model (b), signer specifies the destination, no
+on-chain registration, no pre-deposit tx; (2) ARCH §9 matches the live
+DB — 12-value `claim_status` with `payment_pending` + `paid` legacy
+(undroppable without a rewrite migration); (3) the `paid`-in-DB
+divergence is a named residual below.
+
+Corrections: (1) `EscrowContractClient.release` + ABI entry now take
+`toProvider: address` (`refund` unchanged — buyer known from deposit;
+event types unchanged); spec doc signature updated + 4-sentence binding
+rationale (signer already trusted; no threat-surface expansion; lower
+gas/failure modes; `Released` event preserves auditability); the
+spec's Open-question section now records the model-(b) decision
+(rejected (a) noted, original analysis retained); ABI test asserts the
+new signature + exactly-two-inputs/address-typed second param. (2) ARCH
+§9 claims line replaced with the exact 12-value line + two-line legacy
+comment. No other §9 enum touched; §8 untouched.
+
+f2490ce breakdown (read-only `git show --stat`, 20 files, +3594/-5):
+schema (enums/claims/index/escrows.ts), migrations 0002 (9 lines) +
+0003 (74 lines) + meta (journal + 2 snapshots), env.ts + service.ts
+compat shim, escrow-schema (287) + escrow-contract (80) tests,
+env.test.ts, contract.ts (140), interface spec (112), verify.ts,
+ARCH §8 machine, .env.example, handoff checkpoint.
+
+Grep verification: `own payment intents` = 0; `NIM payment
+initiation`/`NIM transaction` in PROJECT_SPEC = 0;
+`PAYMENT_PENDING`/`PAYMENT_REVIEW` in PROJECT_SPEC = 0;
+`CREATED -> SUBMITTED` = 1 (legacy §8 heading). `paid`-word residuals
+unchanged: PROJECT_SPEC 5, ARCH 7 ripples + 1 enum note.
+
+Ambiguity stops: none.
+
+```text
+CURRENT PHASE: Phase 14d-1 completion done — 14d-2 unblocked on these
+  items. Do NOT begin Phase 14d-2.
+COMPLETED: release binding (interface + ABI + spec + test) + ARCH §9
+  12-value alignment + this checkpoint
+TESTS RUN: typecheck clean exit 0; lint clean exit 0; build clean;
+  full suite — api 32 files/343 pass (unchanged count, updated ABI
+  assertions green) + web 16 files/129 pass (unchanged) + shared 1
+  pass (unchanged)
+RESULT: single commit (message below); push gated on green battery +
+  5-file expected set
+KNOWN ISSUES:
+- LIVE DB / DOC DIVERGENCE: the live `claim_status` enum carries a legacy
+  `paid` value that PROJECT_SPEC.md and ARCHITECTURE.md do not describe; it
+  cannot be dropped without an enum-rewrite migration (out of scope).
+  ARCH §9 now matches the live DB exactly. Any future phase that reads enum
+  values must read the live DB, not the historical docs.
+- paid-word ripples in PROJECT_SPEC / ARCH (unchanged from 14d-0's list)
+- SECURITY_REVIEW.md payment rows + item 7 → 14d-8
+- README.md NIM-only intro → Phase 15
+SECURITY NOTES: no services/routes/wallet/RPC/UI/Solidity; signer-trust
+  rationale documented in the spec; no secrets involved; no behavior change
+FILES CHANGED: ARCHITECTURE.md (§9 only), AI_HANDOFF.md (this checkpoint),
+  docs/escrow-contract-interface.md, packages/shared/src/escrow/contract.ts,
+  apps/api/test/escrow-contract.test.ts (signature assertions only)
+GIT COMMIT: chore: phase 14d-1 completion — release binding and enum
+  alignment (single commit with this checkpoint; hash recorded at push)
+NEXT TASK: Phase 14d-2 — Polygon escrow client and deposit verification
+  (do NOT start automatically)
+BLOCKED BY: none
+```
+
 ## Phase 14d-1 — escrow schema and Polygon contract interface (2026-09-15)
 
 Schema-and-interface phase: `escrows` + `escrow_ledger` tables live on

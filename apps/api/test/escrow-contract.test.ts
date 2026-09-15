@@ -41,11 +41,14 @@ describe('escrow contract ABI', () => {
     const entries = ESCROW_CONTRACT_ABI as unknown as AbiEntry[];
     const functions = entries.filter((entry) => entry.type === 'function');
     expect(functions.map(canonicalSignature).sort()).toEqual(
-      ['deposit(bytes32,uint256)', 'dispute(bytes32)', 'refund(bytes32)', 'release(bytes32)'].sort(),
+      ['deposit(bytes32,uint256)', 'dispute(bytes32)', 'refund(bytes32)', 'release(bytes32,address)'].sort(),
     );
     for (const fn of functions) {
       expect(fn.stateMutability).toBe('nonpayable');
     }
+    const releaseEntry = functions.find((fn) => fn.name === 'release');
+    expect(releaseEntry?.inputs).toHaveLength(2);
+    expect(releaseEntry?.inputs?.[1]).toMatchObject({ name: 'toProvider', type: 'address' });
     const events = entries.filter((entry) => entry.type === 'event');
     expect(events.map(canonicalSignature).sort()).toEqual(
       [
