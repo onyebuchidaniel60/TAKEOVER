@@ -263,6 +263,30 @@ active_hold -> cancelled
 
 Remove "paid" from the claim_status enum. Terminal states are released, refunded, expired, cancelled.
 
+### Deposit submission (Phase 14d-1)
+
+```text
+active_hold ──(no deposit reference in window)──> expired
+     │
+     └──(deposit reference recorded)──> deposit_submitted
+                                              │
+                          ┌───────────────────┼───────────────────┐
+                          │                   │                   │
+                    (verified)          (window expires)     (foreign/never lands)
+                          ▼                   ▼                   ▼
+                    escrow_funded       payment_review       payment_review
+                          │
+                          ▼
+                     delivered → released / disputed / refunded
+```
+
+The deposit reference is recorded via escrow-submission; inventory stays
+reserved in `deposit_submitted`. The verification window is
+`ESCROW_DEPOSIT_VERIFICATION_SECONDS` (default 1800) from
+`deposit_submitted` entry; on expiry the claim ages to the existing
+`payment_review` surface (no new terminal state, inventory not released).
+The escrow row itself moves `created → funded` on verified deposit.
+
 ### Legacy payment_intents states (deprecated — historical rows only)
 
 ```text

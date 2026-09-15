@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { loadEnv, parseEnv } from '../src/env';
+import {
+  DEFAULT_ESCROW_DEPOSIT_VERIFICATION_SECONDS,
+  getEscrowDepositVerificationSeconds,
+  loadEnv,
+  parseEnv,
+} from '../src/env';
 
 describe('env validation', () => {
   it('accepts missing optional configuration without throwing', () => {
@@ -30,5 +35,18 @@ describe('env validation', () => {
 
   it('loadEnv never throws and falls back to defaults on invalid input', () => {
     expect(loadEnv({ NIMIQ_RPC_URL: 'not-a-url' })).toEqual({});
+  });
+
+  it('deposit-verification window getter defaults tolerantly and parses set values', () => {
+    expect(DEFAULT_ESCROW_DEPOSIT_VERIFICATION_SECONDS).toBe(1800);
+    expect(getEscrowDepositVerificationSeconds({})).toBe(1800);
+    expect(getEscrowDepositVerificationSeconds({ ESCROW_DEPOSIT_VERIFICATION_SECONDS: '' })).toBe(1800);
+    expect(getEscrowDepositVerificationSeconds({ ESCROW_DEPOSIT_VERIFICATION_SECONDS: 'garbage' })).toBe(1800);
+    expect(getEscrowDepositVerificationSeconds({ ESCROW_DEPOSIT_VERIFICATION_SECONDS: '0' })).toBe(1800);
+    expect(getEscrowDepositVerificationSeconds({ ESCROW_DEPOSIT_VERIFICATION_SECONDS: '-5' })).toBe(1800);
+    expect(getEscrowDepositVerificationSeconds({ ESCROW_DEPOSIT_VERIFICATION_SECONDS: '900' })).toBe(900);
+    expect(parseEnv({ ESCROW_DEPOSIT_VERIFICATION_SECONDS: '900' })).toMatchObject({
+      ESCROW_DEPOSIT_VERIFICATION_SECONDS: 900,
+    });
   });
 });

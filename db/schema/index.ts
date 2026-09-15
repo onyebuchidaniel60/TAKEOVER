@@ -5,6 +5,7 @@ export * from './auth';
 export * from './provider-profiles';
 export * from './slots';
 export * from './claims';
+export * from './escrows';
 export * from './payment-intents';
 export * from './reports';
 export * from './audit-events';

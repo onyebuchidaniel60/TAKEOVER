@@ -22,10 +22,10 @@ export const claims = pgTable(
   },
   (t) => [
     check('claims_quantity_check', sql`${t.quantity} > 0`),
-    // One live (hold/pending/review) claim per buyer+slot; paid/expired/cancelled rows may repeat.
+    // One live (hold/deposit/pending/review) claim per buyer+slot; paid/expired/cancelled rows may repeat.
     uniqueIndex('claims_one_active_per_buyer_slot')
       .on(t.slotId, t.buyerId)
-      .where(sql`${t.status} IN ('active_hold', 'payment_pending', 'payment_review')`),
+      .where(sql`${t.status} IN ('active_hold', 'deposit_submitted', 'payment_pending', 'payment_review')`),
     index('claims_slot_buyer_status_idx').on(t.slotId, t.buyerId, t.status),
   ],
 );

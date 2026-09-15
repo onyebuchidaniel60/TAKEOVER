@@ -60,9 +60,56 @@ async function main(): Promise<void> {
   `);
   const def = indexDef.rows[0]?.indexdef ?? '(missing)';
   console.log(`partial index: ${def}`);
-  const wanted = ["'active_hold'", "'payment_pending'", "'payment_review'"];
+  const wanted = ["'active_hold'", "'deposit_submitted'", "'payment_pending'", "'payment_review'"];
   if (!wanted.every((s) => def.includes(s)) || def.includes("'paid'")) {
     throw new Error('claims partial index predicate does not match the reconciled definition');
+  }
+
+  // Phase 14d-1: escrow tables, enum values, and the funded-fields CHECK.
+  for (const table of ['escrows', 'escrow_ledger']) {
+    if (!names.includes(table)) {
+      throw new Error(`missing table: ${table}`);
+    }
+  }
+  console.log('escrow tables ok (escrows, escrow_ledger present)');
+
+  const enumValues = await db.execute<{ enumlabel: string; typname: string }>(sql`
+    SELECT e.enumlabel, t.typname
+    FROM pg_enum e
+    JOIN pg_type t ON t.oid = e.enumtypid
+    WHERE t.typname IN ('claim_status', 'escrow_status')
+  `);
+  const byType = new Map<string, Set<string>>();
+  for (const row of enumValues.rows) {
+    const set = byType.get(row.typname) ?? new Set<string>();
+    set.add(row.enumlabel);
+    byType.set(row.typname, set);
+  }
+  const claimLabels = byType.get('claim_status') ?? new Set<string>();
+  const escrowLabels = byType.get('escrow_status') ?? new Set<string>();
+  console.log(`claim_status has deposit_submitted: ${claimLabels.has('deposit_submitted')}`);
+  console.log(`escrow_status has created: ${escrowLabels.has('created')}`);
+  if (!claimLabels.has('deposit_submitted')) {
+    throw new Error('claim_status enum is missing deposit_submitted');
+  }
+  if (!escrowLabels.has('created')) {
+    throw new Error('escrow_status enum is missing created');
+  }
+
+  const checks = await db.execute<{ checkdef: string }>(sql`
+    SELECT pg_get_constraintdef(oid) AS checkdef
+    FROM pg_constraint
+    WHERE conrelid = 'public.escrows'::regclass AND contype = 'c'
+  `);
+  const fundedCheck = checks.rows.some(
+    (row) =>
+      row.checkdef.includes('deposit_tx_hash') &&
+      row.checkdef.includes('funded_at') &&
+      row.checkdef.includes('delivery_deadline'),
+  );
+  console.log(`escrows funded-fields CHECK present: ${fundedCheck}`);
+  if (!fundedCheck) {
+    throw new Error('escrows CHECK constraint on the funded-fields tuple is missing');
   }
 }
 

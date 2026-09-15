@@ -302,7 +302,12 @@ export async function listSlotClaimsForProvider(
   const counts: SlotClaimCounts = { ...EMPTY_SLOT_CLAIM_COUNTS };
   for (const row of rows) {
     views.push(toProviderSlotClaimView(row.claim, truncateWalletAddress(row.buyerWallet)));
-    counts[row.claim.status] += 1;
+    // Phase 14d-1: claim_status gained escrow states; this legacy demand view
+    // still buckets the six direct-payment states only (14d-2 reworks it).
+    const bucket = counts[row.claim.status as keyof SlotClaimCounts];
+    if (typeof bucket === 'number') {
+      counts[row.claim.status as keyof SlotClaimCounts] = bucket + 1;
+    }
   }
   return { claims: views, counts };
 }

@@ -16,10 +16,19 @@ export const slotStatus = pgEnum('slot_status', [
 export const claimStatus = pgEnum('claim_status', [
   'active_hold',
   'expired',
+  'deposit_submitted',
+  // Legacy direct-payment flow — historical rows only, do not remove.
   'payment_pending',
+  // Legacy direct-payment flow — historical rows only, do not remove.
   'paid',
+  // Legacy direct-payment flow — historical rows only, do not remove.
   'payment_review',
   'cancelled',
+  'escrow_funded',
+  'delivered',
+  'disputed',
+  'released',
+  'refunded',
 ]);
 
 export const paymentStatus = pgEnum('payment_status', [
@@ -31,3 +40,18 @@ export const paymentStatus = pgEnum('payment_status', [
 ]);
 
 export const reportStatus = pgEnum('report_status', ['open', 'reviewed', 'dismissed']);
+
+// Phase 14d-1 escrow enums. payment_token selects the rail at escrow-intent
+// time; escrow_status starts at 'created' (row exists before the deposit).
+export const paymentToken = pgEnum('payment_token', ['NIM', 'USDT_POLYGON']);
+
+export const escrowStatus = pgEnum('escrow_status', [
+  'created',
+  'funded',
+  'delivered',
+  'disputed',
+  'released',
+  'refunded',
+]);
+
+export const escrowEntryType = pgEnum('escrow_entry_type', ['deposit', 'release', 'refund']);

@@ -3,6 +3,101 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14d-1 — escrow schema and Polygon contract interface (2026-09-15)
+
+Schema-and-interface phase: `escrows` + `escrow_ledger` tables live on
+Supabase, `deposit_submitted` claim state + `created` escrow state live,
+deposit-verification window env wired, TypeScript contract binding +
+written spec for the separate Solidity repo. No endpoints, services,
+Solidity, UI, RPC client, or verification logic (14d-2+).
+
+Carried-in decisions (implemented as stated): (1) new claim state
+`deposit_submitted` (deposit reference recorded, inventory reserved);
+(2) `ESCROW_DEPOSIT_VERIFICATION_SECONDS` default 1800, tolerant
+getter; (3) timeout fallback `payment_review`, inventory not released,
+existing Phase 10 review surface, no new terminal state; (4)
+`escrow_status` gains initial `created` (`created → funded →
+delivered → disputed → released|refunded`); (5) deposit state machine
+documented in ARCHITECTURE.md §8. The 14d-0 deposit-timing open
+question is CLOSED by decisions 2–3.
+
+Migration story (owner-approved split): the single generated migration
+met all review criteria but `db:migrate` failed on live Supabase with
+PG 55P04 — drizzle-kit applies one file in one transaction and
+Postgres forbids using a not-yet-committed enum value in the recreated
+partial index. Rollback verified clean (no tables, journal at 0001,
+enum at 6 values). Per owner approval: 0002
+(`0002_furry_silver_surfer.sql`, 3 CREATE TYPEs + 6 ADD VALUEs only)
+applied and committed, then 0003 (`0003_jazzy_nuke.sql`, both tables +
+CHECK + FKs + status index + index drop/recreate) applied. No
+journal/snapshot hand-edits; the two files were never merged.
+
+Schema reality note: the live DB still carried the pre-14d-0 enum
+(with `paid`, without escrow states — 14d-0 was docs-only), so the
+migration ADDS six claim_status values and `paid` is retained as legacy
+(like `payment_pending`/`payment_review`); dropping it would violate
+the ADD-VALUE-only rule. Implemented claim_status has 12 values, not
+the brief's 11. ARCHITECTURE.md §9 still shows the 10-value doc set —
+one-word alignment deferred (ARCH not editable this phase).
+
+Contract interface: `packages/shared/src/escrow/contract.ts` (ABI const
+for deposit/release/refund/dispute + Deposited/Released/Refunded/
+Disputed, 4 event types, `EscrowContractClient`, no implementation) and
+`docs/escrow-contract-interface.md` (TakeoverEscrow, ^0.8.x, OZ
+SafeERC20 + ReentrancyGuard, constructor token address, exact
+signatures, invariants, trust boundary). OPEN (undecided, blocks the
+contract repo): provider binding for `release()` — the fixed
+four-function list gives the contract no provider input; candidates (a)
+signer-only creation function or (b) provider arg on `release` need
+owner approval. `Delivered` is backend-side state; on-chain enforcement
+is funded/terminal/roles/single-deposit per the doc's own invariants.
+
+```text
+CURRENT PHASE: Phase 14d-1 complete — schema + interface live. Do NOT
+  begin Phase 14d-2.
+COMPLETED: claim_status +deposit_submitted (paid kept legacy),
+  escrow_status/payment_token/escrow_entry_type types, escrows table
+  (created default, nullable funded tuple, CHECK, status index),
+  escrow_ledger table, claims index +deposit_submitted, 6 env entries
+  + getter, shared ABI/events/client, contract spec doc, verify.ts
+  assertions, ARCH §8 deposit machine, 0002+0003 migrated live,
+  12 new tests
+TESTS RUN: typecheck clean exit 0; lint clean exit 0; build clean;
+  db:verify green (11 tables, 4-state index, both enum values, CHECK);
+  full suite — api 32 files/343 pass (331 + 8 schema + 1 env + 3 ABI)
+  + web 16 files/129 pass (unchanged) + shared 1 pass (unchanged);
+  one transient public-RPC timeout mid-phase proven green on re-run
+RESULT: single commit (message below); push gated on green battery +
+  expected file set
+KNOWN ISSUES: 14d-0 paid-word residuals untouched this phase (still
+  open); ARCH §9 enum line needs one-word paid-legacy alignment;
+  contract-repo provider binding OPEN (above); review/README residuals
+  deferred as stated (14d-8 / Phase 15)
+SECURITY NOTES: no endpoints/services/wallet/RPC code; escrow keys only
+  appear as env placeholders (empty) + KMS-gap docs; F2 guard clean on
+  new static sql`` (no raw/identifier/dynamic sinks); probe writes were
+  test-tagged rows, fully removed (afterAll); no secrets printed
+FILES CHANGED: db/schema/{enums,claims,index}.ts, db/schema/escrows.ts
+  (new), db/migrations/0002_* + 0003_* (+meta), apps/api/src/env.ts,
+  apps/api/src/claims/service.ts (counts compat shim, see below),
+  apps/api/test/{escrow-schema,escrow-contract}.test.ts (new) +
+  env.test.ts (+1), packages/shared/src/escrow/contract.ts (new),
+  docs/escrow-contract-interface.md (new), db/verify.ts,
+  ARCHITECTURE.md (§8 deposit machine only), .env.example,
+  AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: feat: phase 14d-1 — escrow schema and contract interface
+  (single commit with this checkpoint; hash recorded at push)
+NEXT TASK: Phase 14d-2 — Polygon escrow client and deposit
+  verification (do NOT start automatically)
+BLOCKED BY: none
+```
+
+Note on the compat shim: the mandated enum widening broke
+`listSlotClaimsForProvider` compilation (`counts[status]` over 12
+states vs the 6-key legacy view). Minimal fix: count only the six
+legacy buckets, shape unchanged, all existing tests green; 14d-2
+reworks the view for escrow states.
+
 ## Phase 14d-0 completion — reconcile escrow spec gaps (2026-09-15)
 
 Completion pass for 14d-0 (`42dd0a8`): reconciled internal

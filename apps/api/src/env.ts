@@ -20,6 +20,15 @@ const envSchema = z.object({
     emptyToUndefined,
     z.coerce.number().int().positive().optional(),
   ),
+  ESCROW_DEPOSIT_VERIFICATION_SECONDS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().positive().optional(),
+  ),
+  POLYGON_RPC_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  USDT_ESCROW_CONTRACT_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  USDT_TOKEN_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  ESCROW_SIGNER_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  NIM_ESCROW_WALLET_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -72,6 +81,28 @@ export function getPaymentReviewTimeoutSeconds(
     }
   }
   return DEFAULT_PAYMENT_REVIEW_TIMEOUT_SECONDS;
+}
+
+/**
+ * Deposit-verification window in seconds. Tolerant by design: missing,
+ * blank, or invalid values fall back to the 1800s default instead of
+ * crashing the escrow path. Applies from deposit_submitted entry; on
+ * expiry without a verified deposit the claim ages to payment_review
+ * (inventory stays reserved; admin resolves via the review surface).
+ */
+export const DEFAULT_ESCROW_DEPOSIT_VERIFICATION_SECONDS = 1800;
+
+export function getEscrowDepositVerificationSeconds(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): number {
+  const raw = env.ESCROW_DEPOSIT_VERIFICATION_SECONDS;
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const parsed = Number(raw);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return DEFAULT_ESCROW_DEPOSIT_VERIFICATION_SECONDS;
 }
 
 /**

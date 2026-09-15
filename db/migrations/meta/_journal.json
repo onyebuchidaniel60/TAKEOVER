@@ -15,6 +15,20 @@
       "when": 1789144319015,
       "tag": "0001_zippy_shiver_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789491884711,
+      "tag": "0002_furry_silver_surfer",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789491943593,
+      "tag": "0003_jazzy_nuke",
+      "breakpoints": true
     }
   ]
 }
