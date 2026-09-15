@@ -3243,9 +3243,13 @@ TESTS RUN: typecheck clean exit 0; lint clean exit 0; full suite green
   — api 30 files/331 pass (unchanged) + web 16 files/129 pass (was
   14/117: +4 provider-display, +7 slot-categories, +1 form-validation
   case-c) + shared 1 pass, exit 0; zero existing lowered/skipped
-RESULT: DEPLOYED — Railway <hash pending> (backend code unchanged, any
-  green build serves it); Vercel <id pending> READY, alias <status
-  pending>; round-4 preflight re-verified live; leak audit <pending>
+RESULT: DEPLOYED — Railway auto-deployed the push (backend code unchanged,
+  target probe live: /slots rows carry providerDisplay); Vercel
+  dpl_DXfpvTvMyGLVxqXBESkiGyynXjbV READY, alias re-pointed NOT shifted
+  (bundle proof: Home chunk has "All categories", slots chunk has
+  "Restaurant / food", SlotForm chunk has "No category"+"Custom:",
+  SlotDetail chunk has "providerDisplay"); round-4 preflight re-verified
+  live (204 + ACAO + PATCH); leak audit 33 files, 0 hits everywhere
 KNOWN ISSUES: non-list filter URL values (e.g. ?category=dining) show
   a blank select while still filtering; no real testnet tx shape shown
   (fail-closed caveat above); Risks B/C/D untested
@@ -3260,8 +3264,8 @@ FILES CHANGED: apps/web/src/components/{SlotDetail,SlotCard,
   apps/web/test/form-validation.test.tsx (+1), docs/
   phase-14c-round5-report.md (new), docs/phase-14-manual-test.md
   (1 line), AI_HANDOFF.md (this checkpoint)
-GIT COMMIT: <pending> feat: phase 14c round 5 — display name, category
-  dropdown, client date validation (pushed <pending>, on origin/main)
+GIT COMMIT: 4381194 feat: phase 14c round 5 — display name, category
+  dropdown, client date validation (pushed c181faa..4381194, on origin/main)
 NEXT TASK (human, in order): (1) set NIMIQ_RPC_URL to the testnet URL
   in Railway (auto-redeploys); (2) fund buyer + provider wallets at
   the faucet; (3) Phase 14b re-test on device (testnet), then B/C/D.
