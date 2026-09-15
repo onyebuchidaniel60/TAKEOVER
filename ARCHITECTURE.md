@@ -17,7 +17,9 @@ TAKEOVER uses a deliberately boring architecture:
 - Database: PostgreSQL
 - Database access: Drizzle ORM
 - Authentication: wallet-signature challenge + secure server session
-- Payments: NIM via Nimiq Pay; direct provider payout, no escrow
+- Payments: NIM (native Nimiq) and USDT (ERC-20 on Polygon).
+  Escrow: custodial backend wallet for NIM; non-custodial smart
+  contract on Polygon for USDT.
 - Blockchain verification: Nimiq JSON-RPC/read API from server
 - File/media storage: none for MVP; image URLs only
 - Background jobs: none required for core correctness; expired records are resolved lazily plus optional periodic maintenance job
@@ -36,29 +38,18 @@ This architecture is fixed. The coding agent must not replace the stack or add i
 ## 2. High-level architecture
 
 ```text
-Nimiq Pay
-   |
-   | embedded webview / browser
-   v
-React + Vite Mini App
-   |
-   | HTTPS JSON API
-   v
-Fastify API
-   |
-   +---- Auth / authorization
-   +---- Marketplace business logic
-   +---- Claim state machine
-   +---- Payment intent creation
-   +---- Blockchain payment verification
-   +---- Moderation
-   |
-   v
-PostgreSQL
-
-Fastify ---> Nimiq RPC/read endpoint
-
-No private keys are stored by TAKEOVER.
+Buyer
+  |
+  v
+Nimiq Pay Mini App
+  |
+  +--> NIM  --> Nimiq chain  --> Backend escrow wallet
+  |
+  +--> USDT --> Polygon chain --> Escrow smart contract
+                                     |
+                                     | events
+                                     v
+                                 Fastify backend
 ```
 
 ## 3. Architectural principles
@@ -68,7 +59,7 @@ No private keys are stored by TAKEOVER.
 3. Database transactions protect scarce inventory.
 4. Every security-sensitive API checks authorization server-side.
 5. Payment is not considered successful until server-side blockchain verification succeeds.
-6. No user funds are held by TAKEOVER.
+6. Buyer funds are held in escrow until a release condition is met. USDT is escrowed by a non-custodial smart contract on Polygon. NIM is escrowed by a backend-controlled wallet. The escrow contract is the authoritative source of truth for USDT; the escrow wallet's on-chain balance is the authoritative source of truth for NIM.
 7. No LLM controls financial or ownership decisions.
 8. Every state transition is explicit. State transitions are performed through service-layer functions rather than arbitrary controller updates.
 9. Every irreversible action is narrow and audited.
@@ -154,131 +145,49 @@ Every API accepting a user-controlled ID must load the resource and compare the 
 
 ### MVP payment model
 
-Direct NIM payment from buyer wallet to provider payout address.
+Dual-path escrow. All new payments route through escrow; the buyer
+chooses NIM or USDT at escrow-intent time.
 
-TAKEOVER does not receive, custody, or route customer funds.
+Path A — USDT on Polygon:
+  - Buyer approves and deposits into the TAKEOVER escrow contract.
+  - Contract emits Deposited; backend verifies and moves claim to
+    escrow_funded.
+  - Provider marks delivered; backend records and starts dispute
+    window.
+  - Buyer confirms -> backend calls contract release(), contract sends
+    USDT to provider.
+  - Buyer disputes -> backend calls contract dispute(); admin resolves
+    -> contract release() or refund().
+  - Delivery timeout -> contract auto-refund (or backend calls
+    refund()).
+
+Path B — NIM:
+  - Buyer sends NIM to the escrow wallet with the TAKEOVER data
+    binding.
+  - Backend verifies the deposit on-chain; claim moves to
+    escrow_funded.
+  - Provider marks delivered.
+  - Buyer confirms -> backend signs and sends NIM from the escrow
+    wallet to the provider.
+  - Dispute -> admin resolves -> backend signs release or refund.
+  - Delivery timeout -> backend signs refund to the buyer.
 
 ### Payment intent
 
-A payment intent is a server record created for exactly one claim. It contains:
+Key management:
+  - USDT path: server signer key for calling contract functions.
+    KMS-protected in production; env secret for the competition
+    build (documented gap).
+  - NIM path: escrow wallet private key. KMS-protected in production;
+    env secret for the competition build (documented gap).
 
-- claim_id
-- buyer_wallet
-- provider_wallet
-- amount_base_units
-- expected_transaction_data
-- status
-- expires_at
-- verified_transaction_hash
-- created_at
-- updated_at
+Ledger invariant (NIM only):
+  SUM(credits to 'escrow:wallet') minus SUM(debits from
+  'escrow:wallet') across escrow_ledger must equal the on-chain NIM
+  escrow wallet balance at all times.
 
-The intent is immutable after issuance except for verification fields.
-
-### Phase 7 implementation note (2026-09-11)
-
-Intents are created per claim with `expected_data = 'TAKEOVER:v1:<claim-id>'`
-and snapshots of amount/recipient/sender; repeat calls return the existing
-intent. The buyer-facing projection omits `expected_sender` (server-side
-reconciliation data). Payment submission records the client-supplied tx hash
-and moves the claim to `payment_pending` with NO chain verification (Phase 8);
-the tx_hash UNIQUE constraint is the replay guard. `payment_pending` has no
-timeout path yet — known gap, deferred to Phase 8/10.
-
-### Phase 7 completion — SDK return value resolution (2026-09-11, Case A)
-
-`sendBasicTransactionWithData()` returns a transaction hash (64 hex chars, no
-`0x` prefix), passed through unchanged as `tx_hash`. No schema change, no
-endpoint change. Citations: installed
-`node_modules/@nimiq/mini-app-sdk/dist/provider.d.ts:187-193` (signature
-`Promise<string | ErrorResponse>`, stale JSDoc "@returns The serialized
-transaction"); official
-https://nimiq.dev/mini-apps/api-reference/nimiq-provider#sendbasictransactionwithdata
-(Returns `string` — transaction hash); oracle
-`node_modules/@nimiq/core/nodejs/main-wasm/index.js` (`Transaction.hash()`
-"used as its unique identifier on the blockchain" vs `serialize()`/`toHex()`;
-live: hash 64 hex, serialized 139/214 bytes). Frontend SDK path covered by a
-mocked test; a real Nimiq Pay round-trip remains a Phase 14 item.
-
-### Phase 8 implementation note (2026-09-11)
-
-`POST /claims/:claimId/verify-payment` (buyer-only) reads the submitted hash
-against the Nimiq JSON-RPC `getTransactionByHash` endpoint (default
-`https://rpc.nimiqwatch.com`, overridable via `NIMIQ_RPC_URL`; raw fetch, 5s
-timeout, no `@nimiq/core` in production). Only `payment_pending` triggers a
-chain lookup; `paid`/`payment_review` return 200 no-ops. Mapping: tx not
-found or confirmations < 3 → pending (never rejected); field mismatch
-(sender/recipient/amount/data, BigInt-exact, byte-for-byte) → intent
-`review` + claim `payment_review` with a generic client reason and
-field-specific server log; confirmations >= 3 and all checks pass →
-intent `verified` + claim `paid`. A still-pending verification older than
-`PAYMENT_REVIEW_TIMEOUT_SECONDS` (default 1800) ages to `payment_review`
-instead. `rejected` is admin-only (Phase 10) and is never emitted here.
-Inventory is never restored on review or timeout. Per-claim rate limit (1 per
-5s → 429 `VERIFY_RATE_LIMITED` + `Retry-After`); RPC failure → 503
-`RPC_UNAVAILABLE` with no state change.
-
-### Payment verification
-
-```text
-Buyer
-  |
-  | request payment intent
-  v
-Fastify
-  |
-  | exact recipient + amount + data
-  v
-React
-  |
-  | sendBasicTransactionWithData()
-  v
-Nimiq Pay
-  |
-  | blockchain tx
-  v
-Nimiq network
-  |
-  | read/verify
-  v
-Fastify
-  |
-  | DB transaction
-  v
-Payment VERIFIED -> Claim PAID -> Slot SOLD/CONSUMED
-```
-
-### Transaction data binding
-
-Required data value should bind the payment to the exact claim, e.g. a versioned string:
-
-`TAKEOVER:v1:<claim-uuid>`
-
-The server calculates the expected value; the client never chooses it.
-
-If Nimiq transaction-data size/format constraints require a different envelope, preserve the same semantic binding.
-
-### No escrow decision
-
-Escrow is explicitly out of MVP. This is intentional because implementing secure custody, refunds, release conditions, and a production-grade dispute path would multiply financial/security complexity.
-
-### Payment finality
-
-A payment is confirmed only according to a server-defined Nimiq verification policy. The exact confirmation criterion must be implemented against the current official Nimiq read API semantics.
-
-**IMPLEMENTATION DETAIL — AGENT MAY DECIDE:** polling interval and exact RPC calls, provided verification is server-side and deterministic.
-
-### B2 deferred — intent on corrupt slot data (Phase 14c round 3, owner decided)
-
-`createPaymentIntent` canonicalizes the stored payout/sender and throws 500
-`INTERNAL_ERROR` when server data is corrupt (`canonicalizeOr500`). That
-semantics is deliberately retained: a canonicalization failure means the
-server-side invariant broke, and no softer code may paper over it.
-Corrupt rows are prevented at the boundary instead — publish-time
-`canonicalizePayoutWallet` rejects bad payouts (400), published commercial
-fields are immutable so a payout cannot rot post-publish, and production
-databases must not contain seed fixtures (see §9). The intent path itself is
-unchanged.
+Note: the previous Phase 8 note about direct buyer-to-provider
+payment is superseded. All new payments route through escrow.
 
 ## 7. Slot/claim concurrency
 
@@ -337,17 +246,20 @@ PUBLISHED -> EXPIRED occurs when start_at has passed without a paid claim. Any q
 ### Claim states
 
 ```text
-ACTIVE_HOLD -> EXPIRED
-     |
-     v
-PAYMENT_PENDING -> PAID
-     |
-     -> PAYMENT_REVIEW
-
-ACTIVE_HOLD -> CANCELLED (provider/admin only under allowed rules)
+active_hold -> escrow_funded
+               |
+               v
+            delivered
+               |
+               +-> released
+               +-> disputed -> released
+                           \-> refunded
+            (escrow_funded -> refunded on delivery timeout)
+active_hold -> expired
+active_hold -> cancelled
 ```
 
-A user-submitted tx hash does not itself change the state to PAID.
+Remove "paid" from the claim_status enum. Terminal states are released, refunded, expired, cancelled.
 
 ### Payment states
 
@@ -448,7 +360,7 @@ Constraints:
 - slot_id UUID FK slots.id
 - buyer_id UUID FK users.id
 - quantity INTEGER NOT NULL DEFAULT 1
-- status ENUM(claim_status: active_hold, expired, payment_pending, paid, payment_review, cancelled) NOT NULL DEFAULT active_hold
+- status ENUM(claim_status: active_hold, expired, payment_pending, payment_review, cancelled, escrow_funded, delivered, disputed, released, refunded) NOT NULL DEFAULT active_hold
 - hold_expires_at TIMESTAMPTZ NOT NULL
 - claimed_at TIMESTAMPTZ NOT NULL
 - updated_at TIMESTAMPTZ NOT NULL
@@ -475,6 +387,44 @@ Unique/partial-index requirement:
 - verified_at TIMESTAMPTZ NULL
 - created_at TIMESTAMPTZ NOT NULL
 - updated_at TIMESTAMPTZ NOT NULL
+
+Deprecated: the payment_intents table is kept for historical rows only. All new payments use the escrows table.
+
+### escrows
+
+- id UUID PK
+- claim_id UUID FK claims.id UNIQUE
+- buyer_id UUID FK users.id
+- provider_id UUID FK users.id
+- payment_token ENUM('NIM','USDT_POLYGON') NOT NULL
+- amount_base_units BIGINT NOT NULL
+- status ENUM(escrow_status: 'funded','delivered','disputed','released','refunded') NOT NULL
+- deposit_tx_hash TEXT UNIQUE NOT NULL
+- release_tx_hash TEXT UNIQUE NULL
+- refund_tx_hash TEXT UNIQUE NULL
+- contract_address TEXT NULL            -- USDT only
+- on_chain_escrow_id TEXT NULL          -- USDT only
+- funded_at TIMESTAMPTZ NOT NULL
+- delivery_deadline TIMESTAMPTZ NOT NULL
+- delivered_at TIMESTAMPTZ NULL
+- dispute_window_ends TIMESTAMPTZ NULL
+- disputed_at TIMESTAMPTZ NULL
+- resolved_at TIMESTAMPTZ NULL
+- resolved_by_user_id UUID FK users.id NULL
+- resolution_notes TEXT NULL
+- created_at TIMESTAMPTZ NOT NULL
+- updated_at TIMESTAMPTZ NOT NULL
+
+### escrow_ledger (NIM only)
+
+- id UUID PK
+- escrow_id UUID FK escrows.id
+- entry_type ENUM('deposit','release','refund') NOT NULL
+- debit_account TEXT NOT NULL
+- credit_account TEXT NOT NULL
+- amount_base_units BIGINT NOT NULL
+- tx_hash TEXT NULL
+- created_at TIMESTAMPTZ NOT NULL
 
 ### reports
 
@@ -530,11 +480,13 @@ Buyer-private:
 - own wallet address where necessary
 - payment intent details
 - submitted transaction hash
+- own escrow details, deposit tx hash, and dispute status
 
 Provider-private:
 - own listing management fields
 - buyer identifiers only to the minimum required to fulfill the claim
 - claim/payment statuses for own slots
+- escrow state for own slots.
 
 Admin-only:
 - moderation reports
@@ -719,7 +671,9 @@ Idempotency-Key required.
 
 Auth: session + buyer or provider owner of slot, with field-level response restrictions.
 
-### POST /api/v1/claims/:claimId/payment-intent
+### POST /api/v1/claims/:claimId/payment-intent (DEPRECATED)
+
+Deprecated: use `POST /api/v1/claims/:claimId/escrow-intent`. Kept for historical rows only.
 
 Auth: session + buyer owner.
 
@@ -727,7 +681,9 @@ Creates or returns the existing payment intent. Must not mint multiple intents f
 
 Idempotency-Key required.
 
-### POST /api/v1/claims/:claimId/payment-submission
+### POST /api/v1/claims/:claimId/payment-submission (DEPRECATED)
+
+Deprecated: use `POST /api/v1/claims/:claimId/escrow-submission`. Kept for historical rows only.
 
 Auth: session + buyer owner.
 
@@ -741,11 +697,59 @@ Server validates format and records submission, then attempts verification.
 
 Idempotency-Key required.
 
-### POST /api/v1/claims/:claimId/verify-payment
+### POST /api/v1/claims/:claimId/verify-payment (DEPRECATED)
+
+Deprecated: use `POST /api/v1/claims/:claimId/verify-deposit`. Kept for historical rows only.
 
 Auth: session + buyer owner, and safe to call repeatedly.
 
 Server re-queries Nimiq state and attempts deterministic verification.
+
+### POST /api/v1/claims/:claimId/escrow-intent
+
+Auth: session + buyer owner.
+
+Creates the escrow for one claim with the buyer-selected token (NIM or USDT) and returns the deposit instruction. Must not mint multiple escrows for one claim.
+
+Idempotency-Key required.
+
+### POST /api/v1/claims/:claimId/escrow-submission
+
+Auth: session + buyer owner.
+
+Records the buyer's deposit transaction reference for the escrow.
+
+Idempotency-Key required.
+
+### POST /api/v1/claims/:claimId/verify-deposit
+
+Auth: session + buyer owner, and safe to call repeatedly.
+
+Verifies the escrow deposit on-chain (NIM: escrow-wallet receipt; USDT: contract Deposited event) and moves the claim to escrow_funded.
+
+### POST /api/v1/claims/:claimId/mark-delivered
+
+Auth: session + provider owner of the slot only.
+
+Marks the service delivered; claim moves to delivered and the dispute window starts.
+
+### POST /api/v1/claims/:claimId/confirm-receipt
+
+Auth: session + buyer owner only.
+
+Confirms receipt; releases escrowed funds to the provider.
+
+### POST /api/v1/claims/:claimId/dispute
+
+Auth: session + buyer owner only, within the dispute window.
+
+Opens a dispute; claim moves to disputed for admin resolution.
+
+### GET /api/v1/claims/:claimId/escrow
+
+Auth: session + buyer or provider owner of slot, with field-level response restrictions.
+
+Returns the escrow state for the claim.
 
 ### GET /api/v1/me/claims
 
@@ -829,6 +833,18 @@ Query: `eventType`, `entityType`, `entityId`, `actorUserId`, `since`,
 wallets; metadata holds IDs/states/reasons only — never wallets, tx
 hashes, or credentials.
 
+### GET /api/v1/admin/escrows
+
+Auth: admin (401/403 as above).
+
+Query: `status`, `limit`, `offset`. Escrows awaiting or under review with full reconciliation context.
+
+### POST /api/v1/admin/escrows/:escrowId/resolve
+
+Auth: admin.
+
+Body: `{ action: 'release' | 'refund', resolutionNotes (5–1000) }`. Releases funds to the provider or refunds them to the buyer per the resolution. Writes the resolution audit event.
+
 ### Phase 10 implementation note (2026-09-11)
 
 Admin identity is `ADMIN_WALLET_ADDRESSES` (comma-separated canonical
@@ -900,6 +916,19 @@ Minimum stable codes:
 - CONFLICT
 - RATE_LIMITED
 - INTERNAL_ERROR
+- ESCROW_NOT_FOUND
+- ESCROW_ALREADY_FUNDED
+- ESCROW_DEPOSIT_MISMATCH
+- ESCROW_NOT_DELIVERED
+- ESCROW_DISPUTE_WINDOW_CLOSED
+- ESCROW_ALREADY_DISPUTED
+- ESCROW_DISPUTE_NOT_OPEN
+- ESCROW_RELEASE_FAILED
+- ESCROW_REFUND_FAILED
+- ESCROW_WALLET_UNAVAILABLE
+- ESCROW_RECONCILIATION_BROKEN
+- ESCROW_TOKEN_UNSUPPORTED
+- ESCROW_CONTRACT_UNAVAILABLE
 
 ## 16. Security threat model
 
@@ -967,7 +996,7 @@ Never trust amount/recipient/sender/tx data from browser after payment intent cr
 
 ### Secrets
 
-All secrets server-only. No private keys are needed for normal operation.
+All secrets server-only. The NIM escrow wallet private key and the Polygon contract signer key are server-only secrets (KMS in production); they are never logged, printed, returned, or committed.
 
 ### Sensitive data exposure
 
@@ -976,6 +1005,17 @@ Log request IDs and high-level event names, never signatures/cookies/tokens/priv
 ### Admin privilege escalation
 
 Role is server-controlled. Never accept role changes from client input. Admin membership should use an environment-backed allowlist or server-maintained role assignment.
+
+### Custody and smart-contract threats
+
+- Smart-contract vulnerability (USDT): reentrancy, integer issues, access control. Mitigation: OpenZeppelin base contracts, external audit, fuzz tests, exact-amount approvals, revoke after deposit.
+- Server signer key compromise (USDT): key that can call contract release/refund. Mitigation: KMS in production, env secret for competition build, least-privilege signing service.
+- NIM escrow wallet key compromise: KMS in production, env secret for competition build, cold/hot separation, balance monitoring.
+- Ledger drift (NIM): double-entry invariant; periodic reconciliation against on-chain balance; halt on mismatch.
+- Deposit replay across claims: UNIQUE deposit_tx_hash + claim binding.
+- Release replay: UNIQUE release_tx_hash.
+- Refund replay: UNIQUE refund_tx_hash.
+- Contract event spoofing (USDT): backend verifies events from the contract address only, and validates the escrow id against its own DB record.
 
 ## 17. Third-party services
 
@@ -1132,8 +1172,15 @@ GitHub (public, MIT)
              |
              +--> Supabase Postgres
              |
-             +--> Nimiq read API
+              +--> Nimiq read API
 ```
+
+- Polygon RPC endpoint (configurable via POLYGON_RPC_URL)
+- USDT contract address on Polygon
+- TAKEOVER escrow contract address on Polygon
+- Server signer address (contract caller)
+- NIM escrow wallet address
+- Note: competition build may use env secrets for keys; production requires KMS.
 
 Environment-specific configuration is separated between development and production.
 
@@ -1170,8 +1217,8 @@ The coding agent must treat these as non-negotiable:
 2. Fastify backend.
 3. PostgreSQL + Drizzle.
 4. Nimiq wallet authentication.
-5. NIM-only MVP.
-6. Direct provider payout; no custody/escrow.
+5. Dual payment rails: NIM (native Nimiq) and USDT (ERC-20 on Polygon), both escrowed.
+6. Escrow: buyer funds are held per token. USDT in a Polygon smart contract (non-custodial). NIM in a backend wallet (custodial for the escrow duration). The escrow contract's state is authoritative for USDT; the escrow wallet's on-chain balance is authoritative for NIM.
 7. Server-authoritative payment verification.
 8. DB transaction/locking around claims.
 9. Explicit state machines.

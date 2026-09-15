@@ -44,11 +44,11 @@ Deployment:
 - Supabase database
 
 Payment:
-- NIM only for MVP
-- Nimiq Pay `sendBasicTransactionWithData()` for payment initiation
-- Server-side Nimiq read/RPC verification
-- Direct provider payout
-- No escrow/custody
+- NIM (native Nimiq) and USDT (ERC-20 on Polygon); both payments escrowed
+- Nimiq Pay `sendBasicTransactionWithData()` for NIM deposit initiation
+- Server-side Nimiq read/RPC verification for NIM deposits
+- USDT deposits verified via Polygon escrow-contract events
+- Custodial backend wallet for NIM escrow; non-custodial smart contract for USDT escrow
 
 AI:
 - None in MVP.
@@ -66,17 +66,19 @@ AI:
 - Payment is successful only after backend verification of sender, recipient, exact amount, expected transaction data, transaction existence, confirmation policy, and replay protection.
 - The same blockchain transaction cannot settle two claims.
 - Provider cancellation is unavailable after a claim has a verified payment.
-- No automatic refund is promised in MVP.
-- No balance is stored by TAKEOVER.
+- USDT escrow is non-custodial: funds are held by a Polygon smart contract, never by TAKEOVER.
+- NIM escrow is custodial: funds are held by a backend-controlled wallet for the escrow hold duration, then released or refunded.
+- Funds release to the provider only on confirmed delivery or on expiry of the undisputed dispute window.
+- Funds refund to the buyer only on delivery timeout or admin resolution of a dispute.
+- Every fund movement writes an audit event in the same DB transaction as the state change (NIM) or mirrors the on-chain event (USDT).
+- The escrow wallet private key and the Polygon contract signer key must never be logged, printed, returned in any API response, or committed.
+- The NIM ledger invariant (sum of escrow:wallet ledger entries == on-chain balance) is a security invariant, not a nice-to-have. Any mismatch halts escrow operations.
 - Do not expose private wallet/session/authentication information.
 
 ## Product scope rules
 
 MVP does not include:
-- escrow
 - fiat payments
-- USDT
-- multiple chains
 - AI matching
 - calendar integrations
 - ratings/reputation
@@ -120,6 +122,15 @@ Do not add features because they sound impressive.
 - Verify user signatures server-side for authentication.
 - Treat transaction hashes supplied by the client as untrusted references until verified independently.
 - Follow current official Nimiq API semantics for transaction verification.
+
+## Polygon and USDT rules
+
+- Use window.ethereum with chainId '0x89' (Polygon mainnet) or '0x13881' (Mumbai testnet).
+- The escrow contract address is read from USDT_ESCROW_CONTRACT_ADDRESS env; never hardcoded.
+- Contract events are verified against the configured contract address only. Never trust client-supplied escrow IDs or contract addresses.
+- USDT amount is always the exact base units (6 decimals on Polygon). Never float.
+- Approval is exact-amount; never infinite approval.
+- Smart contract changes require a new deployment + a new audit. The deployed contract is immutable.
 
 ## Security rules
 
@@ -225,7 +236,7 @@ Do not:
 - switch frameworks;
 - replace PostgreSQL;
 - add AI;
-- add escrow;
+- change the approved escrow model;
 - add a new payment provider;
 - redesign core state machines;
 - invent new user roles;

@@ -3,6 +3,22 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14d-0 — dual-token escrow in source-of-truth specs (2026-09-15)
+
+Phase 14d-0 complete: source-of-truth documents updated for dual-token
+escrow. Owner decision: v1 ships with escrow; NIM custodial
+(backend-controlled escrow wallet), USDT non-custodial (escrow smart
+contract on Polygon). Changed files: PROJECT_SPEC.md, ARCHITECTURE.md,
+AGENTS.md (this checkpoint only, otherwise).
+
+Regulatory note: custodial NIM escrow in a live deployment requires
+money-transmitter licensing in most jurisdictions; the competition
+build is a demo with testnet funds and this is documented as a
+production gap.
+
+Next phase: 14d-1 (schema + interfaces + contract development
+kickoff), not started. Do NOT begin Phase 14d-1.
+
 ## Project
 
 TAKEOVER is a Nimiq Pay Mini App for the last-minute marketplace of released/scarce capacity.
@@ -34,8 +50,8 @@ No application implementation should be assumed complete merely because a starte
 ## Important product decisions
 
 - MVP is provider-created capacity, not arbitrary consumer reservation transfer.
-- NIM-only payments for MVP.
-- Direct provider payout, no escrow.
+- Dual payment rails (NIM + USDT on Polygon), both escrowed (Phase 14d-0).
+- Escrowed release: USDT via Polygon smart contract (non-custodial), NIM via backend wallet (custodial for the hold duration).
 - Backend is authoritative for payment verification.
 - No AI in MVP.
 - No calendar integrations.
@@ -2773,7 +2789,7 @@ SDK integration). STOP — do not begin Phase 1 automatically.
 
 ## Known deliberate limitations
 
-The MVP has no escrow or automated refunds. This is a conscious scope/security decision, not an unfinished feature.
+The MVP escrows buyer funds with automated release/refund per the escrow lifecycle (Phase 14d-0 dual-token escrow); the pre-14d-0 no-escrow scope decision is superseded.
 
 The MVP does not automatically prove that an external business booking exists. The marketplace assumes the publisher is authorized to provide the listed capacity and provides reporting/moderation controls for abuse.
 

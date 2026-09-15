@@ -10,6 +10,8 @@ Date: 2026-09-11
 
 **One-line description:** TAKEOVER is a last-minute marketplace where providers publish released or otherwise unused scarce capacity and nearby customers can claim it immediately.
 
+TAKEOVER supports two payment rails: NIM (native Nimiq) and USDT on Polygon. For USDT, funds are held in an escrow smart contract on Polygon and released on delivery confirmation. For NIM, funds are held in a backend-controlled escrow wallet and released on delivery confirmation. TAKEOVER never custodies USDT; it custodies NIM only for the duration of an escrow hold.
+
 **Positioning:** The last-minute marketplace for released capacity.
 
 **Supporting line:** Something valuable just became available. Claim it before it’s gone.
@@ -74,9 +76,7 @@ TAKEOVER MVP does **not**:
 - let arbitrary users list reservations they do not control;
 - guarantee that an underlying external reservation exists;
 - provide automatic appointment-transfer integrations;
-- run escrow or custody funds;
 - support fiat/card payments;
-- support multiple chains/tokens in the MVP;
 - provide ratings/reputation;
 - use AI matching or recommendations;
 - provide a native iOS/Android app;
@@ -89,7 +89,7 @@ TAKEOVER MVP does **not**:
 
 The MVP uses a **provider-created listing model**.
 
-A person may publish a slot only when they are the provider/organizer or are authorized by that provider. The application does not verify that authorization automatically in the MVP. This is a product/legal boundary, not a technical claim. A report/admin workflow exists for abuse.
+Payment is escrowed. A buyer's funds are held in escrow until the provider marks the service delivered and the buyer confirms receipt, or the dispute window expires without dispute, or an admin resolves a dispute. USDT is escrowed by a smart contract on Polygon; the backend never holds USDT. NIM is escrowed by a backend wallet and released by backend-signed transactions. Supply remains self-attested: escrow protects payment, not the existence of the underlying reservation.
 
 The future concept of a customer transferring an existing booking is explicitly deferred because transfer rights and provider-system verification create a materially larger product and legal surface.
 
@@ -119,6 +119,10 @@ The future concept of a customer transferring an existing booking is explicitly 
 - Production error handling and basic monitoring.
 - Unit, integration, security, and E2E tests for critical paths.
 - Public MIT-licensed repository for competition submission.
+- Dual payment rails: NIM and USDT on Polygon
+- Smart contract escrow for USDT payments (Polygon)
+- Custodial escrow wallet for NIM payments
+- Buyer choice of payment token at claim time
 
 ### SHOULD HAVE
 
@@ -143,8 +147,6 @@ The future concept of a customer transferring an existing booking is explicitly 
 - Automatic provider availability synchronization.
 - AI matching/recommendations.
 - Dynamic pricing suggestions.
-- NIM + USDT support.
-- Escrow/refund automation.
 - Reputation and ratings.
 - Push notifications.
 - Multi-city/category expansion at scale.
@@ -277,32 +279,41 @@ Acceptance criteria:
 - Duplicate claim requests for the same buyer/slot are idempotent or return the existing active claim.
 - Expired holds are no longer claimable.
 
-### FR-06 Pay and verify
+### FR-06 Pay and verify (dual-token escrow)
 
-Purpose: Complete a claim using NIM.
+Purpose: Complete a claim using NIM or USDT, with funds held in escrow until a release condition is met.
 
-Rules:
-- Backend generates/returns the exact payment intent: recipient wallet, exact amount, claim identifier, and transaction data payload requirements.
-- Client initiates `sendBasicTransactionWithData()` through Nimiq Pay.
-- Client submits the returned transaction identifier/hash to backend.
-- Backend independently verifies the transaction on-chain.
+Token choice: At escrow-intent time the buyer selects NIM or USDT. The server returns the appropriate deposit instruction for the chosen token.
 
-The backend must verify, at minimum:
-- transaction exists;
-- transaction is confirmed/accepted according to the chosen Nimiq RPC verification semantics;
-- sender address equals the buyer wallet on the claim;
-- recipient address equals the provider payout address recorded in the payment intent;
-- transferred amount equals the exact integer amount requested;
-- transaction data matches the expected TAKEOVER claim binding;
-- transaction has not already been attached to another successful payment.
+USDT path (non-custodial):
+- Backend returns the escrow contract address, USDT amount, and approval instructions.
+- Buyer approves the escrow contract to spend the exact amount, then deposits USDT into the contract.
+- Backend verifies the on-chain Deposited event from the contract.
+- Contract holds the funds; release and refund are contract functions.
+- Backend never custodies USDT.
 
-Only then is the payment marked VERIFIED and the claim marked PAID/CONFIRMED.
+NIM path (custodial):
+- Backend returns the escrow wallet address and exact NIM amount.
+- Buyer sends NIM to the escrow wallet with the TAKEOVER data binding via Nimiq Pay.
+- Backend verifies the deposit on-chain (existing Phase 8 logic, repurposed: recipient is the escrow wallet, not the provider).
+- Backend holds the NIM in the escrow wallet; release and refund are backend-signed transactions.
+- NIM custody exists only for the duration of the escrow hold.
+
+Escrow lifecycle (both tokens):
+- Buyer deposits; claim moves to escrow_funded.
+- Provider marks service delivered; claim moves to delivered.
+- Buyer confirms receipt -> funds release to provider.
+- Buyer disputes within the window -> disputed; admin resolves.
+- Dispute window expires without action -> funds release to provider.
+- Provider never marks delivered before the delivery deadline -> funds refund to buyer.
 
 Acceptance criteria:
-- Client cannot set `paid=true`.
-- A valid transaction can be submitted repeatedly without double-settling.
-- A transaction for another claim is rejected.
-- Incorrect amount/recipient/sender/data is rejected.
+- Client cannot set release or refund directly.
+- Same deposit cannot fund two claims.
+- Same release cannot settle two escrows.
+- Funds release to the provider only on confirmed delivery or timeout.
+- Funds refund to the buyer only on delivery timeout or admin resolution.
+- USDT escrow is enforced on-chain; NIM escrow is enforced by the backend escrow wallet.
 
 ### FR-07 My Claims
 
@@ -326,6 +337,27 @@ Authenticated users can report a slot or provider for abuse. Minimal report cate
 
 Admin can disable users/listings and mark reports resolved. Admin actions generate immutable audit events.
 
+### FR-12 Escrow lifecycle
+
+Purpose: Hold buyer funds and release them per the delivery condition.
+
+Escrow states: escrow_funded, delivered, disputed, released, refunded.
+
+Transitions:
+  escrow_funded -> delivered       (provider marks delivered)
+  delivered     -> released        (buyer confirms OR window expires)
+  delivered     -> disputed        (buyer disputes within window)
+  disputed      -> released        (admin rules for provider)
+  disputed      -> refunded        (admin rules for buyer)
+  escrow_funded -> refunded        (delivery deadline expires)
+
+Authority per token:
+  USDT: the on-chain escrow contract is the source of truth.
+  NIM:  the backend escrow service is the source of truth, backed by
+        the escrow wallet's on-chain balance.
+
+Every fund movement writes an audit event. NIM movements also write a double-entry escrow_ledger row; USDT movements are on-chain events mirrored by the backend.
+
 ## 6. Acceptance baseline
 
 The MVP is complete only when a clean user can:
@@ -337,6 +369,10 @@ The MVP is complete only when a clean user can:
 5. Claim an available slot.
 6. Initiate NIM payment through Nimiq Pay.
 7. Have the backend verify the real transaction.
+7a. See their funds held in escrow (on-chain for USDT, escrow wallet for NIM).
+7b. As the provider, mark the service delivered.
+7c. As the buyer, confirm receipt and see funds release to the provider.
+7d. In a second flow, have the provider not mark delivery, let the delivery deadline pass, and see an automatic refund.
 8. See the claim become confirmed.
 9. See the provider see the corresponding paid state.
 10. Fail safely when another buyer claims the slot first.
@@ -362,7 +398,6 @@ Avoid in primary UX:
 - Blockchain explorer
 - Smart contract
 - Crypto marketplace
-- Escrow (not implemented)
 
 A small payment disclosure may say: “Pay with NIM through Nimiq Pay.”
 
