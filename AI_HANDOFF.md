@@ -3003,3 +3003,79 @@ BLOCKED BY: none (human device test)
    ADMIN_WALLET_ADDRESSES values, count-only); deployed chunk → 0 key-name
    hits. `git status` clean (dist/ ignored, temp scripts deleted).
 5. Deployed. Ready for human Phase 14b re-test on device.
+
+## Phase 14c round 2 diagnosis — 14b re-test failures root-caused (2026-09-15)
+
+DIAGNOSE ONLY. No production code changed. Full analysis:
+`docs/phase-14c-round2-diagnosis.md`. Owner review required — note Fix B2
+(intent-on-corrupt-data contract) explicitly needs an owner decision, and
+Fix C (profile) is evidence-gated.
+
+```text
+CURRENT PHASE: Phase 14c round 2 complete (diagnosis) — STOP for owner
+  review; do NOT implement fixes, do NOT redeploy, do NOT begin 14b/15
+COMPLETED: all 5 endpoints live-reproduced with real Bearer tokens +
+  frontend-identical requests; publish 400 CONFIRMED (empty-body +
+  content-type bug); intent 500 CONFIRMED (seeded placeholder payouts);
+  profile PATCH works (cause unidentified); residue repaired + verified zero;
+  docs/phase-14c-round2-diagnosis.md + this checkpoint
+TESTS RUN: typecheck clean exit 0; lint clean exit 0; full suite green —
+  api 28 files/324 pass + web 12 files/103 pass + shared 1 pass, exit 0
+  (baseline holds, no prod code changed); live /health 200 throughout
+RESULT: (1) publish 400 'Invalid request.' = apiFetch sends
+  content-type:json with NO body → Fastify FST_ERR_CTP_EMPTY_JSON_BODY
+  (live: no-body+content-type 400 vs no-content-type 200). Same latent bug
+  breaks logout revocation silently (caught by catch{}) and cancel.
+  (2) intent 500 'Something went wrong.' = claimed slot was a SEED row:
+  21 seeded rows ALL carry placeholder payouts failing canonicalization
+  (8 feed-visible); canonicalizeOr500 → 500, proven live on own-row
+  simulation (claim 200 → intent 500). User's own slot stuck as draft
+  (bug 1) forced them onto seeded stock. (3) profile PATCH 200s live —
+  unidentified; consistent with a validation-400 on the typed name.
+  Bearer path EXONERATED (orthogonal causes throughout).
+KNOWN ISSUES: Risks B/C/D still UNTESTED; profile cause needs typed-value
+  or Railway-log evidence; feed holds only seeds + 1 human draft until
+  cleanup + real publishes; fix B2 (intent-on-corrupt contract) undecided
+SECURITY NOTES: no guard weakened/touched; no debug bypasses; no deploys;
+  no verification/RPC changes; no secrets printed or committed (tokens
+  redacted, shell vars only); probe residues fully removed (incl. a
+  probe-1 FK-order repair: profiles 1, users 2, challenges 2 —
+  guard-selected, human rows untouched); seed rows UNTOUCHED (21/21 still
+  present — deletion is the human ops step); tokens stay in .env.txt
+FILES CHANGED: docs/phase-14c-round2-diagnosis.md (new), AI_HANDOFF.md
+GIT COMMIT: docs: phase 14c round 2 — diagnose re-test failures
+NEXT TASK: owner decides B2 + approves Fix A (frontend {} bodies) / B1
+  (delete 21 seed rows, human ops) / C (client validation + re-test) →
+  completion pass per diagnosis §6 → redeploy frontend → human 14b re-test
+BLOCKED BY: owner review (B2 decision + fix approval)
+```
+
+1. Publish: live 400 `INVALID_INPUT`/`'Invalid request.'` with the exact
+   frontend request (POST, no body, content-type: json); 200 without the
+   header. Cause: Fastify empty-JSON-body 400. Tests missed it (inject
+   sends no content-type without payload). Collateral: logout silently
+   never revokes server-side on-device; cancel latently 400s.
+2. Intent: live 200 on healthy slots; live 500 `INTERNAL_ERROR`/
+   `'Something went wrong.'` on corrupt-payout claims (own-row simulation:
+   claim 200 → intent 500). Cause: 21 seeded rows with `NQ00…NNNN`
+   placeholder payouts (8 feed-visible); `canonicalizeOr500` throws.
+   API-created slots can never be corrupt (publish gate 400s them).
+   Corroboration: the only non-seed row is the human's `"Table for ten"`
+   draft (2026-09-14, still draft).
+3. Profile: PATCH 200s live with valid input; Bearer-on-PATCH and CSRF
+   skip verified in code. Cause unidentified — likely a validation-400 on
+   the typed name (no client-side validation exists) or transient; needs
+   the typed value or Railway-log requestId.
+4. Common vs independent: independent bugs, causally linked this session
+   (bug 1 blocked self-publish → user claimed poisoned seed stock).
+5. Fixes: A = `{}` bodies on publish/cancel/logout (frontend-only, no
+   contract change); B1 = delete 21 seed rows (human ops) + never seed
+   shared DB; B2 = intent-on-corrupt contract (owner decision: keep 500 /
+   new 4xx / create-time check); C = client-side name validation +
+   re-test (no server change). No auth/session/CSRF/RPC changes proposed.
+6. Files changed: `docs/phase-14c-round2-diagnosis.md` (new), `AI_HANDOFF.md`
+   (this checkpoint). Temp scripts (3) all deleted. No prod code touched.
+7. Commands run: typecheck clean; lint clean; full suite api 324 + web 103
+   + shared 1 green; live /health 200; 5-endpoint + mechanism probes with
+   redacted output; residue repair + final zero check (orphans 0, seeds
+   21/21 intact); `git status` shows only the two doc files.
