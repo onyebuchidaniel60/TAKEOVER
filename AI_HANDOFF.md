@@ -3079,3 +3079,85 @@ BLOCKED BY: owner review (B2 decision + fix approval)
    + shared 1 green; live /health 200; 5-endpoint + mechanism probes with
    redacted output; residue repair + final zero check (orphans 0, seeds
    21/21 intact); `git status` shows only the two doc files.
+
+## Phase 14c round 3 completion — IMPLEMENTED, tested, deployed (2026-09-15)
+
+Owner decisions implemented as approved (A1+A2, C1+C2, B1-prep, B2-doc).
+No auth/session/CSRF/RPC/verification/slots-backend/reports changes. One
+deliberate, documented deviation: the brief's server test prescription
+("no-body POST + content-type → assert 2xx") conflicts with the approved
+client-side-only fix + frozen strict parsing — implemented as a 400-pin
+instead (see below). B1 SQL prepared, NOT run (human step).
+
+```text
+CURRENT PHASE: Phase 14c round 3 COMPLETE — deployed. Human runs B1 SQL,
+  then human Phase 14b re-test. Do NOT begin Phase 15. Do NOT remove
+  tokens from .env.txt.
+COMPLETED: A1 ({} bodies on publish/cancel/logout) + A2 (conditional
+  Content-Type) + C validators (exact server mirrors, zero new deps) +
+  per-field SlotForm errors + DisplayNameForm inline validation + 5 api +
+  14 web tests + B1 SQL file + ARCH §6 B2 note + §9 seed line + deploys +
+  this checkpoint
+TESTS RUN: typecheck clean exit 0; lint clean exit 0 (after fixing 1 unused
+  import); full suite green — api 29 files/329 pass (was 28/324, +5) + web
+  14 files/117 pass (was 12/103, +14: 8 request-bodies + 6 validation) +
+  shared 1 pass, exit 0; zero existing tests lowered/skipped; residue 0
+RESULT: DEPLOYED — Railway contract confirmed live; Vercel dpl_A9rYChf1wfU6
+  (takeover-ns5ccbgrn) READY, alias unmoved (no CORS change needed);
+  Bug-1 + logout fixes proven live end-to-end (create 201 → publish {}
+  200 published → logout {} 200 → /me 401); leak audit 0 hits (33 files)
+KNOWN ISSUES: B1 NOT run (seed rows still present — re-test BLOCKED until
+  human runs docs/phase-14c-seed-cleanup.sql); Risks B/C/D untested;
+  profile-failure root cause still unconfirmed (client validation now
+  prevents the likeliest trigger); served route-chunk bytes not directly
+  fetchable (lazy chunks) — deploy provenance (clean-tree upload → Vercel
+  build → new hashes) + live functional proof stand in; device re-test is
+  the final functional proof
+SECURITY NOTES: csrf.ts untouched; auth/* untouched; verification/RPC
+  untouched; server parsing strictness PINNED (not loosened); no new
+  dependency (address mirror is pure string math); client validation is a
+  strict subset of server rules (bare-TLD names still pass client-side,
+  server decides); no secrets printed/committed (tokens redacted, shell
+  vars only); probe residues fully removed; tokens stay in .env.txt
+FILES CHANGED: apps/web/src/{lib/{api,slots}.ts,components/SlotForm.tsx,
+  routes/Profile.tsx,store/auth.ts}, apps/api/test/bodyless-posts.test.ts
+  (new, 5), apps/web/test/{request-bodies,form-validation}.test.ts (new,
+  8+6), docs/phase-14c-seed-cleanup.sql (new, NOT run), ARCHITECTURE.md
+  (§6 B2 note, §9 seed line), AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: 49082ac fix: phase 14c round 3 — no-body POSTs, seed cleanup
+  prep, client-side validation (pushed c1487c1..49082ac, on origin/main)
+DEVIATION (explicit, needs no action but owner visibility): server test 5
+  asserts 400 (not the brief's literal 2xx) — a 2xx assertion would require
+  loosening Fastify's default JSON parser, contradicting the approved
+  client-side-only fix and the frozen security posture. True Bug-1 coverage
+  is the web body-presence tests + the {}-acceptance tests.
+NEXT TASK (human, in order): (1) run docs/phase-14c-seed-cleanup.sql in
+  Supabase SQL editor (review counts → COMMIT); (2) Phase 14b re-test on
+  device (create → publish → claim → pay → verify → paid), then B/C/D.
+  Do NOT start automatically.
+BLOCKED BY: human B1 + human device test
+```
+
+1. Files changed: 6 web src + 1 api test (new) + 2 web tests (new) + 1 SQL
+   (new, not run) + ARCHITECTURE.md + AI_HANDOFF.md. No backend prod-code
+   change (intent/CSRF/auth/RPC/slots/reports untouched per approval).
+2. Test counts: before api 324 (28 files) + web 103 (12 files) + shared 1
+   → after api 329 (29 files) + web 117 (14 files) + shared 1.
+3. Bug-1 test: `apps/api/test/bodyless-posts.test.ts` → "publish with a {}
+   body succeeds (Bug 1 regression)" (plus web "publishSlot and cancelSlot
+   send a non-empty JSON body").
+4. Logout test: same file → "logout with a {} body actually revokes the
+   session (cookie path)" AND "(Bearer path)" (both: logout 200 → /me 401).
+5. Commit `49082ac` pushed (`c1487c1..49082ac`, confirmed on origin/main).
+6. Railway evidence: logout-{} contract live (logout 200 → /me 401);
+   backend prod code unchanged in this release, so any green build serves
+   it — no compatibility risk in either direction.
+7. Vercel: `dpl_A9rYChf1wfU6Zsk7hbbAeXaLj9Fs`
+   (`https://takeover-ns5ccbgrn-uhhh2.vercel.app`), READY; alias
+   `takeover-web-gamma.vercel.app` re-pointed, NOT shifted → CORS unchanged.
+8. Post-deploy live proof: create 201 → publish `{}` 200 (published) →
+   logout `{}` 200 → `/me` 401; health 200; alias 200 HTML (new chunk
+   `index-Bfxv39Fx.js`); preflight 204 + ACAO echo + credentials.
+9. Leak audit: fresh dist 33 files → 0 key names, 0 VITE_*TOKEN, 0 secret
+   values; deployed main chunk → 0 key names.
+10. Deployed. Ready for human Phase 14b re-test after seed cleanup.
