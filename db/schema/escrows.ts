@@ -33,6 +33,11 @@ export const escrows = pgTable(
     refundTxHash: text('refund_tx_hash').unique(),
     contractAddress: text('contract_address'),
     onChainEscrowId: text('on_chain_escrow_id'),
+    // Phase 14d-3a: provider EVM payout address, supplied in the
+    // mark-delivered body on first call and stored immutably (later calls
+    // must match). Plain TEXT at DB level; hex shape enforced at the API
+    // boundary and service layer.
+    providerPayoutAddress: text('provider_payout_address'),
     fundedAt: timestamp('funded_at', { withTimezone: true }),
     deliveryDeadline: timestamp('delivery_deadline', { withTimezone: true }),
     deliveredAt: timestamp('delivered_at', { withTimezone: true }),

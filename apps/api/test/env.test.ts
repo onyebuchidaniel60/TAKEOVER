@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_ESCROW_DELIVERY_WINDOW_SECONDS,
   DEFAULT_ESCROW_DEPOSIT_VERIFICATION_SECONDS,
+  DEFAULT_ESCROW_DISPUTE_WINDOW_SECONDS,
+  DEFAULT_ESCROW_RELEASE_CONFIRMATIONS,
   getEscrowDeliveryWindowSeconds,
   getEscrowDepositVerificationSeconds,
+  getEscrowDisputeWindowSeconds,
+  getEscrowReleaseConfirmations,
   loadEnv,
   parseEnv,
 } from '../src/env';
@@ -62,6 +66,32 @@ describe('env validation', () => {
     expect(getEscrowDeliveryWindowSeconds({ ESCROW_DELIVERY_WINDOW_SECONDS: '3600' })).toBe(3600);
     expect(parseEnv({ ESCROW_DELIVERY_WINDOW_SECONDS: '3600' })).toMatchObject({
       ESCROW_DELIVERY_WINDOW_SECONDS: 3600,
+    });
+  });
+
+  it('dispute window getter defaults tolerantly and parses set values', () => {
+    expect(DEFAULT_ESCROW_DISPUTE_WINDOW_SECONDS).toBe(86400);
+    expect(getEscrowDisputeWindowSeconds({})).toBe(86400);
+    expect(getEscrowDisputeWindowSeconds({ ESCROW_DISPUTE_WINDOW_SECONDS: '' })).toBe(86400);
+    expect(getEscrowDisputeWindowSeconds({ ESCROW_DISPUTE_WINDOW_SECONDS: 'garbage' })).toBe(86400);
+    expect(getEscrowDisputeWindowSeconds({ ESCROW_DISPUTE_WINDOW_SECONDS: '0' })).toBe(86400);
+    expect(getEscrowDisputeWindowSeconds({ ESCROW_DISPUTE_WINDOW_SECONDS: '-5' })).toBe(86400);
+    expect(getEscrowDisputeWindowSeconds({ ESCROW_DISPUTE_WINDOW_SECONDS: '3600' })).toBe(3600);
+    expect(parseEnv({ ESCROW_DISPUTE_WINDOW_SECONDS: '3600' })).toMatchObject({
+      ESCROW_DISPUTE_WINDOW_SECONDS: 3600,
+    });
+  });
+
+  it('release confirmations getter defaults tolerantly and parses set values', () => {
+    expect(DEFAULT_ESCROW_RELEASE_CONFIRMATIONS).toBe(3);
+    expect(getEscrowReleaseConfirmations({})).toBe(3);
+    expect(getEscrowReleaseConfirmations({ ESCROW_RELEASE_CONFIRMATIONS: '' })).toBe(3);
+    expect(getEscrowReleaseConfirmations({ ESCROW_RELEASE_CONFIRMATIONS: 'garbage' })).toBe(3);
+    expect(getEscrowReleaseConfirmations({ ESCROW_RELEASE_CONFIRMATIONS: '0' })).toBe(3);
+    expect(getEscrowReleaseConfirmations({ ESCROW_RELEASE_CONFIRMATIONS: '-2' })).toBe(3);
+    expect(getEscrowReleaseConfirmations({ ESCROW_RELEASE_CONFIRMATIONS: '6' })).toBe(6);
+    expect(parseEnv({ ESCROW_RELEASE_CONFIRMATIONS: '6' })).toMatchObject({
+      ESCROW_RELEASE_CONFIRMATIONS: 6,
     });
   });
 });

@@ -28,10 +28,22 @@ const envSchema = z.object({
     emptyToUndefined,
     z.coerce.number().int().positive().optional(),
   ),
+  ESCROW_DISPUTE_WINDOW_SECONDS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().positive().optional(),
+  ),
+  ESCROW_RELEASE_CONFIRMATIONS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().positive().optional(),
+  ),
   POLYGON_RPC_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
   USDT_ESCROW_CONTRACT_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   USDT_TOKEN_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   ESCROW_SIGNER_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  // Server-side Polygon release signer key. Shape-checked loosely here
+  // (strict 32-byte-hex validation lives in the signer module, which fails
+  // closed at first release attempt, never at boot).
+  ESCROW_SIGNER_PRIVATE_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   NIM_ESCROW_WALLET_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
 });
 
@@ -129,6 +141,48 @@ export function getEscrowDeliveryWindowSeconds(
     }
   }
   return DEFAULT_ESCROW_DELIVERY_WINDOW_SECONDS;
+}
+
+/**
+ * Dispute window in seconds: delivered → dispute deadline. Tolerant by
+ * design: missing, blank, or invalid values fall back to the 86400s (24h)
+ * default. Set as dispute_window_ends on mark-delivered; no dispute logic
+ * yet (14d-3b), just the deadline.
+ */
+export const DEFAULT_ESCROW_DISPUTE_WINDOW_SECONDS = 86400;
+
+export function getEscrowDisputeWindowSeconds(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): number {
+  const raw = env.ESCROW_DISPUTE_WINDOW_SECONDS;
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const parsed = Number(raw);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return DEFAULT_ESCROW_DISPUTE_WINDOW_SECONDS;
+}
+
+/**
+ * Release confirmation policy: Polygon confirmations required on the
+ * release transaction before claim/escrow flip to released. Default 3 —
+ * the established precedent from NIM verification (REQUIRED_CONFIRMATIONS).
+ * Tolerant like every other window getter.
+ */
+export const DEFAULT_ESCROW_RELEASE_CONFIRMATIONS = 3;
+
+export function getEscrowReleaseConfirmations(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): number {
+  const raw = env.ESCROW_RELEASE_CONFIRMATIONS;
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const parsed = Number(raw);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return DEFAULT_ESCROW_RELEASE_CONFIRMATIONS;
 }
 
 /**

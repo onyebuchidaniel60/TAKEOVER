@@ -1,8 +1,9 @@
 // Phase 14d-2: USDT escrow deposit endpoints (no NIM, no release/refund).
+// Phase 14d-3a: delivery + release endpoints (mark-delivered, confirm-receipt;
+// GET /escrow now buyer- or provider-scoped).
 // All responses use the { data, requestId } envelope; errors use
-// { error: { code, message }, requestId }. Buyer-owner only (foreign → 404,
-// anonymous → 401). Rate limits are configuration per ARCH §14, overridable
-// via AppOptions for tests (Phase 12 pattern).
+// { error: { code, message }, requestId }. Rate limits are configuration per
+// ARCH §14, overridable via AppOptions for tests (Phase 12 pattern).
 import type { FastifyInstance } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
@@ -23,18 +24,24 @@ import { claimIdParamsSchema } from '../claims/validation';
 import {
   createPolygonEscrowClient,
   EscrowContractUnavailableError,
+  EscrowSignerUnavailableError,
   type RawEscrowLog,
 } from '../escrow/polygon/client';
 import type { EscrowContractClient } from '../../../../packages/shared/src/escrow/contract';
 import {
+  confirmReceipt,
   createEscrowIntent,
   getEscrowForBuyer,
+  getEscrowForProvider,
+  markDelivered,
   submitDepositReference,
   verifyDeposit,
 } from '../escrow/service';
 import {
+  confirmReceiptBodySchema,
   escrowIntentBodySchema,
   escrowSubmissionBodySchema,
+  markDeliveredBodySchema,
   verifyDepositBodySchema,
 } from '../escrow/validation';
 
@@ -44,6 +51,8 @@ export interface EscrowRouteOptions {
     escrowSubmission?: RateLimitOptions;
     /** Per-claim verify window (default 1 per 5s, same as deprecated verify-payment). */
     verifyDeposit?: VerifyRateLimitOptions;
+    markDelivered?: RateLimitOptions;
+    confirmReceipt?: RateLimitOptions;
   };
   /** Injected chain reader (tests). Production defaults to the viem Polygon client. */
   escrowClient?: EscrowContractClient;
@@ -57,6 +66,32 @@ export const DEFAULT_ESCROW_INTENT_RATE_LIMIT: RateLimitOptions = {
 export const DEFAULT_ESCROW_SUBMISSION_RATE_LIMIT: RateLimitOptions = {
   ...DEFAULT_CHALLENGE_RATE_LIMIT,
 };
+export const DEFAULT_MARK_DELIVERED_RATE_LIMIT: RateLimitOptions = {
+  ...DEFAULT_CHALLENGE_RATE_LIMIT,
+};
+export const DEFAULT_CONFIRM_RECEIPT_RATE_LIMIT: RateLimitOptions = {
+  ...DEFAULT_CHALLENGE_RATE_LIMIT,
+};
+
+function resolveEscrowClient(
+  opts: EscrowRouteOptions,
+  unavailable: { code: string; message: string } = {
+    code: 'ESCROW_CONTRACT_UNAVAILABLE',
+    message: 'Deposit verification is temporarily unavailable. Please try again.',
+  },
+): EscrowContractClient {
+  if (opts.escrowClient) {
+    return opts.escrowClient;
+  }
+  try {
+    return createPolygonEscrowClient();
+  } catch (err) {
+    if (err instanceof EscrowContractUnavailableError) {
+      throw new AppError(503, unavailable.code, unavailable.message);
+    }
+    throw err;
+  }
+}
 
 export async function escrowRoutes(app: FastifyInstance, opts: EscrowRouteOptions = {}): Promise<void> {
   const intentLimiter = createRateLimiter(
@@ -67,6 +102,12 @@ export async function escrowRoutes(app: FastifyInstance, opts: EscrowRouteOption
   );
   const verifyLimiter =
     opts.verifyDepositRateLimiter ?? createVerifyRateLimiter(opts.rateLimit?.verifyDeposit);
+  const markDeliveredLimiter = createRateLimiter(
+    opts.rateLimit?.markDelivered ?? DEFAULT_MARK_DELIVERED_RATE_LIMIT,
+  );
+  const confirmReceiptLimiter = createRateLimiter(
+    opts.rateLimit?.confirmReceipt ?? DEFAULT_CONFIRM_RECEIPT_RATE_LIMIT,
+  );
 
   app.post(
     '/claims/:claimId/escrow-intent',
@@ -180,6 +221,77 @@ export async function escrowRoutes(app: FastifyInstance, opts: EscrowRouteOption
     },
   );
 
+  app.post(
+    '/claims/:claimId/mark-delivered',
+    { preHandler: markDeliveredLimiter, bodyLimit: 16 * 1024 },
+    async (request) => {
+      const user = await requireAuth(request);
+      const params = claimIdParamsSchema.safeParse(request.params);
+      if (!params.success) {
+        throw new AppError(400, 'INVALID_INPUT', 'Invalid claim id.');
+      }
+      const body = markDeliveredBodySchema.safeParse(request.body);
+      if (!body.success) {
+        throw new AppError(400, 'INVALID_INPUT', 'Invalid request body.');
+      }
+      const db = getDb();
+      const result = await markDelivered(db, {
+        claimId: params.data.claimId,
+        providerId: user.id,
+        providerPayoutAddress: body.data.providerPayoutAddress,
+        requestId: request.id,
+      });
+      return successBody(request, result);
+    },
+  );
+
+  app.post(
+    '/claims/:claimId/confirm-receipt',
+    { preHandler: confirmReceiptLimiter, bodyLimit: 16 * 1024 },
+    async (request) => {
+      const user = await requireAuth(request);
+      const params = claimIdParamsSchema.safeParse(request.params);
+      if (!params.success) {
+        throw new AppError(400, 'INVALID_INPUT', 'Invalid claim id.');
+      }
+      const body = confirmReceiptBodySchema.safeParse(request.body);
+      if (!body.success) {
+        throw new AppError(400, 'INVALID_INPUT', 'Invalid request body.');
+      }
+      const db = getDb();
+      const client = resolveEscrowClient(opts, {
+        code: 'ESCROW_RELEASE_FAILED',
+        message: 'Release is temporarily unavailable. Please try again.',
+      });
+      try {
+        const result = await confirmReceipt(db, {
+          claimId: params.data.claimId,
+          buyerId: user.id,
+          client,
+          requestId: request.id,
+        });
+        // Server-log only: status codes, never wallets or tx hashes.
+        request.log.info(
+          { claimId: params.data.claimId, status: result.status },
+          `escrow confirm-receipt ${result.status}`,
+        );
+        return successBody(request, result);
+      } catch (err) {
+        if (
+          err instanceof EscrowSignerUnavailableError ||
+          err instanceof EscrowContractUnavailableError
+        ) {
+          throw new AppError(
+            503,
+            'ESCROW_RELEASE_FAILED',
+            'Release is temporarily unavailable. Please try again.',
+          );
+        }
+        throw err;
+      }
+    },
+  );
+
   app.get('/claims/:claimId/escrow', async (request) => {
     const user = await requireAuth(request);
     const params = claimIdParamsSchema.safeParse(request.params);
@@ -187,11 +299,22 @@ export async function escrowRoutes(app: FastifyInstance, opts: EscrowRouteOption
       throw new AppError(400, 'INVALID_INPUT', 'Invalid claim id.');
     }
     const db = getDb();
-    const result = await getEscrowForBuyer(db, {
-      claimId: params.data.claimId,
-      buyerId: user.id,
-    });
-    return successBody(request, result);
+    try {
+      const result = await getEscrowForBuyer(db, {
+        claimId: params.data.claimId,
+        buyerId: user.id,
+      });
+      return successBody(request, result);
+    } catch (err) {
+      if (err instanceof AppError && err.code === 'CLAIM_NOT_FOUND') {
+        const result = await getEscrowForProvider(db, {
+          claimId: params.data.claimId,
+          providerId: user.id,
+        });
+        return successBody(request, result);
+      }
+      throw err;
+    }
   });
 }
 

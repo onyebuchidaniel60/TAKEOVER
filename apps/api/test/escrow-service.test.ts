@@ -54,6 +54,9 @@ describe.skipIf(!isDatabaseConfigured())('USDT escrow deposit (live DB, mocked P
     async getDisputeEvent() {
       return null;
     },
+    async getTransactionReceipt() {
+      return null;
+    },
     async release() {
       throw new Error('Phase 14d-3');
     },
@@ -532,6 +535,9 @@ describe.skipIf(!isDatabaseConfigured())('verify-deposit rate limit (live DB, de
       return null;
     },
     async getDisputeEvent() {
+      return null;
+    },
+    async getTransactionReceipt() {
       return null;
     },
     async release() {

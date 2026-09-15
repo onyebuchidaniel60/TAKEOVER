@@ -33,7 +33,8 @@ accepts the same ID twice for funding.
 - Provider: supplied by the trusted signer as the `toProvider` argument
   to `release()` (model (b), decided — see "Provider binding decision"
   below). No on-chain provider registration step; no pre-deposit
-  transaction.
+  transaction. The backend collects the provider payout address at delivery
+  time and stores it immutably on the escrow row.
 
 ## Function signatures
 

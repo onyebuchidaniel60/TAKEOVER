@@ -1,6 +1,5 @@
 // Phase 14d-2: escrow endpoint validation. Strict shapes, no unknown fields.
 import { z } from 'zod';
-
 export const escrowIntentBodySchema = z.object({ token: z.enum(['NIM', 'USDT_POLYGON']) }).strict();
 
 /**
@@ -25,6 +24,22 @@ export const escrowSubmissionBodySchema = z
   .strict();
 
 export const verifyDepositBodySchema = z.preprocess(
+  (value: unknown) => (value === undefined ? {} : value),
+  z.object({}).strict(),
+);
+
+// Phase 14d-3a: provider EVM payout address. Canonical hex only
+// (0x/0X + 40 hex); anything else is 400 INVALID_INPUT. The service
+// re-validates (defense in depth) and normalizes to lowercase on store.
+export const evmAddressSchema = z
+  .string()
+  .regex(/^0[xX][0-9a-fA-F]{40}$/, { message: 'Provider payout address must be a 0x-prefixed EVM address.' });
+
+export const markDeliveredBodySchema = z
+  .object({ providerPayoutAddress: evmAddressSchema })
+  .strict();
+
+export const confirmReceiptBodySchema = z.preprocess(
   (value: unknown) => (value === undefined ? {} : value),
   z.object({}).strict(),
 );

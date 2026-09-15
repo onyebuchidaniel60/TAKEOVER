@@ -55,13 +55,19 @@ export interface DisputedEvent {
   blockNumber: number;
 }
 
-// -- Backend-facing client (implemented in 14d-2) ----------------------------
+// -- Backend-facing client (implemented in 14d-2, extended in 14d-3a) --------
 
 export interface EscrowContractClient {
   getDepositEvent(escrowId: string): Promise<DepositedEvent | null>;
   getDisputeEvent(escrowId: string): Promise<DisputedEvent | null>;
   release(escrowId: string, toProvider: string): Promise<{ txHash: string }>;
   refund(escrowId: string): Promise<{ txHash: string }>;
+  /**
+   * Receipt poll for a broadcast transaction. Returns null while the tx is
+   * unknown (still propagating) or did not succeed — the caller treats both
+   * as "not yet confirmed" and keeps the escrow out of its terminal state.
+   */
+  getTransactionReceipt(txHash: string): Promise<{ confirmations: number } | null>;
 }
 
 // -- Contract ABI (shared with the frontend later) ---------------------------

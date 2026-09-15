@@ -255,23 +255,40 @@ export type ClaimStatusValue =
   | 'payment_review'
   | 'cancelled';
 
-/** Per-status demand counts for one slot. Every key is always present (zeros included). */
+/**
+ * Per-status demand counts for one slot. Every key is always present (zeros
+ * included) across all 12 live claim_status values — legacy direct-payment
+ * states plus the escrow lifecycle. Additive shape: `{ claims, counts }`
+ * is unchanged, counts just carries more keys.
+ */
 export interface SlotClaimCounts {
   active_hold: number;
+  expired: number;
+  deposit_submitted: number;
   payment_pending: number;
   paid: number;
   payment_review: number;
-  expired: number;
   cancelled: number;
+  escrow_funded: number;
+  delivered: number;
+  disputed: number;
+  released: number;
+  refunded: number;
 }
 
 const EMPTY_SLOT_CLAIM_COUNTS: SlotClaimCounts = {
   active_hold: 0,
+  expired: 0,
+  deposit_submitted: 0,
   payment_pending: 0,
   paid: 0,
   payment_review: 0,
-  expired: 0,
   cancelled: 0,
+  escrow_funded: 0,
+  delivered: 0,
+  disputed: 0,
+  released: 0,
+  refunded: 0,
 };
 
 /**
@@ -302,12 +319,9 @@ export async function listSlotClaimsForProvider(
   const counts: SlotClaimCounts = { ...EMPTY_SLOT_CLAIM_COUNTS };
   for (const row of rows) {
     views.push(toProviderSlotClaimView(row.claim, truncateWalletAddress(row.buyerWallet)));
-    // Phase 14d-1: claim_status gained escrow states; this legacy demand view
-    // still buckets the six direct-payment states only (14d-2 reworks it).
-    const bucket = counts[row.claim.status as keyof SlotClaimCounts];
-    if (typeof bucket === 'number') {
-      counts[row.claim.status as keyof SlotClaimCounts] = bucket + 1;
-    }
+    // Phase 14d-3a: all 12 claim_status values are bucketed (the 14d-1 shim
+    // counted six and dropped escrow states — resolved now).
+    counts[row.claim.status as keyof SlotClaimCounts] += 1;
   }
   return { claims: views, counts };
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "escrows" ADD COLUMN "provider_payout_address" text;

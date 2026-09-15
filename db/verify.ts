@@ -118,6 +118,13 @@ async function main(): Promise<void> {
   if (!hasDepositSubmittedAt) {
     throw new Error('claims.deposit_submitted_at column is missing');
   }
+
+  // Phase 14d-3a: provider EVM payout address column.
+  const hasProviderPayoutAddress = present.has('escrows.provider_payout_address');
+  console.log(`escrows.provider_payout_address present: ${hasProviderPayoutAddress}`);
+  if (!hasProviderPayoutAddress) {
+    throw new Error('escrows.provider_payout_address column is missing');
+  }
 }
 
 main().catch((err: unknown) => {

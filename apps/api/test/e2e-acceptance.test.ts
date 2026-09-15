@@ -325,13 +325,20 @@ describe.skipIf(!isDatabaseConfigured())('phase 13 acceptance journey (live, rea
     expect(serialized).not.toContain('expectedRecipient');
 
     // 13. Counts show exactly one paid claim and zeros elsewhere.
+    // (14d-3a: the demand view buckets all 12 claim_status values.)
     expect(demandBody.data.counts).toEqual({
       active_hold: 0,
+      expired: 0,
+      deposit_submitted: 0,
       payment_pending: 0,
       paid: 1,
       payment_review: 0,
-      expired: 0,
       cancelled: 0,
+      escrow_funded: 0,
+      delivered: 0,
+      disputed: 0,
+      released: 0,
+      refunded: 0,
     });
 
     // 14. Audit trail contains exactly the journey events in order. Note the

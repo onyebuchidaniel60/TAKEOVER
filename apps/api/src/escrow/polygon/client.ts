@@ -1,4 +1,6 @@
 // Phase 14d-2: Polygon escrow-contract client (USDT deposit path).
+// Phase 14d-3a: real server-signed release() + receipt polling for the
+// confirmation policy. Refund stays a 14d-3b stub.
 // Real implementation of EscrowContractClient from
 // packages/shared/src/escrow/contract.ts, backed by viem (base library only,
 // no Polygon kit). Reads RPC + contract address from env only — never
@@ -11,12 +13,23 @@
 // filtering beyond the indexed topic value.
 //
 // Amounts are bigint base units (USDT 6 decimals). Never float, never number.
-import { createPublicClient, decodeEventLog, http, parseAbiItem } from 'viem';
+import {
+  createPublicClient,
+  createWalletClient,
+  decodeEventLog,
+  http,
+  parseAbiItem,
+  TransactionReceiptNotFoundError,
+  type Chain,
+} from 'viem';
 import type {
   DepositedEvent,
   DisputedEvent,
   EscrowContractClient,
 } from '../../../../../packages/shared/src/escrow/contract';
+import { loadEscrowSigner, EscrowSignerUnavailableError } from './signer';
+
+export { EscrowSignerUnavailableError };
 
 /** Thrown for missing config or RPC failure. The service maps it to 503 ESCROW_CONTRACT_UNAVAILABLE. */
 export class EscrowContractUnavailableError extends Error {
@@ -32,6 +45,10 @@ const DEPOSITED_EVENT = parseAbiItem(
 
 const DISPUTED_EVENT = parseAbiItem(
   'event Disputed(bytes32 indexed escrowId, address indexed buyer)',
+);
+
+const RELEASE_FUNCTION = parseAbiItem(
+  'function release(bytes32 escrowId, address toProvider)',
 );
 
 /** Minimal log shape needed for pure decoding (viem getLogs rows satisfy this). */
@@ -255,13 +272,113 @@ export function createPolygonEscrowClient(
   return {
     getDepositEvent,
     getDisputeEvent,
-    // Phase 14d-3
-    async release(): Promise<{ txHash: string }> {
-      throw new Error('Not implemented: escrow release is Phase 14d-3.');
+    async release(escrowId: string, toProvider: string): Promise<{ txHash: string }> {
+      return releaseTx(rpcUrl, contractAddress, escrowId, toProvider);
     },
-    // Phase 14d-3
+    async getTransactionReceipt(txHash: string): Promise<{ confirmations: number } | null> {
+      return receiptTx(rpcUrl, txHash);
+    },
+    // Phase 14d-3b
     async refund(): Promise<{ txHash: string }> {
-      throw new Error('Not implemented: escrow refund is Phase 14d-3.');
+      throw new Error('Not implemented: escrow refund is Phase 14d-3b.');
     },
   };
+}
+
+/**
+ * Broadcast the contract release(escrowId, toProvider) from the server
+ * signer. Returns the tx hash immediately after broadcast — confirmation
+ * polling is the service's job (getTransactionReceipt). Signer problems
+ * throw EscrowSignerUnavailableError; RPC/contract problems throw
+ * EscrowContractUnavailableError. Neither error embeds key material.
+ *
+ * IMPLEMENTATION DETAIL — AGENT MAY DECIDE: no `viem/chains` import. That
+ * barrel pulls DOM-dependent sources that break the API's DOM-less tsc
+ * build (verified by bisection), and a static descriptor would sign the
+ * wrong chain id when the RPC points at a testnet. The descriptor below
+ * carries the endpoint's live chain id instead, so EIP-155 signing always
+ * matches the chain the RPC serves; fee formatters fall back to viem
+ * defaults (fine for every Polygon-family chain).
+ */
+async function releaseTx(
+  rpcUrl: string,
+  contractAddress: `0x${string}`,
+  escrowId: string,
+  toProvider: string,
+): Promise<{ txHash: string }> {
+  if (!isBytes32Hex(escrowId) || !isHexAddress(toProvider)) {
+    throw new EscrowContractUnavailableError('Invalid release parameters.');
+  }
+  let account;
+  try {
+    account = loadEscrowSigner();
+  } catch (err) {
+    if (err instanceof EscrowSignerUnavailableError) {
+      throw err;
+    }
+    throw new EscrowSignerUnavailableError();
+  }
+  let chain: Chain;
+  try {
+    const probe = createPublicClient({ transport: http(rpcUrl) });
+    const chainId = await probe.getChainId();
+    chain = {
+      id: chainId,
+      name: `polygon-${chainId}`,
+      nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
+      rpcUrls: { default: { http: [rpcUrl] } },
+    };
+  } catch (err) {
+    if (err instanceof EscrowContractUnavailableError) {
+      throw err;
+    }
+    throw new EscrowContractUnavailableError('Polygon RPC request failed.');
+  }
+  try {
+    const wallet = createWalletClient({ account, chain, transport: http(rpcUrl) });
+    const txHash = await wallet.writeContract({
+      address: contractAddress,
+      abi: [RELEASE_FUNCTION],
+      functionName: 'release',
+      args: [escrowId as `0x${string}`, toProvider as `0x${string}`],
+    });
+    return { txHash };
+  } catch (err) {
+    if (err instanceof EscrowSignerUnavailableError) {
+      throw err;
+    }
+    throw new EscrowContractUnavailableError('Release transaction failed.');
+  }
+}
+
+/**
+ * Receipt poll for a broadcast release. Null while the tx is unknown
+ * (still propagating) or did not succeed — both keep the escrow out of its
+ * terminal state. Reverted receipts map to null (fail closed: a revert
+ * moves no funds, so it must never flip the row to released).
+ */
+async function receiptTx(
+  rpcUrl: string,
+  txHash: string,
+): Promise<{ confirmations: number } | null> {
+  const client = createPublicClient({ transport: http(rpcUrl) });
+  let receipt;
+  try {
+    receipt = await client.getTransactionReceipt({ hash: txHash as `0x${string}` });
+  } catch (err) {
+    if (err instanceof TransactionReceiptNotFoundError) {
+      return null;
+    }
+    throw new EscrowContractUnavailableError('Polygon RPC request failed.');
+  }
+  if (receipt.status === 'reverted') {
+    return null;
+  }
+  let head: bigint;
+  try {
+    head = await client.getBlockNumber();
+  } catch {
+    throw new EscrowContractUnavailableError('Polygon RPC request failed.');
+  }
+  return { confirmations: Number(head - receipt.blockNumber) + 1 };
 }

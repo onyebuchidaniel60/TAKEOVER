@@ -3,6 +3,126 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14d-3a — mark-delivered, confirm-receipt, USDT release (2026-09-15)
+
+USDT happy-path release slice live: provider marks delivery, buyer confirms
+receipt, server-signed contract release with a 3-confirmation policy flips
+both rows to `released`. No disputes, admin resolution, auto-refund,
+`refund()`, NIM path, UI, or Solidity.
+
+Carried-in decisions (implemented as stated, not re-litigated): (1) scope
+split 14d-3a = delivery + confirm + release, 14d-3b = dispute/resolve/
+refund; (2) built against the interface now, mocked-client tests, no
+deployment; (3) new `escrows.provider_payout_address TEXT NULL`, supplied
+in `mark-delivered` on first call, immutable, later mismatch → 409; (4)
+release confirmation policy 3 (NIM precedent),
+`ESCROW_RELEASE_CONFIRMATIONS` default 3; (5) `ESCROW_DISPUTE_WINDOW_SECONDS`
+default 86400, set as `dispute_window_ends` on delivery, no dispute logic;
+(6) server secret `ESCROW_SIGNER_PRIVATE_KEY`, lazy-loaded, never logged/
+returned/committed, cross-checked against `ESCROW_SIGNER_ADDRESS`, missing/
+malformed/mismatch → fail closed; (7) `listSlotClaimsForProvider` shim
+reworked to all 12 statuses; (8) no new runtime dependency (viem covers
+signing); (9) USDT only.
+
+Migration: `0005_crazy_jamie_braddock.sql` (single `ALTER TABLE escrows ADD
+COLUMN provider_payout_address text`, generated diff clean, applied to live
+Supabase); `db/verify.ts` asserts the column.
+
+Signer-key handling: first server-side private key in this project.
+`loadEscrowSigner()` reads `ESCROW_SIGNER_PRIVATE_KEY` lazily on first
+release attempt and caches the viem account; 32-byte-hex validated;
+derived address cross-checked against `ESCROW_SIGNER_ADDRESS` when set; any
+failure throws the generic `EscrowSignerUnavailableError` (no key material
+in messages); the key is never logged, stringified, returned, or committed
+(proven by a source scan + shape test); only the Polygon client imports the
+module. Production gap: env secret for the competition build, KMS in
+production.
+
+Implementation notes: `release()` broadcasts via viem `writeContract` and
+returns the hash immediately (service polls receipts); reverted receipts map
+to null (fail closed — a revert moves no funds); no `viem/chains` import
+(that barrel pulls DOM-dependent sources that break the API's DOM-less tsc
+build — bisected — so the wallet chain descriptor carries the RPC's live
+chain id instead); `mark-delivered` by a buyer → 404 `CLAIM_NOT_FOUND`
+(documented choice: provider-owner-only resource, never an existence leak);
+wrong-state delivery/confirm → 409 `CLAIM_NOT_PAYABLE`; release replay
+across escrows (unique-violation on store) → 409 `CONFLICT`; no new error
+code was needed (`ESCROW_RELEASE_FAILED` already existed in ARCH §15).
+Mid-phase finds (fixed, with regression proof): `0X`-prefixed EVM addresses
+rejected by an over-strict regex (now accepted, normalized lowercase);
+mock broadcast hash reused across tests collided on the UNIQUE constraint
+(now fresh per test).
+
+Counts-shape sweep (owner-authorized 2026-09-15): repo-wide grep for counts
+assertions found exactly two files — `provider-dashboards.test.ts`
+(rewritten to 12 keys + new escrow-lifecycle test) and
+`e2e-acceptance.test.ts:328` (minimal 12-key update, zeros for the
+happy-path scenario). No other `*.test.ts` asserts the shape
+(`concurrency-sweep` mentions counts only in a comment; web
+`SlotClaimCounts` is display-only and untouched). The expected-set list is
+expanded by this finding to include `e2e-acceptance.test.ts`.
+
+```text
+CURRENT PHASE: Phase 14d-3a complete — delivery + USDT release live. Do NOT
+  begin Phase 14d-3b.
+COMPLETED: signer module + real release()/receipts + 0005 migration +
+  markDelivered/confirmReceipt/reads + 2 endpoints + GET buyer-or-provider +
+  12-key counts rework + 20 new tests + docs + this checkpoint
+TESTS RUN: typecheck clean exit 0 (all workspaces + db); lint clean exit 0;
+  api 36 files/388 pass (368 + 7 signer + 10 release + 1 dashboards + 2 env;
+  e2e updated in place) + web 16 files/129 pass (unchanged) + shared 1 pass
+  (unchanged); full-run caveat: 5 concurrency-sweep failures from Supabase
+  pool exhaustion (EMAXCONNSESSION, pool_size 15) under 36-file parallel
+  load — isolated re-run 7/7 green, no product regression (sweep paths
+  untouched); build clean; db:verify green (11 tables, 4-state index, both
+  enum values, CHECK, both new columns); test-slot/escrow residue zero
+RESULT: single commit (message below); push gated on green battery +
+  expected file set (+ e2e per authorization)
+KNOWN ISSUES:
+- LIVE DB / DOC DIVERGENCE (paid legacy enum value) — still open
+- paid-word residuals in PROJECT_SPEC.md and ARCHITECTURE.md
+- SECURITY_REVIEW.md payment rows + item 7 → 14d-8
+- README.md NIM-only intro → Phase 15
+- listSlotClaimsForProvider compat shim — RESOLVED (all 12 statuses)
+- release path untested against a real deployed contract (mock-only until
+  the contract repo deploys)
+- escrows.provider_payout_address is set by the provider at delivery time;
+  no way to change it after the first successful call (admin path is
+  14d-3b territory)
+SECURITY NOTES: first server-side private key in this project — never
+  logged, returned, or committed; lazy-loaded; address cross-checked;
+  source-scanned in tests; KMS is the production gap. Buyer-owner +
+  provider-owner reads (foreign 404, anon 401); events filtered by
+  configured contract only; signer/RPC/contract failure → 503 with zero
+  state change; conditional writes make concurrent confirms fail closed;
+  UNIQUE release_tx_hash is the replay backstop (409 CONFLICT across
+  escrows); audit metadata carries ids/states/reasons (+ the broadcast tx
+  hash on release_submitted per the phase spec — a public chain identifier,
+  also stored on the row and returned by GET /escrow)
+FILES CHANGED: db/schema/escrows.ts, db/migrations/0005_crazy_jamie_braddock.sql
+  (new) + meta (_journal.json + 0005_snapshot.json), db/verify.ts,
+  apps/api/src/escrow/polygon/signer.ts (new),
+  apps/api/src/escrow/polygon/client.ts,
+  apps/api/src/escrow/service.ts, apps/api/src/escrow/validation.ts,
+  apps/api/src/routes/escrow.ts, apps/api/src/claims/service.ts,
+  apps/api/src/env.ts, .env.example,
+  packages/shared/src/escrow/contract.ts,
+  docs/escrow-contract-interface.md,
+  apps/api/test/escrow-signer.test.ts (new, 7),
+  apps/api/test/escrow-release.test.ts (new, 10),
+  apps/api/test/escrow-service.test.ts (fakes gain getTransactionReceipt for
+  the extended interface — required for typecheck, no behavior asserted),
+  apps/api/test/provider-dashboards.test.ts (+1 test, 12-key rewrites),
+  apps/api/test/e2e-acceptance.test.ts (12-key assertion, authorized),
+  apps/api/test/env.test.ts (+2), ARCHITECTURE.md (§6 release note + §9
+  field + §13 delivery/release docs), AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: feat: phase 14d-3a — escrow delivery and USDT release
+  (single commit with this checkpoint; hash recorded at push)
+NEXT TASK: Phase 14d-3b — dispute, admin resolve, auto-refund (do NOT start
+  automatically)
+BLOCKED BY: none
+```
+
 ## Phase 14d-2 completion — binding model and window clock (2026-09-15)
 
 Completion pass for 14d-2 (`345c06e`): closed the two review items so

@@ -218,6 +218,22 @@ on-chain `buyer` is recorded by the contract for refund routing and is not
 verified backend-side. The verification window is measured from
 `claims.deposit_submitted_at`.
 
+### Phase 14d-3a release note (2026-09-15)
+
+Provider marks delivered with their EVM payout address (stored immutably on
+the escrow row; later calls must match); the claim moves to `delivered` and
+`dispute_window_ends` is set (`ESCROW_DISPUTE_WINDOW_SECONDS`, default
+86400 — no dispute logic yet, just the deadline). Buyer confirmation
+broadcasts the server-signed `release(escrowId, toProvider)` (signer key
+from `ESCROW_SIGNER_PRIVATE_KEY`, lazily loaded, cross-checked against
+`ESCROW_SIGNER_ADDRESS`, never logged/returned) and records
+`release_tx_hash` while staying `delivered`; the rows flip to `released`
+only after `ESCROW_RELEASE_CONFIRMATIONS` (default 3) Polygon confirmations
+on the release transaction. Every step is idempotent with conditional
+writes (re-submit returns pending, re-confirm after release is a no-op);
+audits are `escrow.delivered`, `escrow.release_submitted`, and
+`escrow.released`.
+
 ## 7. Slot/claim concurrency
 
 The final unit of a slot is scarce inventory and must be protected with a database transaction.
@@ -460,6 +476,7 @@ Deprecated: the payment_intents table is kept for historical rows only. All new 
 - refund_tx_hash TEXT UNIQUE NULL
 - contract_address TEXT NULL            -- USDT only
 - on_chain_escrow_id TEXT NULL          -- USDT only
+- provider_payout_address TEXT NULL     -- USDT only: EVM payout address supplied at delivery time, stored immutably
 - funded_at TIMESTAMPTZ NOT NULL
 - delivery_deadline TIMESTAMPTZ NOT NULL
 - delivered_at TIMESTAMPTZ NULL
@@ -815,17 +832,39 @@ with no state change.
 Rate limit: per-claim 1/5s (same as deprecated `verify-payment`) → 429
 `VERIFY_RATE_LIMITED` with `Retry-After`.
 
-### POST /api/v1/claims/:claimId/mark-delivered
+### POST /api/v1/claims/:claimId/mark-delivered (Phase 14d-3a: USDT live)
 
-Auth: session + provider owner of the slot only.
+Auth: session + provider owner of the slot only (buyer or stranger → 404
+`CLAIM_NOT_FOUND`, anonymous → 401).
 
-Marks the service delivered; claim moves to delivered and the dispute window starts.
+Request: `{ providerPayoutAddress: string }` (strict, `0x` + 40 hex, else
+400 `INVALID_INPUT`). Claim must be `escrow_funded`, escrow `funded`;
+anything else → 409 `CLAIM_NOT_PAYABLE`.
 
-### POST /api/v1/claims/:claimId/confirm-receipt
+Response: `{ escrow, claim }` with both rows `delivered`,
+`provider_payout_address` stored (lowercased), `delivered_at` and
+`dispute_window_ends` (= now + `ESCROW_DISPUTE_WINDOW_SECONDS`) set, and an
+`escrow.delivered` audit. Idempotent re-call with the same address → 200
+no-op; different address → 409 `CONFLICT`.
 
-Auth: session + buyer owner only.
+Rate limit: per-IP 10/60s.
 
-Confirms receipt; releases escrowed funds to the provider.
+### POST /api/v1/claims/:claimId/confirm-receipt (Phase 14d-3a: USDT live)
+
+Auth: session + buyer owner only (foreign → 404, anonymous → 401).
+
+Request: strict empty (`{}` accepted). Claim/escrow must be `delivered`,
+else 409 `CLAIM_NOT_PAYABLE`. First call broadcasts the server-signed
+contract `release()` and stores `release_tx_hash` (rows stay `delivered`,
+`escrow.release_submitted` audit), returning 200 `{ status: 'pending',
+escrow, claim }`. Later calls poll the receipt: unknown → `{ status:
+'pending' }`; under `ESCROW_RELEASE_CONFIRMATIONS` → `{ status: 'pending',
+confirmations, ... }`; at/over → one transaction flips both rows to
+`released` (`resolved_at`, `escrow.released` audit). Already `released` →
+200 no-op without any RPC call. Signer/RPC/contract failure → 503
+`ESCROW_RELEASE_FAILED` with no state change.
+
+Rate limit: per-IP 10/60s.
 
 ### POST /api/v1/claims/:claimId/dispute
 
@@ -833,12 +872,15 @@ Auth: session + buyer owner only, within the dispute window.
 
 Opens a dispute; claim moves to disputed for admin resolution.
 
-### GET /api/v1/claims/:claimId/escrow (Phase 14d-2: USDT live)
+### GET /api/v1/claims/:claimId/escrow (Phase 14d-2: USDT live, 14d-3a extended)
 
-Auth: session + buyer owner (foreign → 404, anonymous → 401).
+Auth: session + buyer owner or provider owner of the slot (neither → 404,
+anonymous → 401).
 
 Returns `{ escrow, claim }` for the claim's escrow (`ESCROW_NOT_FOUND` when
-none exists). No rate limiter beyond the shared API backstops.
+none exists), including `provider_payout_address`, `delivered_at`,
+`dispute_window_ends`, `release_tx_hash`, and `status`. No rate limiter
+beyond the shared API backstops.
 
 ### GET /api/v1/me/claims
 

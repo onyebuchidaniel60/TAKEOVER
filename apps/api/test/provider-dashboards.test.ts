@@ -227,37 +227,112 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     expect(body.data.claims[0]?.['status']).toBe('active_hold');
     expect(body.data.counts).toEqual({
       active_hold: 1,
+      expired: 0,
+      deposit_submitted: 0,
       payment_pending: 0,
       paid: 0,
       payment_review: 0,
-      expired: 0,
       cancelled: 0,
+      escrow_funded: 0,
+      delivered: 0,
+      disputed: 0,
+      released: 0,
+      refunded: 0,
     });
   });
 
-  it('counts every status bucket and sums to the array length', { timeout: 60_000 }, async () => {
+  it('counts every status bucket and sums to the array length', { timeout: 120_000 }, async () => {
     const db = getDb();
     const { cookie } = await providerLogin();
-    const slotId = await makeSlot();
+    // Twelve buyers, one claim each — slot sized so every hold succeeds.
+    const now = Date.now();
+    const { id: providerId } = await providerLogin();
+    const bigSlotId = randomUUID();
+    await db.insert(slots).values({
+      id: bigSlotId,
+      providerId,
+      title: `P9 ${tag} twelve-slot`,
+      description: `P9 ${tag} description`,
+      category: 'dining',
+      locationLabel: 'Mitte',
+      startsAt: new Date(now + 2 * HOUR),
+      endsAt: new Date(now + 4 * HOUR),
+      priceNim: 150000n,
+      totalQuantity: 20,
+      availableQuantity: 20,
+      payoutWallet: validPayout(),
+      status: 'published',
+      publishedAt: new Date(),
+    });
+    slotIds.push(bigSlotId);
     // Six buyers, one live claim each (creation order retained — no reliance
     // on unspecified SELECT order below).
     const held: { claimId: string; cookie: string }[] = [];
-    for (let i = 0; i < 6; i += 1) {
+    for (let i = 0; i < 12; i += 1) {
       const wallet = randomWallet();
       const buyerCookie = await loginAs(wallet);
-      held.push({ claimId: await claimAs(buyerCookie, slotId), cookie: buyerCookie });
+      held.push({ claimId: await claimAs(buyerCookie, bigSlotId), cookie: buyerCookie });
     }
     // [0] stays active_hold; [1] submits to payment_pending; the rest are
     // forced to the remaining statuses (read-shape test — transitions owned
     // by their own phases).
     const pending = held[1];
-    if (!pending) throw new Error('expected six holds');
+    if (!pending) throw new Error('expected twelve holds');
     await submitAs(pending.cookie, pending.claimId);
-    const forced = ['paid', 'payment_review', 'expired', 'cancelled'] as const;
+    const forced = [
+      'deposit_submitted',
+      'paid',
+      'payment_review',
+      'expired',
+      'cancelled',
+      'escrow_funded',
+      'delivered',
+      'disputed',
+      'released',
+      'refunded',
+    ] as const;
     for (let i = 0; i < forced.length; i += 1) {
       const target = held[i + 2];
-      if (!target) throw new Error('expected six holds');
+      if (!target) throw new Error('expected twelve holds');
       await db.update(claims).set({ status: forced[i] }).where(eq(claims.id, target.claimId));
+    }
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/me/slots/${bigSlotId}/claims`,
+      headers: { cookie, ...CSRF },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      data: { claims: Record<string, unknown>[]; counts: Record<string, number> };
+    };
+    expect(body.data.claims).toHaveLength(12);
+    expect(body.data.counts).toEqual({
+      active_hold: 1,
+      expired: 1,
+      deposit_submitted: 1,
+      payment_pending: 1,
+      paid: 1,
+      payment_review: 1,
+      cancelled: 1,
+      escrow_funded: 1,
+      delivered: 1,
+      disputed: 1,
+      released: 1,
+      refunded: 1,
+    });
+    const total = Object.values(body.data.counts).reduce((sum, n) => sum + n, 0);
+    expect(total).toBe(body.data.claims.length);
+  });
+
+  it('counts escrow-lifecycle claims alongside legacy ones', { timeout: 60_000 }, async () => {
+    const db = getDb();
+    const { cookie } = await providerLogin();
+    const slotId = await makeSlot();
+    const wanted = ['escrow_funded', 'delivered', 'released'] as const;
+    for (const status of wanted) {
+      const buyerCookie = await loginAs(randomWallet());
+      const claimId = await claimAs(buyerCookie, slotId);
+      await db.update(claims).set({ status }).where(eq(claims.id, claimId));
     }
     const res = await app.inject({
       method: 'GET',
@@ -268,17 +343,21 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     const body = res.json() as {
       data: { claims: Record<string, unknown>[]; counts: Record<string, number> };
     };
-    expect(body.data.claims).toHaveLength(6);
+    expect(body.data.claims).toHaveLength(3);
     expect(body.data.counts).toEqual({
-      active_hold: 1,
-      payment_pending: 1,
-      paid: 1,
-      payment_review: 1,
-      expired: 1,
-      cancelled: 1,
+      active_hold: 0,
+      expired: 0,
+      deposit_submitted: 0,
+      payment_pending: 0,
+      paid: 0,
+      payment_review: 0,
+      cancelled: 0,
+      escrow_funded: 1,
+      delivered: 1,
+      disputed: 0,
+      released: 1,
+      refunded: 0,
     });
-    const total = Object.values(body.data.counts).reduce((sum, n) => sum + n, 0);
-    expect(total).toBe(body.data.claims.length);
   });
 
   it('never exposes full wallets, tx hashes, or intent fields to the provider', { timeout: 30_000 }, async () => {
