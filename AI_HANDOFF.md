@@ -3136,6 +3136,40 @@ NEXT TASK (human, in order): (1) run docs/phase-14c-seed-cleanup.sql in
   device (create → publish → claim → pay → verify → paid), then B/C/D.
   Do NOT start automatically.
 BLOCKED BY: human B1 + human device test
+
+## B1 seed cleanup EXECUTED — production fixtures removed (2026-09-15)
+
+Human approved after the Stage-1 dry run. Executed the exact statements
+from `docs/phase-14c-seed-cleanup.sql` in a single transaction with
+programmatic fence guards (ROLLBACK on any drift or nonzero post-count).
+No code changed, no deploys.
+
+```text
+CURRENT PHASE: B1 complete. Human Phase 14b re-test next (create own slot
+  first — feed holds only the human draft until real publishes). Do NOT
+  begin Phase 15.
+COMPLETED: fence checks 5/5/0/21/21/0 exact → deletes committed →
+  post-counts all zero → human data verified surviving
+TESTS RUN: none (data ops, no code changed); live verification queries only
+RESULT: COMMITTED — seed users 5, seed slots 21, seed-slot claims 5
+  (real-wallet, never payable), intents/reports/audits/profiles 0.
+  Human "Table for ten" draft + owner sessions (8) intact.
+KNOWN ISSUES: feed now holds only the human draft; Risks B/C/D untested
+SECURITY NOTES: no secrets printed (counts/IDs only); temp script deleted
+FILES CHANGED: AI_HANDOFF.md (this checkpoint only)
+GIT COMMIT: chore: phase 14c round 3 — production seed cleanup
+NEXT TASK: human Phase 14b re-test on device (self-published slot first),
+  then Risks B/C/D. Do NOT start automatically.
+BLOCKED BY: human device test
+```
+
+```text
+B1 row counts — deleted: payment_intents 0, claims 5, reports 0,
+audit_events 0, slots 21, provider_profiles 0, users 5. Post-checks:
+seed users 0, seed slots 0, seed-slot claims 0, seed intents 0.
+Human survival: slot 4bfd4fd8-… ("Table for ten", draft) present;
+owner sessions 8 present.
+```
 ```
 
 1. Files changed: 6 web src + 1 api test (new) + 2 web tests (new) + 1 SQL
