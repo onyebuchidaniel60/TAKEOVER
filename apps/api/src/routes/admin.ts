@@ -17,11 +17,23 @@ import {
   disableSlot,
   disableUser,
   listAuditEvents,
+  listEscrowsForAdmin,
   listPaymentReviews,
   listReports,
+  resolveDispute,
   resolvePaymentReview,
   resolveReport,
 } from '../admin/service';
+import {
+  createPolygonEscrowClient,
+  EscrowContractUnavailableError,
+} from '../escrow/polygon/client';
+import type { EscrowContractClient } from '../../../../packages/shared/src/escrow/contract';
+import {
+  adminEscrowsQuerySchema,
+  escrowIdParamsSchema,
+  escrowResolveBodySchema,
+} from '../escrow/validation';
 import {
   adminListQuerySchema,
   adminReportsQuerySchema,
@@ -40,6 +52,8 @@ export interface AdminRouteOptions {
     /** Per-IP admin backstop budget shared by all admin routes (default 120/min). */
     admin?: RateLimitOptions;
   };
+  /** Injected chain reader/broadcaster (tests). Production defaults to the viem Polygon client. */
+  escrowClient?: EscrowContractClient;
 }
 
 export async function adminRoutes(app: FastifyInstance, opts: AdminRouteOptions = {}): Promise<void> {
@@ -189,5 +203,86 @@ export async function adminRoutes(app: FastifyInstance, opts: AdminRouteOptions 
       limit: parsed.data.limit,
       offset: parsed.data.offset,
     });
+  });
+
+  app.get('/admin/escrows', { preHandler: adminLimiter }, async (request) => {
+    await requireAdmin(request);
+    const parsed = adminEscrowsQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      throw new AppError(400, 'INVALID_INPUT', 'Invalid query parameters.');
+    }
+    const db = getDb();
+    // Same lazy-transition rule as GET /escrow: a down RPC must not break
+    // the list, but a due transition without a client fails closed.
+    let client: EscrowContractClient | undefined;
+    if (opts.escrowClient) {
+      client = opts.escrowClient;
+    } else {
+      try {
+        client = createPolygonEscrowClient();
+      } catch (err) {
+        if (!(err instanceof EscrowContractUnavailableError)) {
+          throw err;
+        }
+        client = undefined;
+      }
+    }
+    const { escrows: rows, total } = await listEscrowsForAdmin(db, {
+      status: parsed.data.status,
+      limit: parsed.data.limit,
+      offset: parsed.data.offset,
+      client,
+      requestId: request.id,
+    });
+    return successBody(request, {
+      escrows: rows,
+      total,
+      limit: parsed.data.limit,
+      offset: parsed.data.offset,
+    });
+  });
+
+  app.post('/admin/escrows/:escrowId/resolve', { preHandler: adminLimiter, bodyLimit: 16 * 1024 }, async (request) => {
+    const admin = await requireAdmin(request);
+    const params = escrowIdParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      throw new AppError(400, 'INVALID_INPUT', 'Invalid escrow id.');
+    }
+    const body = escrowResolveBodySchema.safeParse(request.body);
+    if (!body.success) {
+      throw new AppError(400, 'INVALID_INPUT', 'Invalid resolution.');
+    }
+    const db = getDb();
+    let client: EscrowContractClient;
+    if (opts.escrowClient) {
+      client = opts.escrowClient;
+    } else {
+      try {
+        client = createPolygonEscrowClient();
+      } catch (err) {
+        if (err instanceof EscrowContractUnavailableError) {
+          throw new AppError(
+            503,
+            body.data.action === 'release' ? 'ESCROW_RELEASE_FAILED' : 'ESCROW_REFUND_FAILED',
+            'Resolution is temporarily unavailable. Please try again.',
+          );
+        }
+        throw err;
+      }
+    }
+    const result = await resolveDispute(db, {
+      escrowId: params.data.escrowId,
+      adminId: admin.id,
+      action: body.data.action,
+      resolutionNotes: body.data.resolutionNotes,
+      client,
+      requestId: request.id,
+    });
+    // Server-log only: action + escrow id, never notes or tx hashes.
+    request.log.info(
+      { escrowId: params.data.escrowId, action: body.data.action },
+      `admin escrow resolve ${body.data.action}`,
+    );
+    return successBody(request, result);
   });
 }

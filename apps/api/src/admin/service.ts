@@ -5,11 +5,19 @@
 // POST /reports (5/hour per user).
 import { and, count, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
-import { auditEvents, claims, paymentIntents, reports, sessions, slots, users } from '../../../../db/schema';
+import { auditEvents, claims, escrows, paymentIntents, reports, sessions, slots, users } from '../../../../db/schema';
 import { truncateWalletAddress } from '../auth/nimiq-address';
 import { writeAuditEvent } from '../audit/events';
 import { AppError } from '../http/errors';
 import { serializePriceNim } from '../slots/price';
+import { isUniqueViolation } from '../claims/service';
+import { EscrowContractUnavailableError, EscrowSignerUnavailableError } from '../escrow/polygon/client';
+import {
+  maybeAdvanceEscrow,
+  toEscrowView,
+  type EscrowView,
+} from '../escrow/service';
+import type { EscrowContractClient } from '../../../../packages/shared/src/escrow/contract';
 
 type Db = ReturnType<typeof getDb>;
 
@@ -626,4 +634,233 @@ export async function listAuditEvents(
     });
   }
   return { events: views, total: totalRows[0]?.value ?? 0 };
+}
+
+// ---------------------------------------------------------------------------
+// USDT escrow dispute resolution (Phase 14d-3b)
+// ---------------------------------------------------------------------------
+
+/** Full-context escrow row for admin eyes only: buyer wallet in full, tx hashes, resolution notes. */
+export interface AdminEscrowView extends EscrowView {
+  claim_status: string;
+  buyer_wallet: string;
+  resolved_by_user_id: string | null;
+}
+
+export type AdminEscrowStatus =
+  | 'created'
+  | 'funded'
+  | 'delivered'
+  | 'disputed'
+  | 'released'
+  | 'refunded'
+  | 'refunding'
+  | 'releasing';
+
+async function toAdminEscrowView(
+  db: Db,
+  escrow: typeof escrows.$inferSelect,
+): Promise<AdminEscrowView | null> {
+  const claimRows = await db.select().from(claims).where(eq(claims.id, escrow.claimId)).limit(1);
+  const claim = claimRows[0];
+  if (!claim) {
+    // Row deleted between page query and projection (concurrent cleanup).
+    // The caller skips it — a list page must never 500 on a vanishing row.
+    return null;
+  }
+  const buyerRows = await db
+    .select({ walletAddress: users.walletAddress })
+    .from(users)
+    .where(eq(users.id, escrow.buyerId))
+    .limit(1);
+  const buyerWallet = buyerRows[0]?.walletAddress;
+  if (!buyerWallet) {
+    return null;
+  }
+  return {
+    ...toEscrowView(escrow, true),
+    claim_status: claim.status,
+    buyer_wallet: buyerWallet,
+    resolved_by_user_id: escrow.resolvedByUserId,
+  };
+}
+
+/**
+ * Admin escrow list with lazy transitions: every row in the returned page
+ * runs checkEscrowTransitions before projection, so a delivery-timeout
+ * refund (or a confirmed release/refund) lands without any admin action.
+ * No secrets in the projection — wallets and tx hashes are public chain
+ * identifiers; private keys and signatures never leave the signer module.
+ */
+export async function listEscrowsForAdmin(
+  db: Db,
+  options: {
+    status?: AdminEscrowStatus;
+    limit: number;
+    offset: number;
+    client?: EscrowContractClient;
+    now?: Date;
+    requestId?: string | null;
+  },
+): Promise<{ escrows: AdminEscrowView[]; total: number }> {
+  const where = options.status === undefined ? undefined : eq(escrows.status, options.status);
+  const rows = await db
+    .select()
+    .from(escrows)
+    .where(where)
+    .orderBy(desc(escrows.createdAt))
+    .limit(options.limit)
+    .offset(options.offset);
+  const totalRows = await db.select({ value: count() }).from(escrows).where(where);
+  const views: AdminEscrowView[] = [];
+  for (const row of rows) {
+    let current;
+    try {
+      current = await maybeAdvanceEscrow(db, row, {
+        client: options.client,
+        now: options.now,
+        requestId: options.requestId,
+      });
+    } catch (err) {
+      // Row deleted between page query and sweep — skip it (see above).
+      if (err instanceof AppError && err.code === 'ESCROW_NOT_FOUND') {
+        continue;
+      }
+      throw err;
+    }
+    const view = await toAdminEscrowView(db, current);
+    if (view) {
+      views.push(view);
+    }
+  }
+  return { escrows: views, total: totalRows[0]?.value ?? 0 };
+}
+
+export type ResolveDisputeAction = 'release' | 'refund';
+
+function resolveBroadcastFailed(action: ResolveDisputeAction): AppError {
+  return action === 'release'
+    ? new AppError(503, 'ESCROW_RELEASE_FAILED', 'Release is temporarily unavailable. Please try again.')
+    : new AppError(503, 'ESCROW_REFUND_FAILED', 'Refund is temporarily unavailable. Please try again.');
+}
+
+/**
+ * Admin dispute resolution. The escrow must be disputed; the conditional
+ * disputed → releasing/refunding update admits exactly one winner (0 rows
+ * → 409 CONFLICT), so two parallel resolves produce one broadcast, one
+ * transition, one audit. Broadcast failure compensates back to disputed
+ * and surfaces 503 with no state change. The terminal flip (released /
+ * refunded) happens on a later read via checkEscrowTransitions once the
+ * confirmation policy is met.
+ */
+export async function resolveDispute(
+  db: Db,
+  options: {
+    escrowId: string;
+    adminId: string;
+    action: ResolveDisputeAction;
+    resolutionNotes: string;
+    client: EscrowContractClient;
+    now?: Date;
+    requestId?: string | null;
+  },
+): Promise<{ status: 'pending'; escrow: AdminEscrowView }> {
+  const now = options.now ?? new Date();
+  const target = options.action === 'release' ? 'releasing' : 'refunding';
+  const loaded = await db.select().from(escrows).where(eq(escrows.id, options.escrowId)).limit(1);
+  const escrow = loaded[0];
+  if (!escrow) {
+    throw new AppError(404, 'NOT_FOUND', 'Escrow not found.');
+  }
+  if (!escrow.onChainEscrowId) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+  }
+  if (options.action === 'release' && !escrow.providerPayoutAddress) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+  }
+  // No status pre-check here: the conditional update below is the arbiter.
+  // Zero rows means either the dispute was never open (re-read shows a
+  // pre-dispute state → ESCROW_DISPUTE_NOT_OPEN) or a concurrent resolve
+  // won the race (re-read shows resolving/resolved → CONFLICT).
+  const won = await db.transaction(async (tx) => {
+    const moved = await tx
+      .update(escrows)
+      .set({ status: target, updatedAt: now })
+      .where(and(eq(escrows.id, escrow.id), eq(escrows.status, 'disputed')))
+      .returning({ id: escrows.id });
+    return moved.length > 0;
+  });
+  if (!won) {
+    const reread = await db.select().from(escrows).where(eq(escrows.id, escrow.id)).limit(1);
+    const current = reread[0]?.status;
+    // A concurrent resolve won (or is broadcasting) ahead of us → race
+    // loser. Any other state was never open → not-open.
+    if (current === 'releasing' || current === 'refunding' || current === 'released' || current === 'refunded') {
+      throw new AppError(409, 'CONFLICT', 'This escrow dispute was already resolved.');
+    }
+    throw new AppError(409, 'ESCROW_DISPUTE_NOT_OPEN', 'This escrow dispute is not open for resolution.');
+  }
+  let broadcast: { txHash: string };
+  try {
+    broadcast =
+      options.action === 'release'
+        ? await options.client.release(escrow.onChainEscrowId, escrow.providerPayoutAddress as string)
+        : await options.client.refund(escrow.onChainEscrowId);
+  } catch (err) {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(escrows)
+        .set({ status: 'disputed', updatedAt: now })
+        .where(and(eq(escrows.id, escrow.id), eq(escrows.status, target)));
+    });
+    if (err instanceof EscrowSignerUnavailableError || err instanceof EscrowContractUnavailableError) {
+      throw resolveBroadcastFailed(options.action);
+    }
+    throw err;
+  }
+  try {
+    await db.transaction(async (tx) => {
+      const hashColumn = options.action === 'release' ? { releaseTxHash: broadcast.txHash } : { refundTxHash: broadcast.txHash };
+      const stored = await tx
+        .update(escrows)
+        .set({
+          ...hashColumn,
+          resolutionNotes: options.resolutionNotes,
+          resolvedByUserId: options.adminId,
+          updatedAt: now,
+        })
+        .where(and(eq(escrows.id, escrow.id), eq(escrows.status, target)))
+        .returning();
+      if (!stored[0]) {
+        throw new AppError(409, 'CONFLICT', 'This escrow changed while the resolution was submitted.');
+      }
+      await writeAuditEvent(tx, {
+        actorUserId: options.adminId,
+        eventType: options.action === 'release' ? 'escrow.releasing' : 'escrow.refunding',
+        entityType: 'claim',
+        entityId: escrow.claimId,
+        requestId: options.requestId ?? null,
+        metadata: {
+          escrowId: escrow.id,
+          claimId: escrow.claimId,
+          from: 'disputed',
+          to: target,
+          resolutionNotes: options.resolutionNotes,
+          txHash: broadcast.txHash,
+        },
+      });
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      throw new AppError(409, 'CONFLICT', 'This transaction is already recorded for another escrow.');
+    }
+    throw err;
+  }
+  const fresh = await db.select().from(escrows).where(eq(escrows.id, escrow.id)).limit(1);
+  const current = fresh[0] ?? escrow;
+  const view = await toAdminEscrowView(db, current);
+  if (!view) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+  }
+  return { status: 'pending', escrow: view };
 }

@@ -3,10 +3,12 @@ import {
   DEFAULT_ESCROW_DELIVERY_WINDOW_SECONDS,
   DEFAULT_ESCROW_DEPOSIT_VERIFICATION_SECONDS,
   DEFAULT_ESCROW_DISPUTE_WINDOW_SECONDS,
+  DEFAULT_ESCROW_REFUND_CONFIRMATIONS,
   DEFAULT_ESCROW_RELEASE_CONFIRMATIONS,
   getEscrowDeliveryWindowSeconds,
   getEscrowDepositVerificationSeconds,
   getEscrowDisputeWindowSeconds,
+  getEscrowRefundConfirmations,
   getEscrowReleaseConfirmations,
   loadEnv,
   parseEnv,
@@ -92,6 +94,19 @@ describe('env validation', () => {
     expect(getEscrowReleaseConfirmations({ ESCROW_RELEASE_CONFIRMATIONS: '6' })).toBe(6);
     expect(parseEnv({ ESCROW_RELEASE_CONFIRMATIONS: '6' })).toMatchObject({
       ESCROW_RELEASE_CONFIRMATIONS: 6,
+    });
+  });
+
+  it('refund confirmations getter defaults tolerantly and parses set values', () => {
+    expect(DEFAULT_ESCROW_REFUND_CONFIRMATIONS).toBe(3);
+    expect(getEscrowRefundConfirmations({})).toBe(3);
+    expect(getEscrowRefundConfirmations({ ESCROW_REFUND_CONFIRMATIONS: '' })).toBe(3);
+    expect(getEscrowRefundConfirmations({ ESCROW_REFUND_CONFIRMATIONS: 'garbage' })).toBe(3);
+    expect(getEscrowRefundConfirmations({ ESCROW_REFUND_CONFIRMATIONS: '0' })).toBe(3);
+    expect(getEscrowRefundConfirmations({ ESCROW_REFUND_CONFIRMATIONS: '-2' })).toBe(3);
+    expect(getEscrowRefundConfirmations({ ESCROW_REFUND_CONFIRMATIONS: '6' })).toBe(6);
+    expect(parseEnv({ ESCROW_REFUND_CONFIRMATIONS: '6' })).toMatchObject({
+      ESCROW_REFUND_CONFIRMATIONS: 6,
     });
   });
 });

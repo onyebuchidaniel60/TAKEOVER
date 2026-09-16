@@ -1,6 +1,7 @@
 // Phase 14d-2: Polygon escrow-contract client (USDT deposit path).
 // Phase 14d-3a: real server-signed release() + receipt polling for the
-// confirmation policy. Refund stays a 14d-3b stub.
+// confirmation policy.
+// Phase 14d-3b: real server-signed refund() + buyer-side disputeCallData().
 // Real implementation of EscrowContractClient from
 // packages/shared/src/escrow/contract.ts, backed by viem (base library only,
 // no Polygon kit). Reads RPC + contract address from env only — never
@@ -17,6 +18,7 @@ import {
   createPublicClient,
   createWalletClient,
   decodeEventLog,
+  encodeFunctionData,
   http,
   parseAbiItem,
   TransactionReceiptNotFoundError,
@@ -50,6 +52,10 @@ const DISPUTED_EVENT = parseAbiItem(
 const RELEASE_FUNCTION = parseAbiItem(
   'function release(bytes32 escrowId, address toProvider)',
 );
+
+const REFUND_FUNCTION = parseAbiItem('function refund(bytes32 escrowId)');
+
+const DISPUTE_FUNCTION = parseAbiItem('function dispute(bytes32 escrowId)');
 
 /** Minimal log shape needed for pure decoding (viem getLogs rows satisfy this). */
 export interface RawEscrowLog {
@@ -278,11 +284,38 @@ export function createPolygonEscrowClient(
     async getTransactionReceipt(txHash: string): Promise<{ confirmations: number } | null> {
       return receiptTx(rpcUrl, txHash);
     },
-    // Phase 14d-3b
-    async refund(): Promise<{ txHash: string }> {
-      throw new Error('Not implemented: escrow refund is Phase 14d-3b.');
+    async refund(escrowId: string): Promise<{ txHash: string }> {
+      return refundTx(rpcUrl, contractAddress, escrowId);
     },
   };
+}
+
+/**
+ * Buyer-side dispute instruction (no network, no signer). The buyer signs
+ * and broadcasts dispute(escrowId) from their own wallet; the backend only
+ * encodes the calldata and names the configured contract. Pure function —
+ * safe to call on the event-absent dispute path without any state change.
+ */
+export interface DisputeInstruction {
+  contractAddress: string;
+  onChainEscrowId: string;
+  callData: string;
+}
+
+export function disputeCallData(escrowId: string, contractAddress?: string): DisputeInstruction {
+  const address = contractAddress ?? getEscrowContractAddress();
+  if (!isHexAddress(address)) {
+    throw new EscrowContractUnavailableError('Escrow contract address is not configured.');
+  }
+  if (!isBytes32Hex(escrowId)) {
+    throw new EscrowContractUnavailableError('Invalid dispute parameters.');
+  }
+  const callData = encodeFunctionData({
+    abi: [DISPUTE_FUNCTION],
+    functionName: 'dispute',
+    args: [escrowId as `0x${string}`],
+  });
+  return { contractAddress: address, onChainEscrowId: escrowId, callData };
 }
 
 /**
@@ -352,10 +385,67 @@ async function releaseTx(
 }
 
 /**
- * Receipt poll for a broadcast release. Null while the tx is unknown
- * (still propagating) or did not succeed — both keep the escrow out of its
- * terminal state. Reverted receipts map to null (fail closed: a revert
- * moves no funds, so it must never flip the row to released).
+ * Broadcast the contract refund(escrowId) from the server signer. Same
+ * trust and error contract as releaseTx: returns the tx hash immediately
+ * after broadcast, signs for the RPC's live chain id (no `viem/chains`
+ * import — see releaseTx), and never embeds key material in errors.
+ */
+async function refundTx(
+  rpcUrl: string,
+  contractAddress: `0x${string}`,
+  escrowId: string,
+): Promise<{ txHash: string }> {
+  if (!isBytes32Hex(escrowId)) {
+    throw new EscrowContractUnavailableError('Invalid refund parameters.');
+  }
+  let account;
+  try {
+    account = loadEscrowSigner();
+  } catch (err) {
+    if (err instanceof EscrowSignerUnavailableError) {
+      throw err;
+    }
+    throw new EscrowSignerUnavailableError();
+  }
+  let chain: Chain;
+  try {
+    const probe = createPublicClient({ transport: http(rpcUrl) });
+    const chainId = await probe.getChainId();
+    chain = {
+      id: chainId,
+      name: `polygon-${chainId}`,
+      nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
+      rpcUrls: { default: { http: [rpcUrl] } },
+    };
+  } catch (err) {
+    if (err instanceof EscrowContractUnavailableError) {
+      throw err;
+    }
+    throw new EscrowContractUnavailableError('Polygon RPC request failed.');
+  }
+  try {
+    const wallet = createWalletClient({ account, chain, transport: http(rpcUrl) });
+    const txHash = await wallet.writeContract({
+      address: contractAddress,
+      abi: [REFUND_FUNCTION],
+      functionName: 'refund',
+      args: [escrowId as `0x${string}`],
+    });
+    return { txHash };
+  } catch (err) {
+    if (err instanceof EscrowSignerUnavailableError) {
+      throw err;
+    }
+    throw new EscrowContractUnavailableError('Refund transaction failed.');
+  }
+}
+
+/**
+ * Receipt poll for a broadcast release (or refund — same shape). Null while
+ * the tx is unknown (still propagating) or did not succeed — both keep the
+ * escrow out of its terminal state. Reverted receipts map to null (fail
+ * closed: a revert moves no funds, so it must never flip the row to
+ * released/refunded).
  */
 async function receiptTx(
   rpcUrl: string,

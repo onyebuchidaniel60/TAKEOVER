@@ -125,6 +125,15 @@ async function main(): Promise<void> {
   if (!hasProviderPayoutAddress) {
     throw new Error('escrows.provider_payout_address column is missing');
   }
+
+  // Phase 14d-3b: escrow-internal transitional states for refund/release broadcasts.
+  const hasRefunding = escrowLabels.has('refunding');
+  const hasReleasing = escrowLabels.has('releasing');
+  console.log(`escrow_status has refunding: ${hasRefunding}`);
+  console.log(`escrow_status has releasing: ${hasReleasing}`);
+  if (!hasRefunding || !hasReleasing) {
+    throw new Error('escrow_status enum is missing refunding/releasing');
+  }
 }
 
 main().catch((err: unknown) => {

@@ -284,4 +284,34 @@ describe.skipIf(!isDatabaseConfigured())('escrow schema constraints (live)', () 
     claimIds.push(second[0].id);
     expect(second[0].id).not.toBe(first);
   });
+
+  it('escrow_status carries the 14d-3b transitional states refunding and releasing', async () => {
+    const db = getDb();
+    const providerId = await makeUser();
+    const slotId = await makeSlot(providerId);
+    const fundedAt = new Date(Date.now() - 1000);
+    const deliveryDeadline = new Date(Date.now() + 3_600_000);
+    for (const status of ['refunding', 'releasing'] as const) {
+      const loopBuyer = await makeUser();
+      const claimId = await makeClaim(slotId, loopBuyer);
+      const inserted = await db
+        .insert(escrows)
+        .values({
+          claimId,
+          buyerId: loopBuyer,
+          providerId,
+          paymentToken: 'USDT_POLYGON',
+          amountBaseUnits: 150000n,
+          status,
+          depositTxHash: txHash(),
+          fundedAt,
+          deliveryDeadline,
+          refundTxHash: status === 'refunding' ? txHash() : null,
+          releaseTxHash: status === 'releasing' ? txHash() : null,
+        })
+        .returning({ id: escrows.id, status: escrows.status });
+      escrowIds.push(inserted[0].id);
+      expect(inserted[0].status).toBe(status);
+    }
+  });
 });

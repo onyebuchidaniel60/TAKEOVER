@@ -52,6 +52,10 @@ export const escrowStatus = pgEnum('escrow_status', [
   'disputed',
   'released',
   'refunded',
+  // Phase 14d-3b: escrow-internal transitional states (broadcast in flight,
+  // terminal flip happens on confirmation policy). No claim_status change.
+  'refunding',
+  'releasing',
 ]);
 
 export const escrowEntryType = pgEnum('escrow_entry_type', ['deposit', 'release', 'refund']);

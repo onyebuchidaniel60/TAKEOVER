@@ -19,7 +19,7 @@
 // claims.deposit_submitted_at, set on the active_hold → deposit_submitted
 // transition, cleared to NULL on expiry to payment_review, left in place on
 // escrow_funded as historical record.
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { getDb } from '../../../../db/client';
 import { claims, escrows, slots, users } from '../../../../db/schema';
@@ -30,8 +30,10 @@ import {
   getEscrowDeliveryWindowSeconds,
   getEscrowDepositVerificationSeconds,
   getEscrowDisputeWindowSeconds,
+  getEscrowRefundConfirmations,
   getEscrowReleaseConfirmations,
 } from '../env';
+import { disputeCallData, type DisputeInstruction } from './polygon/client';
 import { isUniqueViolation } from '../claims/service';
 import { toClaimView, type ClaimView } from '../claims/claim-view';
 import { AppError } from '../http/errors';
@@ -55,7 +57,14 @@ export interface EscrowView {
   provider_payout_address: string | null;
   delivered_at: string | null;
   dispute_window_ends: string | null;
+  disputed_at: string | null;
   release_tx_hash: string | null;
+  refund_tx_hash: string | null;
+  resolved_at: string | null;
+  // Admin resolution reasoning. Populated for provider and admin views
+  // only — the buyer view carries null (the buyer sees THAT a resolution
+  // happened via status/resolved_at, not the admin's reasoning).
+  resolution_notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -69,9 +78,9 @@ export interface DepositInstruction {
   buyerWallet: string;
 }
 
-type EscrowRow = typeof escrows.$inferSelect;
+export type EscrowRow = typeof escrows.$inferSelect;
 
-function toEscrowView(row: EscrowRow): EscrowView {
+export function toEscrowView(row: EscrowRow, includeResolutionNotes = false): EscrowView {
   return {
     id: row.id,
     claim_id: row.claimId,
@@ -87,7 +96,11 @@ function toEscrowView(row: EscrowRow): EscrowView {
     provider_payout_address: row.providerPayoutAddress,
     delivered_at: row.deliveredAt ? row.deliveredAt.toISOString() : null,
     dispute_window_ends: row.disputeWindowEnds ? row.disputeWindowEnds.toISOString() : null,
+    disputed_at: row.disputedAt ? row.disputedAt.toISOString() : null,
     release_tx_hash: row.releaseTxHash,
+    refund_tx_hash: row.refundTxHash,
+    resolved_at: row.resolvedAt ? row.resolvedAt.toISOString() : null,
+    resolution_notes: includeResolutionNotes ? row.resolutionNotes : null,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   };
@@ -562,7 +575,13 @@ export async function verifyDeposit(
 /** Buyer-scoped escrow read; foreign or missing claim → 404; no escrow → 404 ESCROW_NOT_FOUND. */
 export async function getEscrowForBuyer(
   db: Db,
-  options: { claimId: string; buyerId: string },
+  options: {
+    claimId: string;
+    buyerId: string;
+    client?: EscrowContractClient;
+    now?: Date;
+    requestId?: string | null;
+  },
 ): Promise<{ escrow: EscrowView; claim: ClaimView }> {
   const claimRows = await db
     .select()
@@ -582,13 +601,27 @@ export async function getEscrowForBuyer(
   if (!escrow) {
     throw new AppError(404, 'ESCROW_NOT_FOUND', 'No escrow for this claim.');
   }
-  return { escrow: toEscrowView(escrow), claim: toClaimView(claim) };
+  const current = await maybeAdvanceEscrow(db, escrow, options);
+  // The transition may have moved the claim too (refunded/released) — the
+  // projection must reflect the post-transition row, not the pre-read one.
+  const freshClaimRows = await db
+    .select()
+    .from(claims)
+    .where(eq(claims.id, claim.id))
+    .limit(1);
+  return { escrow: toEscrowView(current), claim: toClaimView(freshClaimRows[0] ?? claim) };
 }
 
 /** Provider-scoped escrow read; foreign or missing claim → 404; no escrow → 404 ESCROW_NOT_FOUND. */
 export async function getEscrowForProvider(
   db: Db,
-  options: { claimId: string; providerId: string },
+  options: {
+    claimId: string;
+    providerId: string;
+    client?: EscrowContractClient;
+    now?: Date;
+    requestId?: string | null;
+  },
 ): Promise<{ escrow: EscrowView; claim: ClaimView }> {
   const claimRows = await db.select().from(claims).where(eq(claims.id, options.claimId)).limit(1);
   const claim = claimRows[0];
@@ -612,7 +645,13 @@ export async function getEscrowForProvider(
   if (!escrow) {
     throw new AppError(404, 'ESCROW_NOT_FOUND', 'No escrow for this claim.');
   }
-  return { escrow: toEscrowView(escrow), claim: toClaimView(claim) };
+  const current = await maybeAdvanceEscrow(db, escrow, options);
+  const freshClaimRows = await db
+    .select()
+    .from(claims)
+    .where(eq(claims.id, claim.id))
+    .limit(1);
+  return { escrow: toEscrowView(current, true), claim: toClaimView(freshClaimRows[0] ?? claim) };
 }
 
 /**
@@ -973,5 +1012,461 @@ export async function confirmReceipt(
       return { status: 'released' as const, escrow: toEscrowView(finalEscrow), claim: toClaimView(finalClaim) };
     }
     return { status: 'pending' as const, escrow: toEscrowView(finalEscrow), claim: toClaimView(finalClaim) };
+  });
+}
+
+function refundFailed(): AppError {
+  return new AppError(
+    503,
+    'ESCROW_REFUND_FAILED',
+    'Refund is temporarily unavailable. Please try again.',
+  );
+}
+
+/** Escrow states that a read may advance. Everything else is returned as-is. */
+const TRANSITION_ELIGIBLE_STATUSES = new Set(['funded', 'refunding', 'releasing']);
+
+/**
+ * Read-path gate: run checkEscrowTransitions only when the row is in a
+ * transition-eligible state. A due transition with no chain client fails
+ * closed (503) instead of silently returning a stale row; non-eligible
+ * states never touch the chain, so reads keep working when the RPC is down.
+ */
+export async function maybeAdvanceEscrow(
+  db: Db,
+  escrow: EscrowRow,
+  options: { client?: EscrowContractClient; now?: Date; requestId?: string | null },
+): Promise<EscrowRow> {
+  if (!TRANSITION_ELIGIBLE_STATUSES.has(escrow.status)) {
+    return escrow;
+  }
+  if (!options.client) {
+    throw new AppError(
+      503,
+      'ESCROW_CONTRACT_UNAVAILABLE',
+      'Escrow status is temporarily unavailable. Please try again.',
+    );
+  }
+  return checkEscrowTransitions(db, {
+    escrowId: escrow.id,
+    client: options.client,
+    now: options.now,
+    requestId: options.requestId,
+  });
+}
+
+/**
+ * Lazy escrow state machine, called on every escrow read (buyer/provider
+ * GET /escrow, admin list). No worker or cron exists — eventual consistency
+ * requires a read. Three behaviors by state; everything else is a no-op:
+ *
+ * - funded + delivery_deadline past: conditional funded → refunding wins
+ *   exactly one broadcaster; the winner broadcasts refund(), stores
+ *   refund_tx_hash, and writes the escrow.refunding audit (reason
+ *   delivery_timeout). Broadcast failure compensates back to funded and
+ *   surfaces 503 ESCROW_REFUND_FAILED — no partial state.
+ * - refunding + refund_tx_hash: receipt confirmations ≥
+ *   ESCROW_REFUND_CONFIRMATIONS flip escrow → refunded (resolved_at) and
+ *   claim escrow_funded → refunded with an escrow.refunded audit.
+ * - releasing + release_tx_hash: same pattern with
+ *   ESCROW_RELEASE_CONFIRMATIONS; claim disputed → released with an
+ *   escrow.released audit.
+ *
+ * Returns the row's current (possibly advanced) state. Concurrent callers
+ * fail closed into the winner's state: exactly one broadcast, one
+ * transition, one audit per movement.
+ */
+export async function checkEscrowTransitions(
+  db: Db,
+  options: { escrowId: string; client: EscrowContractClient; now?: Date; requestId?: string | null },
+): Promise<EscrowRow> {
+  const now = options.now ?? new Date();
+  const rows = await db.select().from(escrows).where(eq(escrows.id, options.escrowId)).limit(1);
+  const escrow = rows[0];
+  if (!escrow) {
+    throw new AppError(404, 'ESCROW_NOT_FOUND', 'No escrow for this claim.');
+  }
+  if (escrow.status === 'funded') {
+    return advanceFundedToRefunding(db, escrow, options.client, now, options.requestId ?? null);
+  }
+  if (escrow.status === 'refunding') {
+    return advanceRefundingToRefunded(db, escrow, options.client, now, options.requestId ?? null);
+  }
+  if (escrow.status === 'releasing') {
+    return advanceReleasingToReleased(db, escrow, options.client, now, options.requestId ?? null);
+  }
+  return escrow;
+}
+
+async function loadClaimForEscrow(db: Db, escrow: EscrowRow) {
+  const claimRows = await db.select().from(claims).where(eq(claims.id, escrow.claimId)).limit(1);
+  return claimRows[0] ?? null;
+}
+
+async function advanceFundedToRefunding(
+  db: Db,
+  escrow: EscrowRow,
+  client: EscrowContractClient,
+  now: Date,
+  requestId: string | null,
+): Promise<EscrowRow> {
+  if (!escrow.deliveryDeadline || escrow.deliveryDeadline.getTime() >= now.getTime()) {
+    return escrow;
+  }
+  if (!escrow.onChainEscrowId) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+  }
+  const claim = await loadClaimForEscrow(db, escrow);
+  if (!claim || claim.status !== 'escrow_funded') {
+    return escrow;
+  }
+  const won = await db.transaction(async (tx) => {
+    const moved = await tx
+      .update(escrows)
+      .set({ status: 'refunding', updatedAt: now })
+      .where(and(eq(escrows.id, escrow.id), eq(escrows.status, 'funded')))
+      .returning({ id: escrows.id });
+    return moved.length > 0;
+  });
+  if (!won) {
+    const reread = await db.select().from(escrows).where(eq(escrows.id, escrow.id)).limit(1);
+    return reread[0] ?? escrow;
+  }
+  let broadcast: { txHash: string };
+  try {
+    broadcast = await client.refund(escrow.onChainEscrowId);
+  } catch (err) {
+    // Compensate: back to funded so the next read retries, no partial state.
+    await db.transaction(async (tx) => {
+      await tx
+        .update(escrows)
+        .set({ status: 'funded', updatedAt: now })
+        .where(and(eq(escrows.id, escrow.id), eq(escrows.status, 'refunding')));
+    });
+    if (err instanceof EscrowSignerUnavailableError || err instanceof EscrowContractUnavailableError) {
+      throw refundFailed();
+    }
+    throw err;
+  }
+  try {
+    await db.transaction(async (tx) => {
+      const stored = await tx
+        .update(escrows)
+        .set({ refundTxHash: broadcast.txHash, updatedAt: now })
+        .where(and(eq(escrows.id, escrow.id), eq(escrows.status, 'refunding')))
+        .returning();
+      if (!stored[0]) {
+        throw new AppError(409, 'CONFLICT', 'This escrow changed while the refund was submitted.');
+      }
+      await writeAuditEvent(tx, {
+        actorUserId: escrow.buyerId,
+        eventType: 'escrow.refunding',
+        entityType: 'claim',
+        entityId: escrow.claimId,
+        requestId,
+        metadata: {
+          escrowId: escrow.id,
+          claimId: escrow.claimId,
+          from: 'funded',
+          to: 'refunding',
+          reason: 'delivery_timeout',
+          txHash: broadcast.txHash,
+        },
+      });
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      throw new AppError(409, 'CONFLICT', 'This refund transaction is already recorded for another escrow.');
+    }
+    throw err;
+  }
+  const fresh = await db.select().from(escrows).where(eq(escrows.id, escrow.id)).limit(1);
+  return fresh[0] ?? escrow;
+}
+
+async function pollReceiptOr503(
+  client: EscrowContractClient,
+  txHash: string,
+  failed: () => AppError,
+): Promise<{ confirmations: number } | null> {
+  try {
+    return await client.getTransactionReceipt(txHash);
+  } catch (err) {
+    if (err instanceof EscrowSignerUnavailableError || err instanceof EscrowContractUnavailableError) {
+      throw failed();
+    }
+    throw err;
+  }
+}
+
+async function advanceRefundingToRefunded(
+  db: Db,
+  escrow: EscrowRow,
+  client: EscrowContractClient,
+  now: Date,
+  requestId: string | null,
+): Promise<EscrowRow> {
+  if (!escrow.refundTxHash) {
+    return escrow;
+  }
+  const receipt = await pollReceiptOr503(client, escrow.refundTxHash, refundFailed);
+  if (receipt === null || receipt.confirmations < getEscrowRefundConfirmations()) {
+    return escrow;
+  }
+  const final = await db.transaction(async (tx) => {
+    const freshEscrowRows = await tx
+      .select()
+      .from(escrows)
+      .where(eq(escrows.id, escrow.id))
+      .for('update')
+      .limit(1);
+    const freshEscrow = freshEscrowRows[0];
+    if (!freshEscrow) {
+      throw new AppError(404, 'ESCROW_NOT_FOUND', 'No escrow for this claim.');
+    }
+    const freshClaimRows = await tx
+      .select()
+      .from(claims)
+      .where(eq(claims.id, escrow.claimId))
+      .for('update')
+      .limit(1);
+    const freshClaim = freshClaimRows[0];
+    if (!freshClaim) {
+      throw new AppError(404, 'CLAIM_NOT_FOUND', 'Claim not found.');
+    }
+    // Two entry paths converge here: lazy auto-refund (claim escrow_funded)
+    // and admin-resolve refund (claim disputed). Anything else is a stuck
+    // pair — return without writing.
+    if (freshEscrow.status !== 'refunding' || (freshClaim.status !== 'escrow_funded' && freshClaim.status !== 'disputed')) {
+      return freshEscrow;
+    }
+    const updated = await tx
+      .update(escrows)
+      .set({ status: 'refunded', resolvedAt: now, updatedAt: now })
+      .where(and(eq(escrows.id, freshEscrow.id), eq(escrows.status, 'refunding')))
+      .returning();
+    const updatedClaim = await tx
+      .update(claims)
+      .set({ status: 'refunded', updatedAt: now })
+      .where(and(eq(claims.id, freshClaim.id), inArray(claims.status, ['escrow_funded', 'disputed'])))
+      .returning();
+    const finalEscrow = updated[0] ?? freshEscrow;
+    if (updatedClaim[0]) {
+      await writeAuditEvent(tx, {
+        actorUserId: escrow.buyerId,
+        eventType: 'escrow.refunded',
+        entityType: 'claim',
+        entityId: freshClaim.id,
+        requestId,
+        metadata: { escrowId: freshEscrow.id, claimId: freshClaim.id, from: freshClaim.status, to: 'refunded' },
+      });
+    }
+    return finalEscrow;
+  });
+  return final;
+}
+
+async function advanceReleasingToReleased(
+  db: Db,
+  escrow: EscrowRow,
+  client: EscrowContractClient,
+  now: Date,
+  requestId: string | null,
+): Promise<EscrowRow> {
+  if (!escrow.releaseTxHash) {
+    return escrow;
+  }
+  const receipt = await pollReceiptOr503(client, escrow.releaseTxHash, releaseFailed);
+  if (receipt === null || receipt.confirmations < getEscrowReleaseConfirmations()) {
+    return escrow;
+  }
+  const final = await db.transaction(async (tx) => {
+    const freshEscrowRows = await tx
+      .select()
+      .from(escrows)
+      .where(eq(escrows.id, escrow.id))
+      .for('update')
+      .limit(1);
+    const freshEscrow = freshEscrowRows[0];
+    if (!freshEscrow) {
+      throw new AppError(404, 'ESCROW_NOT_FOUND', 'No escrow for this claim.');
+    }
+    const freshClaimRows = await tx
+      .select()
+      .from(claims)
+      .where(eq(claims.id, escrow.claimId))
+      .for('update')
+      .limit(1);
+    const freshClaim = freshClaimRows[0];
+    if (!freshClaim) {
+      throw new AppError(404, 'CLAIM_NOT_FOUND', 'Claim not found.');
+    }
+    // Admin-release path only: the confirm-receipt (delivered → released)
+    // path keeps its own release_tx_hash IS NULL guard and never enters
+    // the releasing state.
+    if (freshEscrow.status !== 'releasing' || freshClaim.status !== 'disputed') {
+      return freshEscrow;
+    }
+    const updated = await tx
+      .update(escrows)
+      .set({ status: 'released', resolvedAt: now, updatedAt: now })
+      .where(and(eq(escrows.id, freshEscrow.id), eq(escrows.status, 'releasing')))
+      .returning();
+    const updatedClaim = await tx
+      .update(claims)
+      .set({ status: 'released', updatedAt: now })
+      .where(and(eq(claims.id, freshClaim.id), eq(claims.status, 'disputed')))
+      .returning();
+    const finalEscrow = updated[0] ?? freshEscrow;
+    if (updatedClaim[0]) {
+      await writeAuditEvent(tx, {
+        actorUserId: escrow.buyerId,
+        eventType: 'escrow.released',
+        entityType: 'claim',
+        entityId: freshClaim.id,
+        requestId,
+        metadata: { escrowId: freshEscrow.id, claimId: freshClaim.id, from: 'disputed', to: 'released' },
+      });
+    }
+    return finalEscrow;
+  });
+  return final;
+}
+
+export type DisputeStatus = 'pending' | 'disputed';
+
+export interface DisputeResult {
+  status: DisputeStatus;
+  disputeInstruction?: DisputeInstruction;
+  escrow: EscrowView;
+  claim: ClaimView;
+}
+
+/**
+ * Buyer dispute: one endpoint, two behaviors. The buyer calls the contract's
+ * dispute(escrowId) from their own wallet (the server never broadcasts it);
+ * this endpoint hands them the call instruction until the on-chain Disputed
+ * event becomes visible, then flips both rows to disputed in one
+ * transaction. Idempotent: already-disputed returns 200 no-op. No state
+ * change on the pending path.
+ */
+export async function dispute(
+  db: Db,
+  options: {
+    claimId: string;
+    buyerId: string;
+    client: EscrowContractClient;
+    now?: Date;
+    requestId?: string | null;
+  },
+): Promise<DisputeResult> {
+  const now = options.now ?? new Date();
+  const loaded = await db.transaction(async (tx) => {
+    const claimRows = await tx
+      .select()
+      .from(claims)
+      .where(and(eq(claims.id, options.claimId), eq(claims.buyerId, options.buyerId)))
+      .limit(1);
+    const claim = claimRows[0];
+    if (!claim) {
+      throw new AppError(404, 'CLAIM_NOT_FOUND', 'Claim not found.');
+    }
+    const escrowRows = await tx
+      .select()
+      .from(escrows)
+      .where(eq(escrows.claimId, claim.id))
+      .limit(1);
+    return { claim, escrow: escrowRows[0] ?? null };
+  });
+  const { claim, escrow } = loaded;
+  if (!escrow) {
+    throw new AppError(404, 'ESCROW_NOT_FOUND', 'No escrow for this claim.');
+  }
+  if (claim.status === 'disputed' && escrow.status === 'disputed') {
+    return { status: 'disputed', escrow: toEscrowView(escrow), claim: toClaimView(claim) };
+  }
+  if (claim.status !== 'delivered' || escrow.status !== 'delivered') {
+    throw new AppError(409, 'CLAIM_NOT_PAYABLE', 'This claim cannot be disputed right now.');
+  }
+  if (!escrow.disputeWindowEnds) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+  }
+  if (now.getTime() > escrow.disputeWindowEnds.getTime()) {
+    throw new AppError(409, 'ESCROW_DISPUTE_WINDOW_CLOSED', 'The dispute window for this escrow has closed.');
+  }
+  if (!escrow.onChainEscrowId) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+  }
+  let event;
+  try {
+    event = await options.client.getDisputeEvent(escrow.onChainEscrowId);
+  } catch (err) {
+    if (err instanceof EscrowContractUnavailableError) {
+      throw new AppError(
+        503,
+        'ESCROW_CONTRACT_UNAVAILABLE',
+        'Dispute status is temporarily unavailable. Please try again.',
+      );
+    }
+    throw err;
+  }
+  if (!event) {
+    let instruction: DisputeInstruction;
+    try {
+      instruction = disputeCallData(escrow.onChainEscrowId, escrow.contractAddress ?? undefined);
+    } catch (err) {
+      if (err instanceof EscrowContractUnavailableError) {
+        throw new AppError(
+          503,
+          'ESCROW_CONTRACT_UNAVAILABLE',
+          'Dispute status is temporarily unavailable. Please try again.',
+        );
+      }
+      throw err;
+    }
+    return {
+      status: 'pending',
+      disputeInstruction: instruction,
+      escrow: toEscrowView(escrow),
+      claim: toClaimView(claim),
+    };
+  }
+  return db.transaction(async (tx) => {
+    const updatedEscrow = await tx
+      .update(escrows)
+      .set({ status: 'disputed', disputedAt: now, updatedAt: now })
+      .where(and(eq(escrows.id, escrow.id), eq(escrows.status, 'delivered')))
+      .returning();
+    const updatedClaim = await tx
+      .update(claims)
+      .set({ status: 'disputed', updatedAt: now })
+      .where(and(eq(claims.id, claim.id), eq(claims.status, 'delivered')))
+      .returning();
+    const finalEscrow = updatedEscrow[0] ?? escrow;
+    const finalClaim = updatedClaim[0] ?? claim;
+    if (updatedClaim[0]) {
+      await writeAuditEvent(tx, {
+        actorUserId: options.buyerId,
+        eventType: 'escrow.disputed',
+        entityType: 'claim',
+        entityId: claim.id,
+        requestId: options.requestId ?? null,
+        metadata: { escrowId: escrow.id, claimId: claim.id, from: 'delivered', to: 'disputed' },
+      });
+      return { status: 'disputed' as const, escrow: toEscrowView(finalEscrow), claim: toClaimView(finalClaim) };
+    }
+    // Lost a race: the winner flipped both rows — re-read their state
+    // instead of returning our stale pre-read views.
+    const reEscrow = (
+      await tx.select().from(escrows).where(eq(escrows.id, escrow.id)).limit(1)
+    )[0];
+    const reClaim = (
+      await tx.select().from(claims).where(eq(claims.id, claim.id)).limit(1)
+    )[0];
+    return {
+      status: 'disputed' as const,
+      escrow: toEscrowView(reEscrow ?? finalEscrow),
+      claim: toClaimView(reClaim ?? finalClaim),
+    };
   });
 }

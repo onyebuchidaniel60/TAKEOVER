@@ -36,6 +36,10 @@ const envSchema = z.object({
     emptyToUndefined,
     z.coerce.number().int().positive().optional(),
   ),
+  ESCROW_REFUND_CONFIRMATIONS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().positive().optional(),
+  ),
   POLYGON_RPC_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
   USDT_ESCROW_CONTRACT_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   USDT_TOKEN_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
@@ -183,6 +187,26 @@ export function getEscrowReleaseConfirmations(
     }
   }
   return DEFAULT_ESCROW_RELEASE_CONFIRMATIONS;
+}
+
+/**
+ * Refund confirmation policy: Polygon confirmations required on the
+ * refund transaction before claim/escrow flip to refunded. Default 3,
+ * mirroring the release policy. Tolerant like every other getter.
+ */
+export const DEFAULT_ESCROW_REFUND_CONFIRMATIONS = 3;
+
+export function getEscrowRefundConfirmations(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): number {
+  const raw = env.ESCROW_REFUND_CONFIRMATIONS;
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const parsed = Number(raw);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return DEFAULT_ESCROW_REFUND_CONFIRMATIONS;
 }
 
 /**

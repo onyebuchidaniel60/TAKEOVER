@@ -234,6 +234,22 @@ writes (re-submit returns pending, re-confirm after release is a no-op);
 audits are `escrow.delivered`, `escrow.release_submitted`, and
 `escrow.released`.
 
+### Phase 14d-3b dispute/refund note (2026-09-16)
+
+Dispute is buyer-initiated on-chain and backend-observed: the buyer calls the
+contract's `dispute(escrowId)` from their own wallet (the server never
+broadcasts it); `POST /claims/:claimId/dispute` returns the call instruction
+until the `Disputed` event is visible, then flips claim and escrow to
+`disputed` for admin resolution (release or refund, both server-signed with
+the same signer as 14d-3a). Auto-refund is lazy — no worker exists: every
+escrow read (`GET /escrow` buyer/provider views, `GET /admin/escrows`)
+first runs the transition check, so a `funded` escrow past its
+`delivery_deadline` broadcasts `refund()` and parks in `refunding`, and
+`refunding`/`releasing` rows flip terminal once `ESCROW_REFUND_CONFIRMATIONS`
+/ `ESCROW_RELEASE_CONFIRMATIONS` (both default 3) are met. Reads trigger
+transitions; a funded escrow past deadline refunds on next read, never
+spontaneously.
+
 ## 7. Slot/claim concurrency
 
 The final unit of a slot is scarce inventory and must be protected with a database transaction.
@@ -293,13 +309,14 @@ PUBLISHED -> EXPIRED occurs when start_at has passed without a paid claim. Any q
 ```text
 active_hold -> escrow_funded
                |
+               +-> refunded                     (delivery timeout, lazy auto-refund)
+               |
                v
             delivered
                |
-               +-> released
-               +-> disputed -> released
-                           \-> refunded
-            (escrow_funded -> refunded on delivery timeout)
+               +-> released                     (buyer confirm-receipt path)
+               +-> disputed -> released         (admin resolve → release)
+                           \-> refunded         (admin resolve → refund)
 active_hold -> expired
 active_hold -> cancelled
 ```
@@ -319,8 +336,9 @@ active_hold ──(no deposit reference in window)──> expired
                           ▼                   ▼                   ▼
                     escrow_funded       payment_review       payment_review
                           │
-                          ▼
-                     delivered → released / disputed / refunded
+                           ▼
+                     escrow_funded → delivered → released / disputed / refunded
+                                     └→ refunded on delivery timeout (lazy auto-refund)
 ```
 
 The deposit reference is recorded via escrow-submission; inventory stays
@@ -338,7 +356,7 @@ CREATED -> SUBMITTED -> VERIFIED
                     \-> REVIEW
 ```
 
-The same transaction cannot verify two successful payment intents. The current escrow flow is represented by the claim state machine above plus the `escrow_status` values (`funded`, `delivered`, `disputed`, `released`, `refunded`).
+The same transaction cannot verify two successful payment intents. The current escrow flow is represented by the claim state machine above plus the `escrow_status` values (`created`, `funded`, `delivered`, `disputed`, `released`, `refunded`, plus the escrow-internal transitional states `refunding` and `releasing` used while a refund/release broadcast awaits its confirmation policy).
 
 ## 9. Database model
 
@@ -470,7 +488,8 @@ Deprecated: the payment_intents table is kept for historical rows only. All new 
 - provider_id UUID FK users.id
 - payment_token ENUM('NIM','USDT_POLYGON') NOT NULL
 - amount_base_units BIGINT NOT NULL
-- status ENUM(escrow_status: 'funded','delivered','disputed','released','refunded') NOT NULL
+- status ENUM(escrow_status: 'created','funded','delivered','disputed','released','refunded','refunding','releasing') NOT NULL
+  -- 'refunding'/'releasing' are escrow-internal transitional states (broadcast in flight); the claim row never carries them.
 - deposit_tx_hash TEXT UNIQUE NOT NULL   -- on-chain deposit tx: NIM transfer hash, or Polygon tx hash containing the escrow contract's Deposited event
 - release_tx_hash TEXT UNIQUE NULL
 - refund_tx_hash TEXT UNIQUE NULL
@@ -866,21 +885,42 @@ confirmations, ... }`; at/over → one transaction flips both rows to
 
 Rate limit: per-IP 10/60s.
 
-### POST /api/v1/claims/:claimId/dispute
+### POST /api/v1/claims/:claimId/dispute (Phase 14d-3b: USDT live)
 
-Auth: session + buyer owner only, within the dispute window.
+Auth: session + buyer owner only (foreign → 404, anonymous → 401).
 
-Opens a dispute; claim moves to disputed for admin resolution.
+Request: strict empty (`{}` accepted). Claim/escrow must be `delivered`,
+else 409 `CLAIM_NOT_PAYABLE`; past `dispute_window_ends` → 409
+`ESCROW_DISPUTE_WINDOW_CLOSED`. One endpoint, two behaviors: while the
+contract's `Disputed` event for the escrow is not visible, returns 200
+`{ status: 'pending', disputeInstruction: { contractAddress,
+onChainEscrowId, callData }, escrow, claim }` with no state change (the
+buyer signs and broadcasts `dispute(escrowId)` from their own wallet); once
+the event is visible, one transaction flips both rows to `disputed`
+(`disputed_at`, `escrow.disputed` audit), returning 200
+`{ status: 'disputed', escrow, claim }`. Already `disputed` → 200 no-op.
 
-### GET /api/v1/claims/:claimId/escrow (Phase 14d-2: USDT live, 14d-3a extended)
+Rate limit: per-IP 10/60s.
+
+### GET /api/v1/claims/:claimId/escrow (Phase 14d-2: USDT live, 14d-3a extended, 14d-3b lazy transitions)
 
 Auth: session + buyer owner or provider owner of the slot (neither → 404,
 anonymous → 401).
 
 Returns `{ escrow, claim }` for the claim's escrow (`ESCROW_NOT_FOUND` when
 none exists), including `provider_payout_address`, `delivered_at`,
-`dispute_window_ends`, `release_tx_hash`, and `status`. No rate limiter
+`dispute_window_ends`, `disputed_at`, `release_tx_hash`, `refund_tx_hash`,
+`resolved_at`, and `status`. `resolution_notes` is populated for the
+provider view only (the buyer view carries null). No rate limiter
 beyond the shared API backstops.
+
+Lazy transitions run BEFORE the projection: a `funded` escrow past its
+`delivery_deadline` broadcasts `refund()` and returns `refunding`;
+`refunding`/`releasing` rows with met confirmation policies return
+`refunded`/`released`. A due transition with an unreachable chain fails
+closed (503); rows that cannot transition are returned without any chain
+call, so reads keep working when the RPC is down. NOT triggered from
+`GET /me/claims` (no side effects from a list view).
 
 ### GET /api/v1/me/claims
 
@@ -964,17 +1004,37 @@ Query: `eventType`, `entityType`, `entityId`, `actorUserId`, `since`,
 wallets; metadata holds IDs/states/reasons only — never wallets, tx
 hashes, or credentials.
 
-### GET /api/v1/admin/escrows
+### GET /api/v1/admin/escrows (Phase 14d-3b: USDT live)
 
-Auth: admin (401/403 as above).
+Auth: admin (anonymous → 401, non-admin → 403 `FORBIDDEN`, never 404).
 
-Query: `status`, `limit`, `offset`. Escrows awaiting or under review with full reconciliation context.
+Query: `status` (any of the eight `escrow_status` values), `limit`, `offset`.
+Sort `created_at` DESC. Every row in the returned page runs the lazy
+transition check before projection, so delivery-timeout refunds and
+confirmed releases/refunds land without any admin action. Full
+reconciliation context per row: buyer wallet (full — admin eyes only),
+provider payout address, on-chain escrow id, amounts, all timestamps, all
+tx hashes, `resolution_notes`, `resolved_by_user_id`, and claim status.
+No private keys or signature bodies anywhere in the response (only public
+chain identifiers). Rows deleted between page query and projection are
+skipped, never 500.
 
-### POST /api/v1/admin/escrows/:escrowId/resolve
+### POST /api/v1/admin/escrows/:escrowId/resolve (Phase 14d-3b: USDT live)
 
-Auth: admin.
+Auth: admin (anonymous → 401, non-admin → 403).
 
-Body: `{ action: 'release' | 'refund', resolutionNotes (5–1000) }`. Releases funds to the provider or refunds them to the buyer per the resolution. Writes the resolution audit event.
+Body: `{ action: 'release' | 'refund', resolutionNotes }` (strict;
+notes 5–1000 chars after trimming, matching the existing admin resolve
+bodies). Escrow must be `disputed`, else 409 `ESCROW_DISPUTE_NOT_OPEN`.
+The conditional `disputed → releasing`/`refunding` update admits exactly
+one winner (0 rows on a re-read resolving state → 409 `CONFLICT`);
+the winner broadcasts the server-signed `release()`/`refund()`, stores the
+tx hash with `resolutionNotes`/`resolved_by`, and writes the
+`escrow.releasing`/`escrow.refunding` audit, returning 200
+`{ status: 'pending', escrow }`. Signer/RPC failure compensates back to
+`disputed` → 503 `ESCROW_RELEASE_FAILED` / `ESCROW_REFUND_FAILED` with no
+state change. The terminal flip happens on a later read once the
+confirmation policy is met.
 
 ### Phase 10 implementation note (2026-09-11)
 

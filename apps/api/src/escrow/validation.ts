@@ -1,5 +1,6 @@
 // Phase 14d-2: escrow endpoint validation. Strict shapes, no unknown fields.
 import { z } from 'zod';
+import { notesField } from '../reports/validation';
 export const escrowIntentBodySchema = z.object({ token: z.enum(['NIM', 'USDT_POLYGON']) }).strict();
 
 /**
@@ -43,3 +44,46 @@ export const confirmReceiptBodySchema = z.preprocess(
   (value: unknown) => (value === undefined ? {} : value),
   z.object({}).strict(),
 );
+
+// Phase 14d-3b: dispute takes no input — the server hands back the on-chain
+// call instruction until the Disputed event is visible.
+export const disputeBodySchema = z.preprocess(
+  (value: unknown) => (value === undefined ? {} : value),
+  z.object({}).strict(),
+);
+
+// Phase 14d-3b: admin escrow surfaces. Resolution notes match the existing
+// admin resolve bodies (5–1000 chars after trimming); unknown fields out.
+export const escrowIdParamsSchema = z.object({ escrowId: z.string().uuid() }).strict();
+
+export const escrowResolveBodySchema = z
+  .object({
+    action: z.enum(['release', 'refund']),
+    resolutionNotes: notesField,
+  })
+  .strict();
+
+export const escrowStatusValues = [
+  'created',
+  'funded',
+  'delivered',
+  'disputed',
+  'released',
+  'refunded',
+  'refunding',
+  'releasing',
+] as const;
+
+export const adminEscrowsQuerySchema = z
+  .object({
+    status: z.enum(escrowStatusValues).optional(),
+    limit: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.coerce.number().int().min(1).max(50).default(20),
+    ),
+    offset: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.coerce.number().int().min(0).default(0),
+    ),
+  })
+  .strict();

@@ -31,6 +31,7 @@ import type { EscrowContractClient } from '../../../../packages/shared/src/escro
 import {
   confirmReceipt,
   createEscrowIntent,
+  dispute,
   getEscrowForBuyer,
   getEscrowForProvider,
   markDelivered,
@@ -39,6 +40,7 @@ import {
 } from '../escrow/service';
 import {
   confirmReceiptBodySchema,
+  disputeBodySchema,
   escrowIntentBodySchema,
   escrowSubmissionBodySchema,
   markDeliveredBodySchema,
@@ -53,6 +55,7 @@ export interface EscrowRouteOptions {
     verifyDeposit?: VerifyRateLimitOptions;
     markDelivered?: RateLimitOptions;
     confirmReceipt?: RateLimitOptions;
+    dispute?: RateLimitOptions;
   };
   /** Injected chain reader (tests). Production defaults to the viem Polygon client. */
   escrowClient?: EscrowContractClient;
@@ -70,6 +73,9 @@ export const DEFAULT_MARK_DELIVERED_RATE_LIMIT: RateLimitOptions = {
   ...DEFAULT_CHALLENGE_RATE_LIMIT,
 };
 export const DEFAULT_CONFIRM_RECEIPT_RATE_LIMIT: RateLimitOptions = {
+  ...DEFAULT_CHALLENGE_RATE_LIMIT,
+};
+export const DEFAULT_DISPUTE_RATE_LIMIT: RateLimitOptions = {
   ...DEFAULT_CHALLENGE_RATE_LIMIT,
 };
 
@@ -107,6 +113,9 @@ export async function escrowRoutes(app: FastifyInstance, opts: EscrowRouteOption
   );
   const confirmReceiptLimiter = createRateLimiter(
     opts.rateLimit?.confirmReceipt ?? DEFAULT_CONFIRM_RECEIPT_RATE_LIMIT,
+  );
+  const disputeLimiter = createRateLimiter(
+    opts.rateLimit?.dispute ?? DEFAULT_DISPUTE_RATE_LIMIT,
   );
 
   app.post(
@@ -299,10 +308,28 @@ export async function escrowRoutes(app: FastifyInstance, opts: EscrowRouteOption
       throw new AppError(400, 'INVALID_INPUT', 'Invalid claim id.');
     }
     const db = getDb();
+    // Lazy transitions need the chain client, but a down RPC must not break
+    // reads that cannot transition: pass undefined and let the service fail
+    // closed (503) only when a transition is actually due.
+    let client: EscrowContractClient | undefined;
+    if (opts.escrowClient) {
+      client = opts.escrowClient;
+    } else {
+      try {
+        client = createPolygonEscrowClient();
+      } catch (err) {
+        if (!(err instanceof EscrowContractUnavailableError)) {
+          throw err;
+        }
+        client = undefined;
+      }
+    }
     try {
       const result = await getEscrowForBuyer(db, {
         claimId: params.data.claimId,
         buyerId: user.id,
+        client,
+        requestId: request.id,
       });
       return successBody(request, result);
     } catch (err) {
@@ -310,12 +337,47 @@ export async function escrowRoutes(app: FastifyInstance, opts: EscrowRouteOption
         const result = await getEscrowForProvider(db, {
           claimId: params.data.claimId,
           providerId: user.id,
+          client,
+          requestId: request.id,
         });
         return successBody(request, result);
       }
       throw err;
     }
   });
+
+  app.post(
+    '/claims/:claimId/dispute',
+    { preHandler: disputeLimiter, bodyLimit: 16 * 1024 },
+    async (request) => {
+      const user = await requireAuth(request);
+      const params = claimIdParamsSchema.safeParse(request.params);
+      if (!params.success) {
+        throw new AppError(400, 'INVALID_INPUT', 'Invalid claim id.');
+      }
+      const body = disputeBodySchema.safeParse(request.body);
+      if (!body.success) {
+        throw new AppError(400, 'INVALID_INPUT', 'Invalid request body.');
+      }
+      const db = getDb();
+      const client = resolveEscrowClient(opts, {
+        code: 'ESCROW_CONTRACT_UNAVAILABLE',
+        message: 'Dispute status is temporarily unavailable. Please try again.',
+      });
+      const result = await dispute(db, {
+        claimId: params.data.claimId,
+        buyerId: user.id,
+        client,
+        requestId: request.id,
+      });
+      // Server-log only: status codes, never wallets, calldata, or tx hashes.
+      request.log.info(
+        { claimId: params.data.claimId, status: result.status },
+        `escrow dispute ${result.status}`,
+      );
+      return successBody(request, result);
+    },
+  );
 }
 
 // Re-exported for the ABI-decoding test surface (no network).

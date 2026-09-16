@@ -43,6 +43,13 @@
       "when": 1789499950047,
       "tag": "0005_crazy_jamie_braddock",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789534504177,
+      "tag": "0006_escrow_refund_release",
+      "breakpoints": true
     }
   ]
 }

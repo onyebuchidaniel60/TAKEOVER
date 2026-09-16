@@ -3,6 +3,120 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14d-3b — dispute, admin resolve, auto-refund, USDT refund (2026-09-16)
+
+Completes the USDT escrow lifecycle: every FR-12 state is reachable and
+every fund movement is executable. No frontend, no Solidity, no NIM path,
+no new claim_status values, no new error codes, no new dependency.
+
+Carried-in decisions (implemented as stated, not re-litigated): (1) two new
+escrow statuses `refunding` + `releasing` (migration
+`0006_escrow_refund_release.sql`, exactly the two `ALTER TYPE ... ADD
+VALUE` statements, generated diff clean, applied to live Supabase,
+`db:verify` green on both values); (2) dispute is one endpoint,
+event-driven — pending instruction until the `Disputed` event is visible,
+then flip, idempotent, no submission step; (3) auto-refund is lazy on read
+paths only (`GET /escrow` buyer/provider, `GET /admin/escrows`; never
+`/me/claims`); (4) auto-refund requires escrow `funded` +
+`delivery_deadline < now()` (post-delivery the dispute window governs);
+(5) admin resolve requires escrow `disputed` (release or refund ruling; no
+admin action for auto-refund); (6) confirmation gating mirrors 14d-3a —
+`ESCROW_RELEASE_CONFIRMATIONS` for release, new
+`ESCROW_REFUND_CONFIRMATIONS` (default 3, tolerant getter) for refund;
+(7) USDT only; (8) no new dependency (viem covers refund signing);
+(9) no new claim_status values (`escrow_funded → refunded`,
+`delivered → disputed`, `disputed → released|refunded`); (10)
+conditional-UPDATE-then-broadcast is race-safe (single winner broadcasts
+and audits; losers re-read).
+
+Implementation notes (fixed in-flight, with regression proof): (a) read
+projections returned the pre-transition claim row — both escrow getters
+now re-read the claim after advancing (escrow flipped, claim stale);
+(b) the refunding→refunded gate required claim `escrow_funded`, which
+blocked the admin-resolve path (claim `disputed`) — now accepts both, with
+the audit `from` taken from the live row; (c) resolve's status pre-check
+made race losers surface `ESCROW_DISPUTE_NOT_OPEN` instead of `CONFLICT` —
+no pre-check now; the conditional update arbitrates and 0 rows classify
+via re-read (resolving/resolved → `CONFLICT`, anything else →
+`ESCROW_DISPUTE_NOT_OPEN`); (d) shared-DB hazards (all files, one live
+DB): the admin list sweeps foreign transient eligible rows, so its tests
+use status-scoped calls only (documented in-test), list-sweep coverage
+goes through the `releasing` path no other file can create, and vanished
+mid-page rows are skipped, never 500 (production-impossible under FKs;
+standard read-consistency practice). Web flake (pre-existing,
+environmental): 2–4 web tests (`a11y-routes`, `keyboard-focus`,
+`route-states`, 5 s timeouts) failed across three runs including a clean
+`f9b2c1f` stash run with zero phase changes (3/3 files red there); full
+re-run green 16/16 + 129/129. No web/shared file in this diff.
+
+```text
+CURRENT PHASE: Phase 14d-3b complete — dispute + admin resolve +
+  auto-refund + USDT refund live. Do NOT begin Phase 14d-4.
+COMPLETED: escrow_status refunding/releasing + 0006 migration (live) +
+  real refund()/disputeCallData() + dispute()/resolveDispute()/
+  checkEscrowTransitions() + extended projections (notes: provider/admin
+  only) + listEscrowsForAdmin + 3 endpoints + ESCROW_REFUND_CONFIRMATIONS
+  + 21 new tests + docs + this checkpoint
+TESTS RUN: typecheck clean exit 0 (all workspaces + db); lint clean exit 0;
+  full `npm.cmd run test` green exit 0 elapsed 726 s: api 39 files/409
+  pass (388 + 21 new: schema +1, refund-client +6, dispute-refund +7,
+  admin-resolve +7) + web 16 files/129 pass + shared 1 pass; zero
+  EMAXCONNSESSION; the four previously-failing 14d-3b paths
+  (claim-projection staleness, disputed-claim refund gate, resolve race
+  code) fail-before/pass-after in isolation; build clean exit 0;
+  db:verify green (11 tables, both new enum values, all prior checks)
+RESULT: single commit (message below); push gated on green battery +
+  expected file set (matched — no web/shared changes)
+KNOWN ISSUES:
+- LIVE DB / DOC DIVERGENCE (paid legacy enum value) — still open
+- paid-word residuals in PROJECT_SPEC.md and ARCHITECTURE.md
+- SECURITY_REVIEW.md payment rows + item 7 → 14d-8
+- README.md NIM-only intro → Phase 15
+- release path untested against a real deployed contract (mock-only until
+  the contract repo deploys)
+- escrows.provider_payout_address is set by the provider at delivery time;
+  no way to change it after the first successful call (14d-3b did not take
+  an admin change path; still deferred)
+- Auto-refund is lazy (read-triggered). A funded escrow whose delivery
+  deadline has passed will not refund until a read hits GET /escrow or
+  GET /admin/escrows. No worker/cron exists. Phase 15 may add a periodic
+  sweep if time permits.
+- The confirm-receipt release path (14d-3a) uses release_tx_hash IS NULL
+  as its in-flight guard; the new paths use explicit releasing/refunding
+  states. Asymmetric; revisit for unification if it causes confusion.
+- The buyer-side dispute UI does not exist yet. The endpoint returns the
+  instruction but nothing renders it.
+SECURITY NOTES: no new secrets; refund signs with the same lazily-loaded,
+  cross-checked signer as release (client never reads
+  ESCROW_SIGNER_PRIVATE_KEY directly — asserted by source scan); admin
+  resolve is admin-auth gated (401/403 matrix tested) and writes an audit
+  carrying ids/states/reasons/notes/txHash; resolution notes are visible
+  in provider/admin views (admin-auth gated, matching the existing
+  report-resolution precedent) but never in logs or buyer views; no key
+  material in any response (admin-list secret scan tested); conditional
+  writes + tx-hash UNIQUE backstops make concurrent resolves fail closed.
+FILES CHANGED: db/schema/enums.ts, db/migrations/0006_escrow_refund_release.sql
+  (new) + meta (_journal.json + 0006_snapshot.json), db/verify.ts,
+  apps/api/src/escrow/polygon/client.ts (real refund() + disputeCallData()),
+  apps/api/src/escrow/service.ts (dispute + checkEscrowTransitions +
+  extended projections + read-path gate), apps/api/src/escrow/validation.ts
+  (dispute/resolve/list schemas), apps/api/src/routes/escrow.ts (dispute
+  endpoint + lazy reads), apps/api/src/routes/admin.ts (escrows list +
+  resolve endpoints), apps/api/src/admin/service.ts (listEscrowsForAdmin +
+  resolveDispute), apps/api/src/env.ts + .env.example
+  (ESCROW_REFUND_CONFIRMATIONS), apps/api/test/escrow-refund-client.test.ts
+  (new, 6), apps/api/test/escrow-dispute-refund.test.ts (new, 7),
+  apps/api/test/admin-escrow-resolve.test.ts (new, 7),
+  apps/api/test/escrow-schema.test.ts (+1), apps/api/test/env.test.ts (+1),
+  ARCHITECTURE.md (§6 note + §8 state machines + §9 enum + §13 endpoints),
+  AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: feat: phase 14d-3b — dispute, admin resolve, and USDT refund
+  (single commit with this checkpoint; hash recorded at push)
+NEXT TASK: Phase 14d-4 — post-funding provider contact details (do NOT
+  start automatically)
+BLOCKED BY: none
+```
+
 ## 14d-3a addendum — signer chain-id source (2026-09-15)
 
 What happened. The `viem/chains` barrel import pulls in DOM types that the
