@@ -3,6 +3,70 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14e-2a — deploy TakeoverEscrow to Polygon Amoy (2026-09-16)
+
+Live on Amoy (chainId 80002):
+`0x7F8F66E1e07372dc371edf8F21d2d84208a4Fc06`
+(tx `0x9a7032da50be1efcfded88c64491de9b6a81a3f257f1e149dd16d1b1e770ea48`).
+Deployed with USDT `0xC885e1eeD2A2f2215b756Fa04B89aAD1A27559dE` (6-decimal,
+verified on-chain before use) and the fresh testnet signer from
+contracts/.env. Sanity-proven: bytecode present, TOKEN() and
+ESCROW_SIGNER() return the wired addresses (which also settles the
+EIP-3855 warning empirically — calls execute). Unverified on
+Polygonscan (no API key; `forge verify-contract` later). Wiring is 14e-2b.
+
+Deploy notes: primary RPC rpc-amoy.polygon.technology fails DNS from
+here — drpc fallback used (block 47737105 at Stage 1). First broadcast
+failed on near-zero gas estimates (Amoy floor 25 gwei tip); retried
+`--legacy --gas-price 30 gwei`, landed (~0.027 POL of 0.111 funded).
+Deployer retains the remainder. Simulation dry-run + failed-attempt
+records pruned; only run-latest.json committed as evidence.
+
+```text
+CURRENT PHASE: Phase 14e-2a complete — TakeoverEscrow deployed to
+  Polygon Amoy. Do NOT begin 14e-2b (wiring + integration).
+COMPLETED: STAGE 1 keys/env/token-proof + funding gate + DeployAmoy
+  script + simulation + legacy-gas broadcast + on-chain sanity
+  (code/TOKEN()/ESCROW_SIGNER()) + README address + this checkpoint
+TESTS RUN: cast block-number ok (drpc, 47737105); token triple-proof
+  (symbol "USDT", decimals 6, supply 1e12) + bytecode present;
+  forge-script simulation exit 0 (852172 gas est.); broadcast exit 0
+  on retry (legacy 30 gwei); post-deploy cast code non-empty (5346),
+  TOKEN()/ESCROW_SIGNER() match wired addresses. No forge unit
+  re-runs (Solidity untouched since 14e-1: 30/30 stands). No TS/JS
+  battery (no TS/JS touched; 14e-1 battery stands).
+RESULT: single commit (message below); push gated on green checks +
+  expected file set (matched — .env never staged, cache/ ignored)
+KNOWN ISSUES:
+- Contract UNVERIFIED on Polygonscan (no API key in this environment).
+  Verify later via forge verify-contract; submission wants the green tick.
+- Deployed with solc 0.8.28 default EVM (PUSH0): forge warns EIP-3855
+  unsupported on 80002, but deployment + view calls execute — proven
+  compatible in practice. Revisit only if a state-changing call fails.
+- Deployer key holds ~0.084 POL remainder; signer key holds no POL
+  (signer only sends nothing itself — backend pays for release/refund
+  calls in 14e-2b; fund per 14e-2b plan).
+- Format gate waiver unchanged (separate hygiene chore).
+- Mumbai residue (AGENTS.md:128), payout-address immutability, lazy
+  auto-refund, missing dispute UI, 14d-4 frontend gap — carried.
+SECURITY NOTES: deployer + signer are fresh testnet-only keypairs;
+  private keys live solely in gitignored contracts/.env (never printed,
+  never staged — status verified empty of secrets); broadcast JSON
+  carries only public tx data; no mainnet key touched; contract has no
+  admin/upgrade path, so the deployed bytecode is final — a redeploy
+  would mean a new address.
+FILES CHANGED: contracts/script/DeployAmoy.s.sol (new),
+  contracts/broadcast/DeployAmoy.s.sol/80002/run-latest.json (new),
+  contracts/README.md (deployed address + chain ID), AI_HANDOFF.md
+  (this checkpoint)
+GIT COMMIT: feat: phase 14e-2a — deploy TakeoverEscrow to Polygon Amoy
+  (single commit with this checkpoint; hash recorded at push)
+NEXT TASK: Phase 14e-2b — wire the deployed address into backend config
+  and run an end-to-end deposit → release flow. Do NOT start
+  automatically.
+BLOCKED BY: none
+```
+
 ## Phase 14e-1 — TakeoverEscrow Solidity contract + Foundry tests (2026-09-16)
 
 Solidity track opened: `TakeoverEscrow` implements
