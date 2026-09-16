@@ -3,6 +3,95 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14e-2c — end-to-end deposit → release verified; Railway broadcast path still 503 (2026-09-16)
+
+Full USDT escrow lifecycle closed on the live Amoy contract
+(`0x7F8F66E1e07372dc371edf8F21d2d84208a4Fc06`): a real 1.5 USDT deposit
+(1500000 base units, escrow `0xd4c21000…`) went delivered → released.
+The release transaction (`0xaa0b5397a19c6d0086f67b90505460131878f407c82c6615fff82ee955585eab`,
+block 47755395, receipt status 1) was broadcast from a LOCAL backend
+instance running the exact production code against the production DB with
+the production signer and the keyed Amoy RPC. The deployed Railway backend
+had returned 503 ESCROW_RELEASE_FAILED on the same escrow without signing
+anything (signer nonce never advanced; requestId
+`36ac79e5-82d2-4ea3-b4ca-11b273e682fd` from the prior session) — same code,
+same DB, same signer, same RPC host, opposite outcomes. The failure is
+Railway-runtime-specific by elimination; the underlying viem error remains
+unsurfaced because the 503 path never logs (AppError bypasses the error
+logger and releaseTx discards the cause chain). No source was changed this
+phase; no Phase B logging was added.
+
+```text
+CURRENT PHASE: Phase 14e-2c partial — full escrow lifecycle verified when the
+  release was broadcast from a LOCAL backend instance; the deployed
+  Railway backend still returns 503 on release. Railway-runtime-only
+  failure recorded.
+COMPLETED: state verification (tree b21d8db clean, TEMP keys present,
+  escrow delivered/1500000, contract balance exactly 1500000) + Fastify log
+  audit (logger:true default-info, no env override; AppError 503 never
+  logged; releaseTx wraps all viem errors into a generic message) + Phase A
+  local reproduction via in-process inject (real Polygon client, production
+  DB, keyed RPC host polygon-amoy.g.alchemy.com, signer 0xf086…f942):
+  confirm-receipt 200 pending with release hash on first call, 200 released
+  on second call after 45 confirmations + Phase C on-chain proof (receipt
+  status 1, Released + Transfer logs for exactly 1500000, provider payout
+  0xd0b6…66bd94 balance 0 at block 47755394 → 1500000 at head 47755439,
+  contract balance back to 0) + scoped cleanup + this checkpoint
+TESTS RUN: no repo test suites ran (no source changed; nothing to
+  regression-test). Live evidence instead: inject PRE_GET_200
+  delivered/delivered no-release-hash → POST confirm 200 pending
+  (release 0xaa0b…5eab stored) → POST confirm 200 released (both rows
+  released); cast receipt status 1 with both event logs; cast balanceOf
+  contract 0, provider 1500000 now vs 0 pre-release; cleanup deleted 1
+  escrow/claim/slot + 9 audits + 10 sessions + 2 users + 2 wallets'
+  challenges (scoped by ID — global DB retains 22 slots/18 claims/0
+  escrows of unrelated test data, deliberately untouched)
+RESULT: escrow terminal on-chain and in DB, then fully cleaned (rows gone,
+  TEMP buyer/prov/handoff keys deleted, all temp scripts deleted). Single
+  checkpoint commit (AI_HANDOFF.md only); no source changed — the fix was
+  not in code reachable from here
+KNOWN ISSUES:
+- Railway-runtime-only release failure: local inject broadcast succeeded
+  first try (same code/DB/signer/RPC host); Railway returned 503
+  ESCROW_RELEASE_FAILED on the same delivered escrow without broadcasting
+  (nonce never advanced). Railway was NOT retried after the local
+  broadcast (escrow terminal; a retry would take the receipt-poll branch,
+  not the broadcast branch, so it cannot re-prove the broadcast failure).
+  Root cause still unknown; the 503 path logs nothing server-side.
+- Signer key rotation (Phase 15): 40 hex chars of the signer private key
+  leaked into a prior diagnostic session's tool-output table (CLI column
+  truncation defeated a masker). 96 bits remain unknown; testnet-only;
+  brute-force infeasible. Rotate the signer key post-demo; add to the
+  Phase 15 credential cleanup list.
+- Auto-release gap (spec vs. code): PROJECT_SPEC.md FR-12 says a delivered
+  escrow whose dispute window expires should release to the provider. The
+  code does NOT implement this transition — a delivered escrow whose buyer
+  never confirms or disputes stays locked indefinitely. Residual; fix is a
+  separate scoping decision.
+- Contract unverified on Polygonscan.
+- Refund path NOT tested end-to-end.
+- Dispute path NOT tested end-to-end.
+- Carried residuals: format-gate waiver; Mumbai mention at AGENTS.md:128;
+  payout-address immutability; lazy auto-refund; no dispute UI; 14d-4
+  frontend gap; Foundry PATH prefix; "timestamp" prose flag; fromBlock-0
+  scan fragility.
+SECURITY NOTES: no private key printed at any point (env parsed with
+  boolean-only confirmation; signing helper created but never used — auth
+  reused the preserved DB-backed Bearer token, whose value never appeared
+  in any log); full RPC URL never logged (host only); session token never
+  logged; release hash/addresses/block numbers are public chain data;
+  scoped DB deletes by exact IDs only (unrelated rows untouched); TEMP keys
+  deleted after terminal state; no source change so no new attack surface.
+FILES CHANGED: AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: chore: phase 14e-2c — deposit to release verified end-to-end,
+  Railway broadcast failure recorded (single commit with this checkpoint;
+  hash recorded at push)
+NEXT TASK: Frontend escrow UI (not yet scoped) OR Railway-side release
+  diagnosis (if Phase C-only completion) OR auto-release gap scoping. Do
+  NOT start automatically.
+BLOCKED BY: owner decision on next priority.
+```
+
 ## Phase 14e-2b — backend wired to the deployed Amoy contract (2026-09-16)
 
 Wiring proven live: escrow-intent serves the Amoy contract address and
