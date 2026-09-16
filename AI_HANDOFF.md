@@ -3,6 +3,113 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14d-4 — post-funding provider contact details (2026-09-16)
+
+Backend-only slice live: provider sets a free-form contact note on their
+slot; the buyer sees it only once the claim's escrow reaches a funded-side
+status. No frontend, no new dependency, no new env var, no new error code,
+no release/refund/dispute/admin change.
+
+Resumed from partial uncommitted work (prior session stopped after writing
+files but before migrating, live-testing, checkpointing, or committing).
+Step 1 review verified the draft against the restated spec item by item —
+storage, endpoint shape/auth, strict body + trim + 1–500 + null-clears +
+no-URL rule, open write gate, owner projection, public exclusion, the
+locked gate matrix (visible `funded/delivered/disputed/releasing/
+released`; hidden `created/refunding/refunded`/no-escrow), buyer/provider/
+list surfacing, same-transaction audit with IDs-and-lengths-only metadata,
+idempotent no-op, docs — all correct as drafted. Zero code fixes were
+needed; the only in-flight correction worth noting is one the draft already
+carried: `listBuyerClaims` maps rows with an explicit arrow function
+because `toClaimView` gained an optional second parameter (a bare
+`rows.map(toClaimView)` would have fed the array index in as the note).
+
+Carried-in decisions (implemented as stated, not re-litigated): (1) no DB
+CHECK on length — API-boundary validation only; (2) write gate open on any
+owned status, restriction lives on the buyer read gate; (3) the
+`GET /claims/:claimId` provider view question is moot — that endpoint is
+buyer-only (provider → 404), so the provider reads the note from the slot
+owner projection; (4) `GET /me/claims` items carry the uniform ClaimView
+shape with a null note (never the text); the provider demand list lacks
+the field entirely; (5) `GET /claims/:claimId/escrow` evaluates the gate
+against the post-transition escrow status (a row that flips to `refunding`
+on the same read hides the note); this field's direction (buyer-visible,
+provider-null) is the opposite of `resolution_notes` and the two must not
+be conflated; (6) transitional/terminal escrow states in tests are set via
+direct row updates (gate reads status only — dispute-refund precedent).
+
+Migration: `0007_public_wallflower.sql` (single
+`ALTER TABLE "slots" ADD COLUMN "provider_contact_note" text`, generated
+diff clean, applied to live Supabase, `db:verify` green including the new
+`slots.provider_contact_note present: true` assertion).
+
+```text
+CURRENT PHASE: Phase 14d-4 complete — post-funding provider contact
+  details live (backend only). Do NOT begin any follow-up phase.
+COMPLETED: 0007 migration (live) + providerContactNote column +
+  updateSlotContactNote + PATCH /me/slots/:slotId/contact-note + owner
+  projection + public exclusion + buyer gate (claim + escrow views) +
+  slot.contact_note_updated audit + 18 new tests + docs + this checkpoint
+TESTS RUN: typecheck clean exit 0 (all workspaces + db); lint clean exit 0;
+  db:migrate exit 0 (0007 applied); db:verify exit 0 (11 tables, all prior
+  checks, slots.provider_contact_note present: true); full
+  `npm.cmd run test` with DATABASE_URL live, green exit 0 — api 41
+  files/427 pass (vitest 501.85 s; includes the 8 previously-skipped
+  slot-contact-note live tests, all green, plus 9 validation unit tests
+  and the +1 escrow-schema column test) + web 16 files/129 pass
+  (31.56 s, unchanged) + shared 1 pass (unchanged); build clean exit 0
+  (api tsc + web vite + shared tsc); zero failures of any kind
+RESULT: single commit (message below); push gated on green battery +
+  expected file set (matched — no web/shared/config changes)
+KNOWN ISSUES:
+- LIVE DB / DOC DIVERGENCE (paid legacy enum value) — still open
+- paid-word residuals in PROJECT_SPEC.md and ARCHITECTURE.md
+- SECURITY_REVIEW.md payment rows + item 7 → 14d-8
+- README.md NIM-only intro → Phase 15
+- release path untested against a real deployed contract (mock-only until
+  the contract repo deploys)
+- escrows.provider_payout_address is set by the provider at delivery time;
+  no way to change it after the first successful call (still deferred)
+- Auto-refund is lazy (read-triggered). A funded escrow whose delivery
+  deadline has passed will not refund until a read hits GET /escrow or
+  GET /admin/escrows. No worker/cron exists. Phase 15 may add a periodic
+  sweep if time permits.
+- The confirm-receipt release path (14d-3a) uses release_tx_hash IS NULL
+  as its in-flight guard; the new paths use explicit releasing/refunding
+  states. Asymmetric; revisit for unification if it causes confusion.
+- The buyer-side dispute UI does not exist yet. The endpoint returns the
+  instruction but nothing renders it.
+- 14d-4 frontend gap: no UI renders provider_contact_note yet (buyer
+  claim/escrow views carry it; nothing displays it). Future phase.
+- 14d-4 write gate is open on any owned slot status by design (draft
+  included); the restriction lives on the buyer read gate.
+SECURITY NOTES: owner-only write (non-owner/missing → 404 NOT_FOUND, never
+  403; anon → 401), matching the existing owner-slot pattern; no new error
+  codes (400 INVALID_INPUT / 401 / 404 only); strict body (unknown fields
+  rejected); the no-URL rule (any scheme `://` or `www.`,
+  case-insensitive) keeps the note from becoming an off-platform payment
+  channel; audit metadata carries slotId/hadNote/noteLength only — never
+  the note text (asserted in tests); note text never appears in logs;
+  no secrets, no auth/payment-state logic, no new dependency.
+FILES CHANGED: db/schema/slots.ts,
+  db/migrations/0007_public_wallflower.sql (new) + meta (_journal.json +
+  0007_snapshot.json new), db/verify.ts, apps/api/src/slots/owner-slot.ts,
+  apps/api/src/slots/validation.ts, apps/api/src/slots/lifecycle.ts,
+  apps/api/src/routes/slots.ts, apps/api/src/claims/claim-view.ts,
+  apps/api/src/claims/service.ts, apps/api/src/escrow/service.ts,
+  apps/api/test/escrow-schema.test.ts (+1),
+  apps/api/test/contact-note-validation.test.ts (new, 9),
+  apps/api/test/slot-contact-note.test.ts (new, 8), PROJECT_SPEC.md
+  (FR-13 + SHOULD HAVE bullet), ARCHITECTURE.md (§9 field + §13 endpoint
+  + claim/escrow gate notes), AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: feat: phase 14d-4 — post-funding provider contact note
+  (single commit with this checkpoint; hash recorded at push)
+NEXT TASK: Owner decides — remaining pending work: consolidation chore
+  (contracts/), Solidity contract, frontend escrow UI. Do NOT start
+  automatically.
+BLOCKED BY: none
+```
+
 ## Chore — web test flake fix, case (B) route-states meta race (2026-09-16)
 
 Accepted diagnosis (not re-litigated): `route-states.test.tsx` awaited

@@ -50,6 +50,13 @@
       "when": 1789534504177,
       "tag": "0006_escrow_refund_release",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789542438887,
+      "tag": "0007_public_wallflower",
+      "breakpoints": true
     }
   ]
 }

@@ -35,7 +35,7 @@ import {
 } from '../env';
 import { disputeCallData, type DisputeInstruction } from './polygon/client';
 import { isUniqueViolation } from '../claims/service';
-import { toClaimView, type ClaimView } from '../claims/claim-view';
+import { isContactNoteVisibleToBuyer, toClaimView, type ClaimView } from '../claims/claim-view';
 import { AppError } from '../http/errors';
 import { assessDeposit } from './polygon/verify-deposit';
 import { EscrowContractUnavailableError, EscrowSignerUnavailableError } from './polygon/client';
@@ -609,7 +609,15 @@ export async function getEscrowForBuyer(
     .from(claims)
     .where(eq(claims.id, claim.id))
     .limit(1);
-  return { escrow: toEscrowView(current), claim: toClaimView(freshClaimRows[0] ?? claim) };
+  // Phase 14d-4: gated contact note on the buyer view, evaluated against
+  // the post-transition escrow status (a funded row that just flipped to
+  // refunding hides the note on this same read).
+  const slotRows = await db.select().from(slots).where(eq(slots.id, claim.slotId)).limit(1);
+  const note =
+    slotRows[0] && isContactNoteVisibleToBuyer(current.status)
+      ? slotRows[0].providerContactNote
+      : null;
+  return { escrow: toEscrowView(current), claim: toClaimView(freshClaimRows[0] ?? claim, note) };
 }
 
 /** Provider-scoped escrow read; foreign or missing claim → 404; no escrow → 404 ESCROW_NOT_FOUND. */

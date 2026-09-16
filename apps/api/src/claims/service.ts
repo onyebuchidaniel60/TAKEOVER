@@ -3,14 +3,20 @@
 // Quantity is fixed at 1; the schema supports more, the feature is deferred.
 import { and, count, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
-import { claims, slots, users } from '../../../../db/schema';
+import { claims, escrows, slots, users } from '../../../../db/schema';
 import { truncateWalletAddress } from '../auth/nimiq-address';
 import { getClaimHoldTtlSeconds } from '../env';
 import { writeAuditEvent } from '../audit/events';
 import { AppError } from '../http/errors';
 import { loadProviderDisplay } from '../slots/provider-display';
 import { toPublicSlot, type PublicSlot } from '../slots/public-slot';
-import { toClaimView, toProviderSlotClaimView, type ClaimView, type ProviderSlotClaimView } from './claim-view';
+import {
+  isContactNoteVisibleToBuyer,
+  toClaimView,
+  toProviderSlotClaimView,
+  type ClaimView,
+  type ProviderSlotClaimView,
+} from './claim-view';
 
 type Db = ReturnType<typeof getDb>;
 
@@ -241,8 +247,14 @@ export async function getClaimForBuyer(
   if (!slot) {
     return null;
   }
+  // Phase 14d-4: gated contact note. No lazy transition runs here (plain
+  // read, like GET /me/claims) — the gate reads the escrow row as-is.
+  const escrowRows = await db.select().from(escrows).where(eq(escrows.claimId, claim.id)).limit(1);
+  const escrow = escrowRows[0];
+  const note =
+    escrow && isContactNoteVisibleToBuyer(escrow.status) ? slot.providerContactNote : null;
   return {
-    claim: toClaimView(claim),
+    claim: toClaimView(claim, note),
     slot: toPublicSlot(slot, await loadProviderDisplay(db, slot.providerId)),
   };
 }
@@ -349,5 +361,5 @@ export async function listBuyerClaims(
     .limit(options.limit)
     .offset(options.offset);
   const totalRows = await db.select({ value: count() }).from(claims).where(scoped);
-  return { claims: rows.map(toClaimView), total: totalRows[0]?.value ?? 0 };
+  return { claims: rows.map((row) => toClaimView(row)), total: totalRows[0]?.value ?? 0 };
 }

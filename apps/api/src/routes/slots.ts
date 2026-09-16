@@ -23,11 +23,13 @@ import {
   listOwnSlots,
   publishSlot,
   updateDraftSlot,
+  updateSlotContactNote,
 } from '../slots/lifecycle';
 import { toOwnerSlot } from '../slots/owner-slot';
 import { loadProviderDisplay } from '../slots/provider-display';
 import { getPublicSlotById, listPublicSlots } from '../slots/service';
 import {
+  contactNoteBodySchema,
   meSlotsQuerySchema,
   slotCreateSchema,
   slotIdParamsSchema,
@@ -182,6 +184,31 @@ export async function slotRoutes(app: FastifyInstance, opts: SlotRouteOptions = 
       limit: parsed.data.limit,
       offset: parsed.data.offset,
     });
+  });
+
+  // Phase 14d-4: one-way provider contact note. Write gate is open (any
+  // owned status); the buyer read gate lives on the claim/escrow views.
+  // Owner-only (non-owner or missing slot → 404, never 403), same shape as
+  // the existing PATCH response ({ slot } owner projection).
+  app.patch('/me/slots/:slotId/contact-note', { preHandler: slotMutateLimiter }, async (request) => {
+    const user = await requireAuth(request);
+    const params = slotIdParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      throw new AppError(400, 'INVALID_INPUT', 'Invalid slot id.');
+    }
+    const parsed = contactNoteBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(
+        400,
+        'INVALID_INPUT',
+        'Provider contact note must be 1–500 characters with no links or URLs. Use null to clear it.',
+      );
+    }
+    const db = getDb();
+    const slot = await updateSlotContactNote(db, user.id, params.data.slotId, parsed.data.provider_contact_note, {
+      requestId: request.id,
+    });
+    return successBody(request, { slot });
   });
 
   app.get('/me/slots/:slotId/claims', { preHandler: providerClaimsLimiter }, async (request) => {

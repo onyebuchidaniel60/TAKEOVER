@@ -134,6 +134,13 @@ async function main(): Promise<void> {
   if (!hasRefunding || !hasReleasing) {
     throw new Error('escrow_status enum is missing refunding/releasing');
   }
+
+  // Phase 14d-4: one-way provider contact-note column on slots.
+  const hasProviderContactNote = present.has('slots.provider_contact_note');
+  console.log(`slots.provider_contact_note present: ${hasProviderContactNote}`);
+  if (!hasProviderContactNote) {
+    throw new Error('slots.provider_contact_note column is missing');
+  }
 }
 
 main().catch((err: unknown) => {

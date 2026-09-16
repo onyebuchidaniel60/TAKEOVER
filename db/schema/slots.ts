@@ -12,6 +12,12 @@ export const slots = pgTable(
       .references(() => users.id),
     title: text('title').notNull(),
     description: text('description'),
+    // Phase 14d-4: one-way provider contact note. Nullable; NULL means unset.
+    // Plain TEXT at DB level (no CHECK — consistent with title/description/
+    // resolution_notes); length 1–500 and the no-URLs rule are enforced at
+    // the API boundary. Visible to the buyer only once the claim's escrow
+    // reaches a funded-side status (see the claim/escrow view gates).
+    providerContactNote: text('provider_contact_note'),
     category: text('category'),
     locationLabel: text('location_label'),
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),

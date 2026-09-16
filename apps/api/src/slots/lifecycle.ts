@@ -107,6 +107,63 @@ export async function updateDraftSlot(
   return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
 }
 
+/**
+ * Phase 14d-4: set or clear the provider contact note. The write gate is
+ * deliberately open — any status the caller owns — the restriction lives on
+ * the buyer read gate (claim/escrow views). The row lock serializes
+ * concurrent PATCHes so a same-value re-set is a true no-op (no write, no
+ * audit). The audit carries IDs and lengths only, never the note text.
+ * Input arrives API-validated (trimmed, 1–500 chars, no URLs); the service
+ * trusts the boundary per the lifecycle-layer convention.
+ */
+export async function updateSlotContactNote(
+  db: Db,
+  ownerId: string,
+  slotId: string,
+  note: string | null,
+  audit?: { requestId?: string | null },
+): Promise<OwnerSlot> {
+  const row = await db.transaction(async (tx) => {
+    const rows = await tx
+      .select()
+      .from(slots)
+      .where(and(eq(slots.id, slotId), eq(slots.providerId, ownerId)))
+      .for('update')
+      .limit(1);
+    const current = rows[0];
+    if (!current) {
+      throw new AppError(404, 'NOT_FOUND', 'Slot not found.');
+    }
+    if (current.providerContactNote === note) {
+      return current;
+    }
+    const now = new Date();
+    const updated = await tx
+      .update(slots)
+      .set({ providerContactNote: note, updatedAt: now })
+      .where(and(eq(slots.id, slotId), eq(slots.providerId, ownerId)))
+      .returning();
+    const next = updated[0];
+    if (!next) {
+      throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+    }
+    await writeAuditEvent(tx, {
+      actorUserId: ownerId,
+      eventType: 'slot.contact_note_updated',
+      entityType: 'slot',
+      entityId: next.id,
+      requestId: audit?.requestId ?? null,
+      metadata: {
+        slotId: next.id,
+        hadNote: current.providerContactNote !== null,
+        noteLength: note === null ? 0 : note.length,
+      },
+    });
+    return next;
+  });
+  return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
+}
+
 export async function publishSlot(
   db: Db,
   ownerId: string,

@@ -1,0 +1,1 @@
+ALTER TABLE "slots" ADD COLUMN "provider_contact_note" text;

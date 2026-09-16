@@ -314,4 +314,22 @@ describe.skipIf(!isDatabaseConfigured())('escrow schema constraints (live)', () 
       expect(inserted[0].status).toBe(status);
     }
   });
+
+  it('slots carries a nullable 14d-4 provider_contact_note', async () => {
+    const db = getDb();
+    const providerId = await makeUser();
+    const slotId = await makeSlot(providerId);
+    const fresh = await db
+      .select({ note: slots.providerContactNote })
+      .from(slots)
+      .where(eq(slots.id, slotId))
+      .limit(1);
+    expect(fresh[0]?.note).toBeNull();
+    const written = await db
+      .update(slots)
+      .set({ providerContactNote: 'Meet at the side door.' })
+      .where(eq(slots.id, slotId))
+      .returning({ note: slots.providerContactNote });
+    expect(written[0]?.note).toBe('Meet at the side door.');
+  });
 });

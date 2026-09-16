@@ -417,6 +417,9 @@ Publicly expose only safe profile fields.
 - provider_id UUID FK users.id
 - title TEXT NOT NULL
 - description TEXT NULL
+- provider_contact_note TEXT NULL (Phase 14d-4: one-way provider contact
+  note; API-validated 1–500 chars, no URLs; buyer-visible only past the
+  escrow gate, never public)
 - category TEXT NULL
 - location_label TEXT NULL
 - starts_at TIMESTAMPTZ NOT NULL
@@ -713,6 +716,23 @@ Auth: session + owner.
 
 Only editable DRAFT slots. Once published, commercial fields are immutable.
 
+### PATCH /api/v1/me/slots/:slotId/contact-note (Phase 14d-4)
+
+Auth: session + slot owner (non-owner or missing slot → 404 `NOT_FOUND`,
+never 403; anonymous → 401).
+
+Body (strict): `{ provider_contact_note: string | null }` — trimmed,
+1–500 chars after trim; `null` clears the note. Rejects any value
+containing `://` (any scheme) or `www.` (case-insensitive) → 400
+`INVALID_INPUT`. Allowed on any owned status (the write gate is open; the
+restriction lives on the buyer read gate). Same response shape as the
+existing PATCH (`{ slot }` owner projection, which carries the note).
+Writes `slot.contact_note_updated` in the same transaction (metadata:
+`slotId`, `hadNote`, `noteLength` — never the note text); same-value
+re-sets are 200 no-ops with no audit row.
+
+Shares the per-IP owner-mutation budget with patch/publish/cancel.
+
 ### POST /api/v1/slots/:slotId/publish
 
 Auth: session + owner.
@@ -765,6 +785,13 @@ Idempotency-Key required.
 ### GET /api/v1/claims/:claimId
 
 Auth: session + buyer or provider owner of slot, with field-level response restrictions.
+
+Phase 14d-4: the buyer view carries `provider_contact_note: string | null`
+— the slot's note when the claim's escrow is `funded`, `delivered`,
+`disputed`, `releasing`, or `released`, else null (no escrow, or escrow
+`created`/`refunding`/`refunded`, all read null). The provider owner is not
+served on this endpoint (404); the provider reads the note from their slot
+owner projection instead.
 
 ### POST /api/v1/claims/:claimId/payment-intent (DEPRECATED)
 
@@ -911,7 +938,14 @@ Returns `{ escrow, claim }` for the claim's escrow (`ESCROW_NOT_FOUND` when
 none exists), including `provider_payout_address`, `delivered_at`,
 `dispute_window_ends`, `disputed_at`, `release_tx_hash`, `refund_tx_hash`,
 `resolved_at`, and `status`. `resolution_notes` is populated for the
-provider view only (the buyer view carries null). No rate limiter
+provider view only (the buyer view carries null). Phase 14d-4: the buyer
+view's `claim` carries the same gated `provider_contact_note` as
+`GET /claims/:claimId` (evaluated against the post-transition escrow
+status, so a funded row that flips to `refunding` on this same read hides
+the note); the provider view's `claim` carries null — the provider already
+has the note on their slot owner projection. This is the opposite direction
+from `resolution_notes` (provider/admin-visible, buyer-hidden); the two
+fields must not be conflated. No rate limiter
 beyond the shared API backstops.
 
 Lazy transitions run BEFORE the projection: a `funded` escrow past its

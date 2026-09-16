@@ -69,6 +69,37 @@ export const meSlotsQuerySchema = z
 
 export const slotIdParamsSchema = z.object({ slotId: z.string().uuid() }).strict();
 
+// Phase 14d-4: one-way provider contact note. Free-form text, 1–500 chars
+// after trimming; null clears the note. The no-URLs rule (any scheme `://`
+// or `www.`, case-insensitive) keeps the note from becoming an off-platform
+// payment channel — chat/messaging was declined for the same reason. Length
+// and URL rules run on the trimmed (stored) value, matching the display_name
+// precedent of validating what is stored.
+export const CONTACT_NOTE_MAX_LENGTH = 500;
+
+/** True when the value carries a URL of any scheme (`://`) or a `www.` host. */
+export function contactNoteContainsUrl(value: string): boolean {
+  return value.includes('://') || value.toLowerCase().includes('www.');
+}
+
+export const contactNoteBodySchema = z
+  .object({
+    provider_contact_note: z
+      .string()
+      .trim()
+      .min(1, { message: 'Provider contact note must be at least 1 character.' })
+      .max(CONTACT_NOTE_MAX_LENGTH, {
+        message: 'Provider contact note must be at most 500 characters.',
+      })
+      .refine((value) => !contactNoteContainsUrl(value), {
+        message: 'Provider contact note must not contain links or URLs.',
+      })
+      .nullable(),
+  })
+  .strict();
+
+export type ContactNoteInput = z.infer<typeof contactNoteBodySchema>;
+
 export type SlotCreateInput = z.infer<typeof slotCreateSchema>;
 export type SlotPatchInput = z.infer<typeof slotPatchSchema>;
 export type SlotStatusValue = (typeof slotStatusValues)[number];

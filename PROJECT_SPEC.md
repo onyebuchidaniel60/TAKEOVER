@@ -130,6 +130,8 @@ The future concept of a customer transferring an existing booking is explicitly 
 - Simple “share slot” URL.
 - Basic user notification banners inside the app.
 - Test/demo seed data tooling that is disabled in production.
+- One-way provider contact note visible to the buyer once the claim's
+  escrow is funded (FR-13).
 
 ### NICE TO HAVE
 
@@ -355,6 +357,17 @@ Authority per token:
         the escrow wallet's on-chain balance.
 
 Every fund movement writes an audit event. NIM movements also write a double-entry escrow_ledger row; USDT movements are on-chain events mirrored by the backend.
+
+### FR-13 Post-funding provider contact details
+
+Purpose: Give the buyer one-way provider contact details without opening a
+pre-payment solicitation channel (chat/messaging is declined).
+
+The provider sets a free-form contact note on their slot (1–500 characters,
+no URLs). The note is visible to the buyer only when the claim's escrow is
+funded, delivered, disputed, releasing, or released; it stays hidden while
+the escrow is created, refunding, or refunded, and when the claim has no
+escrow at all.
 
 ## 6. Acceptance baseline
 
