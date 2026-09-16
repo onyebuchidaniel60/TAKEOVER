@@ -12,6 +12,7 @@
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
     "@fastify/cors": "^11.3.0",
+    "@nimiq/core": "^2.21.0",
     "@noble/hashes": "^2.4.0",
     "drizzle-orm": "^0.36.0",
     "fastify": "^5.0.0",

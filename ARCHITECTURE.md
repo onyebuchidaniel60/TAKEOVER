@@ -116,13 +116,19 @@ is pinned byte-for-byte in tests.
 
 Production verification (`apps/api/src/auth/nimiq-verify.ts`) uses only
 `tweetnacl` (Ed25519) + `@noble/hashes` (Blake2b for address derivation) +
-Node `crypto` (SHA-256) and does NOT depend on `@nimiq/core` at runtime.
+Node `crypto` (SHA-256) and does NOT depend on `@nimiq/core` at runtime
+(unchanged).
 
-`@nimiq/core` (^2.21.0, root devDependency) is used exclusively as a test
-oracle in `apps/api/test/nimiq-oracle.test.ts`: keys, addresses, hashes, and
-signatures are produced by the official library and only consumed/verified by
-production code (cross-checked in both directions). It is never imported by
-production code.
+`@nimiq/core` (^2.21.0) serves two uses (revised in 14f-1): it remains a
+root devDependency and the test oracle in
+`apps/api/test/nimiq-oracle.test.ts` (keys, addresses, hashes, and
+signatures produced by the official library, only consumed/verified by
+production code, cross-checked in both directions) — AND it is now also a
+runtime dependency of the `takeover-api` workspace, where it signs
+transactions from the NIM escrow wallet (Phase 14f). Verification stays
+dependency-minimal; only the signing path — which has no tweetnacl-only
+equivalent without reimplementing Nimiq transaction serialization — uses
+the official library at runtime.
 
 Citation (both confirmed 2026-09-11): official Hub `signMessage` docs —
 https://nimiq.github.io/api-reference/sign-message ("Prefixing and Hashing"
@@ -174,6 +180,15 @@ Path B — NIM:
   - Dispute -> admin resolves -> backend signs release or refund.
   - Delivery timeout -> backend signs refund to the buyer.
 
+D5 divergence note (Phase 14f, deliberate): NIM deposit binding is
+sender-bound: the on-chain sender must equal the buyer's
+authenticated Nimiq wallet address. This differs from the USDT
+model, where the on-chain buyer is recorded for refund routing but
+is not compared against the authenticated user. The divergence is
+deliberate — NIM uses the same chain for identity and payment, so
+sender comparison is free; USDT would require a cross-chain
+identity mapping the MVP does not have.
+
 ### Payment intent
 
 Key management:
@@ -199,8 +214,8 @@ USDT-only on-demand deposit verification. The buyer polls
 against the escrow row (escrow id, exact base-unit amount).
 No background worker exists: polling is the verification trigger, mirroring
 the deprecated `verify-payment` pattern. NIM requested at escrow-intent
-time is rejected with 409 `ESCROW_TOKEN_UNSUPPORTED` (NIM escrow is a later
-phase). Env read: `POLYGON_RPC_URL` (event reads, fail-closed when unset),
+time was rejected with 409 `ESCROW_TOKEN_UNSUPPORTED` (superseded in
+14f-1 — NIM intent is now supported, see the endpoint entry below). Env read: `POLYGON_RPC_URL` (event reads, fail-closed when unset),
 `USDT_ESCROW_CONTRACT_ADDRESS` (event filter + deposit instruction, never
 hardcoded), `ESCROW_DEPOSIT_VERIFICATION_SECONDS` (default 1800, pending →
 `payment_review` on expiry, inventory stays reserved), and the new
@@ -827,20 +842,25 @@ Auth: session + buyer owner, and safe to call repeatedly.
 
 Server re-queries Nimiq state and attempts deterministic verification.
 
-### POST /api/v1/claims/:claimId/escrow-intent (Phase 14d-2: USDT live)
+### POST /api/v1/claims/:claimId/escrow-intent (Phase 14d-2: USDT live, 14f-1: NIM live)
 
 Auth: session + buyer owner (foreign → 404 `CLAIM_NOT_FOUND`, anonymous → 401).
 
 Request: `{ token: 'NIM' | 'USDT_POLYGON' }` (strict, no unknown fields).
-`NIM` → 409 `ESCROW_TOKEN_UNSUPPORTED` (no row created); wrong claim state →
+Unknown token → 409 `ESCROW_TOKEN_UNSUPPORTED`; wrong claim state →
 409 `CLAIM_NOT_PAYABLE`; funded → 409 `ESCROW_ALREADY_FUNDED`.
 
-Response: `{ escrow, claim, depositInstruction }` where the instruction
+Response: `{ escrow, claim, depositInstruction }`. The USDT instruction
 carries `contractAddress`, `usdtAmount` (string, 6-decimal base units),
 `onChainEscrowId`, `approveTo` (= contractAddress), `approveAmount` (exact, =
 usdtAmount — exact-amount approval only, never infinite), and `buyerWallet`
-(frontend sanity-check). Existing escrow pre-funding → returned as-is
-(idempotent, no new row).
+(frontend sanity-check). The NIM instruction (14f-1) carries
+`escrowWalletAddress` (omnibus custodial wallet), `nimAmount` (string,
+luna base units), `dataBinding` (`TAKEOVER:v1:<claimId>`, sender-bound
+per the D5 note in §6), and `buyerWallet` (the authenticated Nimiq
+address the on-chain sender must equal). NIM rows store NULL
+`contract_address`/`on_chain_escrow_id`. Existing escrow pre-funding →
+returned as-is (idempotent, no new row).
 
 Rate limit: per-IP 10/60s (matches the deprecated intent path).
 

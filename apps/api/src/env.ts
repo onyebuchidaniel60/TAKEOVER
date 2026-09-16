@@ -50,6 +50,11 @@ const envSchema = z.object({
   // closed at first release attempt, never at boot).
   ESCROW_SIGNER_PRIVATE_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   NIM_ESCROW_WALLET_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  // Server-side NIM escrow wallet key (Phase 14f custodial escrow). Shape-
+  // checked loosely here (strict handling lives in the escrow wallet module,
+  // which fails closed at first NIM escrow use, never at boot). Server-only
+  // secret: never logged, never returned; KMS is the production gap.
+  NIM_ESCROW_WALLET_PRIVATE_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -70,6 +75,37 @@ export function getPolygonBroadcastRpcUrl(
   env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
 ): string | undefined {
   const raw = env.POLYGON_BROADCAST_RPC_URL;
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    return raw.trim();
+  }
+  return undefined;
+}
+
+/**
+ * NIM escrow wallet address (Phase 14f custodial escrow, single omnibus
+ * wallet for all NIM escrows). Unset/blank/malformed → undefined; callers
+ * fail closed at first NIM escrow use (never at boot). Canonicalization
+ * happens in the escrow wallet module, not here.
+ */
+export function getNimEscrowWalletAddress(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): string | undefined {
+  const raw = env.NIM_ESCROW_WALLET_ADDRESS;
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    return raw.trim();
+  }
+  return undefined;
+}
+
+/**
+ * NIM escrow wallet private key (Phase 14f; signing lands in P-NIM-2).
+ * Unset/blank → undefined. Never logged, never returned; the wallet
+ * module is the only reader.
+ */
+export function getNimEscrowWalletPrivateKey(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): string | undefined {
+  const raw = env.NIM_ESCROW_WALLET_PRIVATE_KEY;
   if (typeof raw === 'string' && raw.trim() !== '') {
     return raw.trim();
   }

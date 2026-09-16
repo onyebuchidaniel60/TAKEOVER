@@ -48,6 +48,9 @@ describe.skipIf(!isDatabaseConfigured())('phase 13 concurrency sweep (live, no m
     async getBlockNumber(): Promise<number> {
       return 2_000_000;
     },
+    async getBalance(): Promise<string> {
+      throw new Error('Not implemented in this fake.');
+    },
   };
 
   const app = buildApp({

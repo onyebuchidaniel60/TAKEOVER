@@ -57,6 +57,9 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     async getBlockNumber(): Promise<number> {
       return 2_000_000;
     },
+    async getBalance(): Promise<string> {
+      throw new Error('Not implemented in this fake.');
+    },
   };
 
   // Shared app: every budget disabled (budgets are proven by the dedicated
@@ -1192,6 +1195,9 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
           throw new RpcUnavailableError('down');
         },
         async getBlockNumber(): Promise<number> {
+          throw new RpcUnavailableError('down');
+        },
+        async getBalance(): Promise<string> {
           throw new RpcUnavailableError('down');
         },
       };

@@ -63,7 +63,7 @@ function canonicalizeOr500(value: string): string {
   }
 }
 
-function canonicalizeTxAddress(value: unknown): string | null {
+export function canonicalizeTxAddress(value: unknown): string | null {
   try {
     if (typeof value !== 'string') return null;
     return canonicalizeNimiqAddress(value);

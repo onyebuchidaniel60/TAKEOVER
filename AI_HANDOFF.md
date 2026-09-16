@@ -3,6 +3,110 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14f P-NIM-1 — NIM escrow deposit path live; ledger foundation in place (2026-09-16)
+
+First NIM-rail implementation: escrow-intent accepts `NIM` (instruction
+carries the omnibus wallet + exact luna amount + `TAKEOVER:v1:<claimId>`
+binding + buyer wallet; rows store NULL contract fields),
+verify-deposit assesses sender-bound (D5) against the Nimiq chain and on
+match funds both rows plus exactly one `escrow_ledger` DEPOSIT row in a
+single transaction. `@nimiq/core` is now an api runtime dep
+(dual-declared — root devDep stays for the oracle). No signing, no
+release/refund, no halt (all P-NIM-2). USDT path byte-identical
+(proven by unmodified suites + one rewritten gate test).
+
+```text
+CURRENT PHASE: Phase 14f P-NIM-1 complete — NIM escrow deposit path
+  live (testnet); ledger foundation in place. Signing, release,
+  refund, and invariant enforcement are P-NIM-2. Do NOT begin
+  P-NIM-2 automatically.
+COMPLETED: prereqs (tree 7e609c3 clean, testnet block 11622279,
+  faucet https://nimiq.dev/web-client/faucet API
+  https://faucet.pos.nimiq-testnet.com up to 10000 NIM, typecheck
+  baseline green) + D1 dual-declare (@nimiq/core added to
+  takeover-api deps, root devDep kept for nimiq-oracle +
+  e2e-acceptance imports; api tsc build green) + ARCH §4.5 revision
+  + env getters (NIM_ESCROW_WALLET_ADDRESS/PRIVATE_KEY) +
+  escrow/nimiq/wallet.ts (address-only resolver, canonical form) +
+  intent NIM branch (union instruction type, NULL contract fields,
+  idempotent) + assessNimDeposit predicate (sender/recipient/amount/
+  data/hash/confirmations) + verify NIM wiring (shared
+  expireDepositToReview extraction, USDT arms untouched) +
+  escrow/ledger.ts (naming convention + same-tx writer) +
+  getBalance on NimiqRpcClient (6 unrelated fakes gained a throwing
+  stub) + ARCH §6 D5 note + §13 NIM intent + §4.5/14d-2-note tags +
+  manual mock-RPC walkthrough + orphan cleanup + this checkpoint
+TESTS RUN: typecheck exit 0 (all + db); lint exit 0; build exit 0
+  (all workspaces); escrow-nim-unit 31/31 (predicate matrix,
+  resolver, ledger validation, balance parsing); escrow-nim-deposit
+  14/14 live-DB (intent shape/idempotency/no-wallet-503, happy path
+  with exact ledger row, 4 mismatches, pending x2, funded no-op,
+  expiry→review, RPC-outage 503, parallel-verifies single row);
+  regressions 7 files/89 pass (escrow-service incl. rewritten NIM
+  intent test, escrow-deposit, escrow-release, escrow-refund-client,
+  verify-payments, verify-unit, payments); FULL with DATABASE_URL
+  exit 0 — api 43 files/472 pass (baseline 41/427: delta +2 files,
+  +45 = 31 unit + 14 deposit), web 16/129 unchanged, shared 1/1;
+  manual path-(a): intent 200 with NIM instruction, submission 200,
+  verify funded, 1 exact ledger row, scoped cleanup, zero residue
+  (NIM escrows 0, ledger 0).
+RESULT: single commit (message below); push gated on green battery
+  + expected file set (matched — 6 test-file conformance stubs are
+  the only out-of-set touch, one line each) + zero residue
+KNOWN ISSUES:
+- @nimiq/core is now a runtime dep of the API workspace
+  (dual-declared; root devDep kept); ARCHITECTURE §4.5 revised
+  accordingly.
+- D5 divergence documented: NIM sender-bound verification; USDT
+  model B. Both correct for their rails.
+- Ledger invariant enforcement deferred to P-NIM-2 (helper exists;
+  no halt this phase).
+- NIM release/refund/dispute/auto-refund NOT implemented (P-NIM-2).
+- NIM escrow wallet private key: env secret now, KMS production
+  gap (D8). No key exists yet — only the getter + docs.
+- getBalance targets standard Nimiq Core `getBalance`, but the
+  public nimiqwatch proxy (testnet AND mainnet shapes observed)
+  allowlists only getTransactionByHash/getBlockNumber and rejects
+  it ("Method not allowed"). P-NIM-2's invariant check needs a
+  full-node NIMIQ_RPC_URL or an approved alternate — flagged as a
+  P-NIM-2 prerequisite.
+- P-NIM-2 and P-NIM-3 carry forward.
+- USDT path unchanged; all USDT residuals carry forward
+  (split-RPC deploy requirement, unverified contract, fee quirks,
+  signer rotation → Phase 15, auto-release gap, refund/dispute
+  untested E2E, Railway image bakes secrets as ARG/ENV, format
+  waiver, Mumbai mention, payout immutability, lazy auto-refund,
+  no dispute UI, 14d-4 frontend gap, Foundry PATH prefix,
+  "timestamp" prose, fromBlock-0 fragility).
+SECURITY NOTES: no secrets printed at any point (env parsed to
+  booleans/hosts/balances; key-derived addresses are public);
+  custodial key handling deferred to P-NIM-2 (no key material in
+  this phase at all); sender-binding is a strictness gain over
+  USDT model B; ledger rows carry ids/amounts/hashes only;
+  mismatch reasons are field-level codes, never values.
+FILES CHANGED: apps/api/package.json, package-lock.json,
+  ARCHITECTURE.md (§4.5, §6 D5 note, §13 intent, 14d-2-note tag),
+  .env.example (2 NIM lines), apps/api/src/env.ts (schema + 2
+  getters), apps/api/src/escrow/nimiq/wallet.ts (new),
+  apps/api/src/escrow/nimiq/verify-deposit.ts (new),
+  apps/api/src/escrow/ledger.ts (new), apps/api/src/escrow/
+  service.ts (intent + verify NIM branches, shared expiry
+  extraction), apps/api/src/payments/rpc.ts (getBalance),
+  apps/api/src/payments/verify.ts (one-word export, zero behavior
+  change), 6 test fakes (+1 stub line each),
+  apps/api/test/escrow-service.test.ts (NIM intent test rewritten),
+  apps/api/test/escrow-nim-unit.test.ts (new, 31),
+  apps/api/test/escrow-nim-deposit.test.ts (new, 14),
+  AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: feat: phase 14f-1 — NIM escrow deposit path and ledger
+  foundation (single commit with this checkpoint; hash recorded
+  at push)
+NEXT TASK: Phase 14f P-NIM-2 — signing + release/refund/resolve
+  branches + ledger invariant enforcement. Do NOT start
+  automatically.
+BLOCKED BY: none.
+```
+
 ## Phase 14e-2e — Railway release live with split RPC; 14e-2c fully complete (2026-09-16)
 
 Railway escrow release verified end-to-end with the read/broadcast RPC

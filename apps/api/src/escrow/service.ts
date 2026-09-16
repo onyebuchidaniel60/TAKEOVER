@@ -34,6 +34,15 @@ import {
   getEscrowReleaseConfirmations,
 } from '../env';
 import { disputeCallData, type DisputeInstruction } from './polygon/client';
+import { EscrowWalletUnavailableError, resolveNimEscrowWalletAddress } from './nimiq/wallet';
+import { assessNimDeposit, nimDepositDataBinding, type NimDepositMismatch } from './nimiq/verify-deposit';
+import { buyerLedgerAccount, LEDGER_ESCROW_WALLET_ACCOUNT, writeLedgerEntry } from './ledger';
+import {
+  createRpcClient,
+  getNimiqRpcUrl,
+  RpcUnavailableError,
+  type NimiqRpcClient,
+} from '../payments/rpc';
 import { isUniqueViolation } from '../claims/service';
 import { isContactNoteVisibleToBuyer, toClaimView, type ClaimView } from '../claims/claim-view';
 import { AppError } from '../http/errors';
@@ -69,7 +78,7 @@ export interface EscrowView {
   updated_at: string;
 }
 
-export interface DepositInstruction {
+export interface UsdtDepositInstruction {
   contractAddress: string;
   usdtAmount: string;
   onChainEscrowId: string;
@@ -77,6 +86,15 @@ export interface DepositInstruction {
   approveAmount: string;
   buyerWallet: string;
 }
+
+export interface NimDepositInstruction {
+  escrowWalletAddress: string;
+  nimAmount: string;
+  dataBinding: string;
+  buyerWallet: string;
+}
+
+export type DepositInstruction = UsdtDepositInstruction | NimDepositInstruction;
 
 export type EscrowRow = typeof escrows.$inferSelect;
 
@@ -126,18 +144,41 @@ function contractAddressOr503(): string {
 }
 
 /**
+ * Phase 14f: resolve the NIM escrow wallet or fail closed with the existing
+ * generic escrow 503 (no new error code — the client-facing message stays
+ * token-neutral).
+ */
+function nimWalletAddressOr503(): string {
+  try {
+    return resolveNimEscrowWalletAddress();
+  } catch (err) {
+    if (err instanceof EscrowWalletUnavailableError) {
+      throw new AppError(
+        503,
+        'ESCROW_CONTRACT_UNAVAILABLE',
+        'Escrow service is temporarily unavailable. Please try again.',
+      );
+    }
+    throw err;
+  }
+}
+
+/**
  * Create (or idempotently return) the escrow for one claim.
- * Token gate first after ownership: NIM → 409 ESCROW_TOKEN_UNSUPPORTED.
- * Existing escrow → idempotent return pre-funding; 409 ESCROW_ALREADY_FUNDED
- * post-funding. Otherwise creates status='created' with NULL funded fields.
+ * Token gate first after ownership: unknown token → 409
+ * ESCROW_TOKEN_UNSUPPORTED. Existing escrow → idempotent return
+ * pre-funding; 409 ESCROW_ALREADY_FUNDED post-funding. Otherwise creates
+ * status='created' with NULL funded fields. NIM rows carry NULL
+ * contract fields (no on-chain escrow id; the data binding's claimId
+ * identifies the escrow) and a NIM deposit instruction.
  */
 export async function createEscrowIntent(
   db: Db,
   options: { claimId: string; buyerId: string; token: string; now?: Date; requestId?: string | null },
 ): Promise<{ escrow: EscrowView; claim: ClaimView; depositInstruction: DepositInstruction }> {
   const now = options.now ?? new Date();
-  if (options.token !== 'USDT_POLYGON') {
-    throw new AppError(409, 'ESCROW_TOKEN_UNSUPPORTED', 'Only USDT on Polygon is supported right now.');
+  if (options.token !== 'USDT_POLYGON' && options.token !== 'NIM') {
+    throw new AppError(409, 'ESCROW_TOKEN_UNSUPPORTED', 'This token is not supported right now.');
   }
   const decided = await db.transaction(async (tx) => {
     const claimRows = await tx
@@ -166,7 +207,12 @@ export async function createEscrowIntent(
     if (claim.status !== 'active_hold') {
       throw new AppError(409, 'CLAIM_NOT_PAYABLE', 'This claim cannot be funded right now.');
     }
-    const contractAddress = contractAddressOr503();
+    const isNim = options.token === 'NIM';
+    const contractAddress = isNim ? null : contractAddressOr503();
+    if (isNim) {
+      // Fail closed before creating the row when no escrow wallet is configured.
+      nimWalletAddressOr503();
+    }
     const slotRows = await tx.select().from(slots).where(eq(slots.id, claim.slotId)).limit(1);
     const slot = slotRows[0];
     if (!slot) {
@@ -185,11 +231,11 @@ export async function createEscrowIntent(
           claimId: claim.id,
           buyerId: options.buyerId,
           providerId: slot.providerId,
-          paymentToken: 'USDT_POLYGON',
+          paymentToken: options.token as 'NIM' | 'USDT_POLYGON',
           amountBaseUnits: slot.priceNim,
           status: 'created',
           contractAddress,
-          onChainEscrowId: newOnChainEscrowId(),
+          onChainEscrowId: isNim ? null : newOnChainEscrowId(),
           createdAt: now,
           updatedAt: now,
         })
@@ -217,9 +263,6 @@ export async function createEscrowIntent(
     return { escrowRow, claimRow: claim, created: true as const };
   });
   const escrow = decided.escrowRow;
-  if (!escrow.onChainEscrowId || !escrow.contractAddress) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
-  }
   const buyerWalletRows = await db
     .select({ walletAddress: users.walletAddress })
     .from(users)
@@ -227,6 +270,21 @@ export async function createEscrowIntent(
     .limit(1);
   const buyerWallet = buyerWalletRows[0]?.walletAddress ?? '';
   const amount = escrow.amountBaseUnits.toString();
+  if (escrow.paymentToken === 'NIM') {
+    return {
+      escrow: toEscrowView(escrow),
+      claim: toClaimView(decided.claimRow),
+      depositInstruction: {
+        escrowWalletAddress: nimWalletAddressOr503(),
+        nimAmount: amount,
+        dataBinding: nimDepositDataBinding(decided.claimRow.id),
+        buyerWallet,
+      },
+    };
+  }
+  if (!escrow.onChainEscrowId || !escrow.contractAddress) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+  }
   return {
     escrow: toEscrowView(escrow),
     claim: toClaimView(decided.claimRow),
@@ -348,7 +406,7 @@ export type VerifyDepositStatus = 'pending' | 'mismatch' | 'review' | 'funded';
 
 export interface VerifyDepositResult {
   status: VerifyDepositStatus;
-  reason?: 'amount' | 'escrow_id' | 'timeout';
+  reason?: 'amount' | 'escrow_id' | 'timeout' | NimDepositMismatch;
   escrow: EscrowView;
   claim: ClaimView;
 }
@@ -365,6 +423,75 @@ export function isDepositVerificationTimedOut(
   return now.getTime() - depositSubmittedAt.getTime() > timeoutSeconds * 1000;
 }
 
+type ClaimRow = typeof claims.$inferSelect;
+
+/**
+ * Shared pending-timeout expiry for deposit verification (USDT + NIM): a
+ * deposit_submitted claim whose verification window elapsed ages to
+ * payment_review (inventory stays reserved — the buyer might have paid).
+ * Concurrent verifiers fail closed into the winner's state.
+ */
+async function expireDepositToReview(
+  db: Db,
+  options: {
+    claim: ClaimRow;
+    escrow: EscrowRow;
+    buyerId: string;
+    now: Date;
+    requestId: string | null;
+  },
+): Promise<VerifyDepositResult> {
+  const { claim, escrow, buyerId, now, requestId } = options;
+  return db.transaction(async (tx) => {
+    const freshRows = await tx
+      .select()
+      .from(claims)
+      .where(and(eq(claims.id, claim.id), eq(claims.buyerId, buyerId)))
+      .for('update')
+      .limit(1);
+    const fresh = freshRows[0];
+    if (!fresh) {
+      throw new AppError(404, 'CLAIM_NOT_FOUND', 'Claim not found.');
+    }
+    if (fresh.status !== 'deposit_submitted') {
+      const freshEscrow =
+        (await tx.select().from(escrows).where(eq(escrows.claimId, fresh.id)).limit(1))[0] ??
+        escrow;
+      if (fresh.status === 'escrow_funded') {
+        return { status: 'funded' as const, escrow: toEscrowView(freshEscrow), claim: toClaimView(fresh) };
+      }
+      return {
+        status: 'review' as const,
+        reason: 'timeout' as const,
+        escrow: toEscrowView(freshEscrow),
+        claim: toClaimView(fresh),
+      };
+    }
+    const moved = await tx
+      .update(claims)
+      .set({ status: 'payment_review', depositSubmittedAt: null, updatedAt: now })
+      .where(and(eq(claims.id, fresh.id), eq(claims.status, 'deposit_submitted')))
+      .returning();
+    const finalClaim = moved[0] ?? fresh;
+    if (moved[0]) {
+      await writeAuditEvent(tx, {
+        actorUserId: buyerId,
+        eventType: 'escrow.review',
+        entityType: 'claim',
+        entityId: fresh.id,
+        requestId: requestId ?? null,
+        metadata: { escrowId: escrow.id, from: 'deposit_submitted', to: 'payment_review', reason: 'timeout' },
+      });
+    }
+    return {
+      status: 'review' as const,
+      reason: 'timeout' as const,
+      escrow: toEscrowView(escrow),
+      claim: toClaimView(finalClaim),
+    };
+  });
+}
+
 /**
  * On-demand deposit verification (buyer polling, mirroring deprecated
  * verify-payment). Already funded → 200 no-op without RPC. Otherwise loads
@@ -379,6 +506,8 @@ export async function verifyDeposit(
     claimId: string;
     buyerId: string;
     client: EscrowContractClient;
+    /** Nimiq RPC override for the NIM branch (tests). Production uses NIMIQ_RPC_URL. */
+    nimRpc?: NimiqRpcClient;
     now?: Date;
     requestId?: string | null;
   },
@@ -416,6 +545,16 @@ export async function verifyDeposit(
   }
   if (!escrow) {
     throw new AppError(404, 'ESCROW_NOT_FOUND', 'No escrow for this claim.');
+  }
+  if (escrow.paymentToken === 'NIM') {
+    return verifyNimDeposit(db, {
+      claim,
+      escrow,
+      buyerId: options.buyerId,
+      nimRpc: options.nimRpc,
+      now,
+      requestId: options.requestId ?? null,
+    });
   }
   if (!escrow.onChainEscrowId) {
     throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
@@ -456,53 +595,12 @@ export async function verifyDeposit(
     if (!timedOut) {
       return { status: 'pending', escrow: toEscrowView(escrow), claim: toClaimView(claim) };
     }
-    return db.transaction(async (tx) => {
-      const freshRows = await tx
-        .select()
-        .from(claims)
-        .where(and(eq(claims.id, claim.id), eq(claims.buyerId, options.buyerId)))
-        .for('update')
-        .limit(1);
-      const fresh = freshRows[0];
-      if (!fresh) {
-        throw new AppError(404, 'CLAIM_NOT_FOUND', 'Claim not found.');
-      }
-      if (fresh.status !== 'deposit_submitted') {
-        const freshEscrow =
-          (await tx.select().from(escrows).where(eq(escrows.claimId, fresh.id)).limit(1))[0] ??
-          escrow;
-        if (fresh.status === 'escrow_funded') {
-          return { status: 'funded' as const, escrow: toEscrowView(freshEscrow), claim: toClaimView(fresh) };
-        }
-        return {
-          status: 'review' as const,
-          reason: 'timeout' as const,
-          escrow: toEscrowView(freshEscrow),
-          claim: toClaimView(fresh),
-        };
-      }
-      const moved = await tx
-        .update(claims)
-        .set({ status: 'payment_review', depositSubmittedAt: null, updatedAt: now })
-        .where(and(eq(claims.id, fresh.id), eq(claims.status, 'deposit_submitted')))
-        .returning();
-      const finalClaim = moved[0] ?? fresh;
-      if (moved[0]) {
-        await writeAuditEvent(tx, {
-          actorUserId: options.buyerId,
-          eventType: 'escrow.review',
-          entityType: 'claim',
-          entityId: fresh.id,
-          requestId: options.requestId ?? null,
-          metadata: { escrowId: escrow.id, from: 'deposit_submitted', to: 'payment_review', reason: 'timeout' },
-        });
-      }
-      return {
-        status: 'review' as const,
-        reason: 'timeout' as const,
-        escrow: toEscrowView(escrow),
-        claim: toClaimView(finalClaim),
-      };
+    return expireDepositToReview(db, {
+      claim,
+      escrow,
+      buyerId: options.buyerId,
+      now,
+      requestId: options.requestId ?? null,
     });
   }
   // Matched — money is money, even past the window. Single transaction funds
@@ -565,6 +663,151 @@ export async function verifyDeposit(
         entityType: 'claim',
         entityId: fresh.id,
         requestId: options.requestId ?? null,
+        metadata: { escrowId: freshEscrow.id, from: 'deposit_submitted', to: 'escrow_funded' },
+      });
+    }
+    return { status: 'funded' as const, escrow: toEscrowView(finalEscrow), claim: toClaimView(finalClaim) };
+  });
+}
+
+/**
+ * Phase 14f P-NIM-1: NIM deposit verification (custodial escrow). Parallel
+ * structure to the USDT branch above, dispatched on escrow.payment_token:
+ * the Nimiq transaction keyed by the submitted deposit reference is
+ * assessed sender-bound (D5) against the escrow row; mismatch → 200 with a
+ * field reason and no write; pending → no-op (or the shared window-expiry
+ * to payment_review); matched → one transaction funds both rows AND writes
+ * the ledger DEPOSIT row. No signing in this phase (P-NIM-2).
+ */
+async function verifyNimDeposit(
+  db: Db,
+  options: {
+    claim: ClaimRow;
+    escrow: EscrowRow;
+    buyerId: string;
+    nimRpc?: NimiqRpcClient;
+    now: Date;
+    requestId: string | null;
+  },
+): Promise<VerifyDepositResult> {
+  const { claim, escrow, buyerId, now, requestId } = options;
+  if (!escrow.depositTxHash) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+  }
+  const depositTxHash = escrow.depositTxHash;
+  let found;
+  try {
+    const rpc = options.nimRpc ?? createRpcClient(getNimiqRpcUrl());
+    found = await rpc.getTransactionByHash(depositTxHash);
+  } catch (err) {
+    if (err instanceof RpcUnavailableError) {
+      throw new AppError(
+        503,
+        'ESCROW_CONTRACT_UNAVAILABLE',
+        'Deposit verification is temporarily unavailable. Please try again.',
+      );
+    }
+    throw err;
+  }
+  const buyerRows = await db
+    .select({ walletAddress: users.walletAddress })
+    .from(users)
+    .where(eq(users.id, buyerId))
+    .limit(1);
+  const buyerWallet = buyerRows[0]?.walletAddress ?? '';
+  const assessment = assessNimDeposit(found, {
+    claimId: claim.id,
+    buyerWallet,
+    escrowWallet: nimWalletAddressOr503(),
+    amountBaseUnits: escrow.amountBaseUnits,
+    depositTxHash,
+  });
+  if (assessment.status === 'mismatch') {
+    return {
+      status: 'mismatch',
+      reason: assessment.reason,
+      escrow: toEscrowView(escrow),
+      claim: toClaimView(claim),
+    };
+  }
+  if (assessment.status === 'pending') {
+    const timedOut = isDepositVerificationTimedOut(
+      claim.depositSubmittedAt,
+      now,
+      getEscrowDepositVerificationSeconds(),
+    );
+    if (!timedOut) {
+      return { status: 'pending', escrow: toEscrowView(escrow), claim: toClaimView(claim) };
+    }
+    return expireDepositToReview(db, { claim, escrow, buyerId, now, requestId });
+  }
+  // Matched — fund both rows plus the ledger DEPOSIT row in one transaction
+  // with conditional writes so concurrent verifiers fail closed (exactly one
+  // ledger row per escrow).
+  return db.transaction(async (tx) => {
+    const freshRows = await tx
+      .select()
+      .from(claims)
+      .where(and(eq(claims.id, claim.id), eq(claims.buyerId, buyerId)))
+      .for('update')
+      .limit(1);
+    const fresh = freshRows[0];
+    if (!fresh) {
+      throw new AppError(404, 'CLAIM_NOT_FOUND', 'Claim not found.');
+    }
+    const freshEscrowRows = await tx
+      .select()
+      .from(escrows)
+      .where(eq(escrows.claimId, fresh.id))
+      .limit(1);
+    const freshEscrow = freshEscrowRows[0];
+    if (!freshEscrow) {
+      throw new AppError(404, 'ESCROW_NOT_FOUND', 'No escrow for this claim.');
+    }
+    if (fresh.status !== 'deposit_submitted') {
+      if (fresh.status === 'escrow_funded') {
+        return { status: 'funded' as const, escrow: toEscrowView(freshEscrow), claim: toClaimView(fresh) };
+      }
+      return {
+        status: 'review' as const,
+        reason: 'timeout' as const,
+        escrow: toEscrowView(freshEscrow),
+        claim: toClaimView(fresh),
+      };
+    }
+    const deliveryDeadline = new Date(now.getTime() + getEscrowDeliveryWindowSeconds() * 1000);
+    const updatedEscrowRows = await tx
+      .update(escrows)
+      .set({
+        status: 'funded',
+        fundedAt: now,
+        deliveryDeadline,
+        updatedAt: now,
+      })
+      .where(and(eq(escrows.id, freshEscrow.id), eq(escrows.status, 'created')))
+      .returning();
+    const updatedClaimRows = await tx
+      .update(claims)
+      .set({ status: 'escrow_funded', updatedAt: now })
+      .where(and(eq(claims.id, fresh.id), eq(claims.status, 'deposit_submitted')))
+      .returning();
+    const finalEscrow = updatedEscrowRows[0] ?? freshEscrow;
+    const finalClaim = updatedClaimRows[0] ?? fresh;
+    if (updatedClaimRows[0]) {
+      await writeLedgerEntry(tx, {
+        escrowId: freshEscrow.id,
+        entryType: 'deposit',
+        debitAccount: buyerLedgerAccount(buyerId),
+        creditAccount: LEDGER_ESCROW_WALLET_ACCOUNT,
+        amountBaseUnits: freshEscrow.amountBaseUnits,
+        txHash: freshEscrow.depositTxHash ?? depositTxHash,
+      });
+      await writeAuditEvent(tx, {
+        actorUserId: buyerId,
+        eventType: 'escrow.funded',
+        entityType: 'claim',
+        entityId: fresh.id,
+        requestId,
         metadata: { escrowId: freshEscrow.id, from: 'deposit_submitted', to: 'escrow_funded' },
       });
     }
