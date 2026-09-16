@@ -2,7 +2,13 @@
 // Phase 11 state rendering: one suite per route proving loading, empty,
 // error, not-found, and unavailable states render the right component for
 // mocked conditions. Titles and the admin robots tag are asserted alongside.
-import { render, screen } from '@testing-library/react';
+// Case-B flake note: document.title and head meta are written by usePageMeta
+// inside a React useEffect, so every assertion on them that follows an
+// awaited query uses await waitFor (condition-based, no elapsed-time
+// assumption) instead of a synchronous expect — the content commit and the
+// effect commit are not guaranteed to flush together (diagnosed: sync assert
+// read the pre-effect 'Slot — TAKEOVER' loading title at 73ms).
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
@@ -79,7 +85,11 @@ describe('/slot/:id states', () => {
     mockFetch(() => err(404, 'NOT_FOUND', 'Slot not found.'));
     renderAt('/slot/slot-9', '/slot/:slotId', <SlotDetailPage />);
     await screen.findByText(/no longer available/i);
-    expect(document.title).toBe('Slot — TAKEOVER');
+    // Title is usePageMeta-driven (effect); wait for the effect, don't assume
+    // it flushed with the content commit.
+    await waitFor(() => {
+      expect(document.title).toBe('Slot — TAKEOVER');
+    });
   });
 
   it('sold-out is an explicit unavailable state, not an error', async () => {
@@ -88,7 +98,9 @@ describe('/slot/:id states', () => {
     renderAt('/slot/slot-1', '/slot/:slotId', <SlotDetailPage />);
     await screen.findByText(/sold out/i);
     await screen.findByText(/just missed it/i);
-    expect(document.title).toContain('Table for two');
+    await waitFor(() => {
+      expect(document.title).toContain('Table for two');
+    });
   });
 
   it('loaded slot sets title, price, and share preview meta', async () => {
@@ -96,10 +108,12 @@ describe('/slot/:id states', () => {
     mockFetch(() => ({ slot: slotFixture() }));
     renderAt('/slot/slot-1', '/slot/:slotId', <SlotDetailPage />);
     await screen.findByText('Table for two — tonight');
-    expect(document.title).toBe('Table for two — tonight — TAKEOVER');
-    expect(document.querySelector('meta[property="og:title"]')?.getAttribute('content')).toContain(
-      'Table for two',
-    );
+    await waitFor(() => {
+      expect(document.title).toBe('Table for two — tonight — TAKEOVER');
+      expect(document.querySelector('meta[property="og:title"]')?.getAttribute('content')).toContain(
+        'Table for two',
+      );
+    });
   });
 });
 
@@ -115,7 +129,9 @@ describe('/claim/:id states', () => {
       </RequireAuth>,
     );
     await screen.findByText(/hold not found/i);
-    expect(document.title).toBe('Claim — TAKEOVER');
+    await waitFor(() => {
+      expect(document.title).toBe('Claim — TAKEOVER');
+    });
   });
 
   it('expired is an explicit unavailable state with a re-claim path', async () => {
@@ -167,7 +183,9 @@ describe('/claims states', () => {
     );
     await screen.findByText(/haven't claimed anything yet/i);
     await screen.findByRole('link', { name: /browse openings/i });
-    expect(document.title).toBe('My holds — TAKEOVER');
+    await waitFor(() => {
+      expect(document.title).toBe('My holds — TAKEOVER');
+    });
     unmount();
     mockFetch(() => err(500, 'INTERNAL_ERROR', 'Something went wrong.'));
     renderAt(
@@ -200,7 +218,9 @@ describe('/sell states', () => {
       </MemoryRouter>,
     );
     await screen.findByText(/no openings yet/i);
-    expect(document.title).toBe('My openings — TAKEOVER');
+    await waitFor(() => {
+      expect(document.title).toBe('My openings — TAKEOVER');
+    });
     unmount();
     mockFetch(() => err(500, 'INTERNAL_ERROR', 'Something went wrong.'));
     renderAt(
@@ -227,7 +247,9 @@ describe('/sell/new states', () => {
     );
     const user = userEvent.setup();
     await screen.findByLabelText(/title/i);
-    expect(document.title).toBe('New opening — TAKEOVER');
+    await waitFor(() => {
+      expect(document.title).toBe('New opening — TAKEOVER');
+    });
     await user.click(screen.getByRole('button', { name: /save draft/i }));
     await screen.findByText(/give your opening a title/i);
   });
@@ -252,7 +274,9 @@ describe('/sell/:id states', () => {
       </MemoryRouter>,
     );
     await screen.findByText(/opening not found/i);
-    expect(document.title).toBe('Manage opening — TAKEOVER');
+    await waitFor(() => {
+      expect(document.title).toBe('Manage opening — TAKEOVER');
+    });
     unmount();
     mockFetch(() => err(500, 'INTERNAL_ERROR', 'Something went wrong.'));
     renderAt(
@@ -301,7 +325,9 @@ describe('/profile states', () => {
       </MemoryRouter>,
     );
     await screen.findByRole('button', { name: /try again/i });
-    expect(document.title).toBe('Profile — TAKEOVER');
+    await waitFor(() => {
+      expect(document.title).toBe('Profile — TAKEOVER');
+    });
     unmount();
     mockFetch((url) => {
       if (url === '/api/v1/me') return { user: meFixture() };
@@ -324,8 +350,10 @@ describe('admin route states', () => {
     mockFetch(() => err(500, 'INTERNAL_ERROR', 'Something went wrong.'));
     renderAt('/admin', '/admin', <AdminDashboard />);
     await screen.findByRole('button', { name: /try again/i });
-    expect(document.title).toBe('Moderation — TAKEOVER');
-    expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex');
+    await waitFor(() => {
+      expect(document.title).toBe('Moderation — TAKEOVER');
+      expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex');
+    });
   });
 
   it('/admin/reports empty is contextual', async () => {
@@ -382,13 +410,17 @@ describe('admin route states', () => {
       </MemoryRouter>,
     );
     await screen.findByText(/no reports/i);
-    expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex');
+    await waitFor(() => {
+      expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex');
+    });
     unmount();
     setGuest();
     mockFetch(() => ({ slots: [], total: 0, limit: 20, offset: 0 }));
     renderAt('/', '/', <Home />);
     await screen.findByText(/nothing available right now/i);
-    expect(document.querySelector('meta[name="robots"]')).toBeNull();
+    await waitFor(() => {
+      expect(document.querySelector('meta[name="robots"]')).toBeNull();
+    });
   });
 });
 

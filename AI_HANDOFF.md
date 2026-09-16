@@ -3,6 +3,95 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Chore — web test flake fix, case (B) route-states meta race (2026-09-16)
+
+Accepted diagnosis (not re-litigated): `route-states.test.tsx` awaited
+`findBy*` on slot content, then synchronously asserted `document.title`
+(and `og:*` / `robots` meta) — all written by `usePageMeta` inside a React
+`useEffect` (`apps/web/src/lib/meta.ts:51-52`). The content commit and the
+effect commit are not guaranteed to flush together. Proof: 2 failures in 18
+web executions on `9dc1636`, same test both times
+(`route-states.test.tsx > /slot/:id states > loaded slot sets title, price,
+and share preview meta`), assertion at 73 ms — received `'Slot — TAKEOVER'`
+(the pre-effect loading title), not a timeout. Same class Phase 13 fixed in
+`a11y-routes.test.tsx`.
+
+Fix: in `apps/web/test/route-states.test.tsx` only, every synchronous
+assertion on a `usePageMeta`-driven side effect (`document.title`,
+`meta[name="description"]`, `meta[property^="og:"]`, `meta[name="robots"]`)
+that follows an awaited query is now `await waitFor(() => { ... })`, with
+batchable assertions grouped in one block (title + og:title; title +
+robots). 12 sites converted; `waitFor` added to the testing-library import;
+no timeout raised, no retry, no test renamed, no count changed. All 16
+route components asserting titles were verified `usePageMeta` callers, so no
+site was ambiguous on that axis. Left untouched: (1) the `/ loading shows a
+skeleton` title assert (sync `getByLabelText` after sync `render`, no
+awaited query — RTL sync `act` flushes mount effects deterministically);
+(2) `security.test.tsx:122` (`innerHTML` in a source-text scan, not a DOM
+side-effect assertion). Sibling-file scan: no other `apps/web/test/` file
+asserts on `document.title` or head meta. Non-web suites: pattern not
+present (no `document.title`/head-meta assertions outside `apps/web/test/`
+— nothing to touch, no STOP triggered).
+
+```text
+CURRENT PHASE: Chore done — route-states meta race fixed (case B). Do NOT
+  begin Phase 14d-4.
+COMPLETED: case-B conversion (12 waitFor sites in route-states.test.tsx) +
+  full acceptance battery + this checkpoint
+TESTS RUN: typecheck clean exit 0 (all workspaces + db); lint clean exit 0;
+  web `npm.cmd run test --workspace takeover-web` x10 consecutive, all
+  green exit 0, each 16 files/129 passed — vitest durations 26.54 s /
+  21.89 s / 21.49 s / 20.48 s / 21.45 s / 23.63 s / 24.02 s / 24.88 s /
+  27.62 s / 26.36 s; full `npm.cmd run test` x3 consecutive, all green
+  exit 0 — run 1 wall 86 s (api 19 passed + 20 skipped files, 159 passed +
+  250 skipped tests, 53.58 s; web 16/129, 25.35 s; shared 1/1), run 2 wall
+  82 s (api 50.91 s; web 16/129, 24.32 s; shared 1/1), run 3 wall 89 s
+  (api 47.41 s; web 16/129, 34.43 s; shared 1/1); api live-DB suites skip
+  here (no DATABASE_URL — expected, same as baseline); zero failures of
+  any kind across all 13 post-fix runs
+RESULT: single commit (message below); push gated on green battery +
+  expected file set (matched — route-states.test.tsx + this checkpoint)
+KNOWN ISSUES:
+- LIVE DB / DOC DIVERGENCE (paid legacy enum value) — still open
+- paid-word residuals in PROJECT_SPEC.md and ARCHITECTURE.md
+- SECURITY_REVIEW.md payment rows + item 7 → 14d-8
+- README.md NIM-only intro → Phase 15
+- release path untested against a real deployed contract (mock-only until
+  the contract repo deploys)
+- escrows.provider_payout_address is set by the provider at delivery time;
+  no way to change it after the first successful call (14d-3b did not take
+  an admin change path; still deferred)
+- Auto-refund is lazy (read-triggered). A funded escrow whose delivery
+  deadline has passed will not refund until a read hits GET /escrow or
+  GET /admin/escrows. No worker/cron exists. Phase 15 may add a periodic
+  sweep if time permits.
+- The confirm-receipt release path (14d-3a) uses release_tx_hash IS NULL
+  as its in-flight guard; the new paths use explicit releasing/refunding
+  states. Asymmetric; revisit for unification if it causes confusion.
+- The buyer-side dispute UI does not exist yet. The endpoint returns the
+  instruction but nothing renders it.
+- Web test suite: (B) test-local anti-pattern identified and fixed
+  (route-states meta assertions now condition-based). Remaining risk: the
+  14d-3b 726 s live-DB-load manifestation (5 s findBy/waitFor timeouts in
+  a11y-routes/keyboard-focus/route-states) was NOT reproducible in this
+  environment (live-DB suites skip, runs are ~90 s) and is therefore NOT
+  proven fixed by mechanism — this fix removes the proven effect-flush
+  race, which plausibly contributes under load, but a heavy-load timeout
+  is a different failure mode and may resurface. Revisit if a phase goes
+  red under live-DB load.
+SECURITY NOTES: test-only change; no production/API/DB/config code
+  touched; no secrets, no auth/payment/state logic, no new dependency.
+FILES CHANGED: apps/web/test/route-states.test.tsx (12 sync meta/title
+  asserts → await waitFor; waitFor import; case-B comment header),
+  AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: chore: fix route-states meta flake — wait for usePageMeta
+  effects (case B) (single commit with this checkpoint; hash recorded at
+  push)
+NEXT TASK: Phase 14d-4 — post-funding provider contact details (do NOT
+  start automatically)
+BLOCKED BY: none
+```
+
 ## Phase 14d-3b — dispute, admin resolve, auto-refund, USDT refund (2026-09-16)
 
 Completes the USDT escrow lifecycle: every FR-12 state is reachable and
