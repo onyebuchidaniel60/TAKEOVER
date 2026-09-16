@@ -1,9 +1,9 @@
 # contracts/
 
-This directory will hold the TAKEOVER USDT escrow smart contract on
-Polygon.
+TakeoverEscrow lives at `src/TakeoverEscrow.sol`: the TAKEOVER USDT
+escrow on Polygon. The interface is specified in
+`docs/escrow-contract-interface.md` (authoritative); Foundry tests live
+in `test/` (unit + fuzz + invariant).
 
-The contract interface is specified in `docs/escrow-contract-interface.md`
-— that document is authoritative; the interface is not restated here.
-
-The Solidity implementation does not exist yet (separate, later track).
+Pinned: Solidity 0.8.28, OpenZeppelin Contracts v5.7.0 (submodule).
+Build/test with `forge` from this directory. Not deployed — 14e-2.

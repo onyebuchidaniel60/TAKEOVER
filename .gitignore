@@ -28,8 +28,8 @@ Thumbs.db
 # Hosting CLIs
 .vercel/
 
-# Foundry (Solidity toolchain) — build outputs and vendored deps only.
-# contracts/broadcast/ is deliberately NOT ignored (Solidity phase decides).
+# Foundry (Solidity toolchain) — build outputs only. contracts/lib/ holds
+# git submodules (forge-std, openzeppelin-contracts) and must stay tracked.
+# contracts/broadcast/ is deliberately NOT ignored (14e-2 decides).
 contracts/out/
 contracts/cache/
-contracts/lib/

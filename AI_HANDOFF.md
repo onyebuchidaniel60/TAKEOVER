@@ -3,6 +3,98 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14e-1 — TakeoverEscrow Solidity contract + Foundry tests (2026-09-16)
+
+Solidity track opened: `TakeoverEscrow` implements
+docs/escrow-contract-interface.md exactly (deposit / release(escrowId,
+toProvider) / refund / dispute, four events, SafeERC20 +
+ReentrancyGuard, custom errors, immutable token+signer, no
+owner/admin/pause/upgrade), with 30 Foundry tests green (unit + 16-cell
+access matrix + fuzz + reentrancy fail-closed proofs + balance invariant
+at 128 runs/1920 calls). Not deployed — 14e-2 owns Amoy deploy + wiring.
+
+Foundry prerequisite (Case B, resolved cleanly): forge was absent, so the
+official path ran under the already-installed Git Bash — `foundryup`
+installed, then fetched native win32_amd64 forge/cast/anvil/chisel 1.8.3.
+No WSL setup, no system/PATH/profile changes (binaries live in the user
+profile `.foundry/bin`; each shell invocation prefixes PATH in-command).
+OZ pinned to tag v5.7.0 (latest v5.x, commit cab19933); forge-std at
+upstream HEAD 7fdf81f (no tags published). solc pinned 0.8.28,
+optimizer on runs=200 (documented in foundry.toml), remappings via
+remappings.txt, no contracts/.gitignore (root file suffices).
+
+Mid-phase STOP (correct, owner-resolved): the mandated submodules dropped
+~7000 third-party JS files into the repo-root `eslint .` scan
+(`contracts/lib/**` was not in the ignores array), flipping lint 0 → 1
+with 6984 errors, all inside submodule test scripts. The fix — one line
+adding `'contracts/lib/**'` to eslint.config.js ignores — was outside the
+phase's file set, so the session stopped; owner authorized it as option
+(a). Post-fix lint is exit 0 with zero errors; typecheck/test/build
+counts identical to b4a9b54.
+
+```text
+CURRENT PHASE: Phase 14e-1 complete — TakeoverEscrow contract
+  implemented and Foundry-tested; not deployed. Do NOT begin 14e-2
+  (deploy).
+COMPLETED: foundry.toml (solc 0.8.28, optimizer 200) + remappings.txt +
+  forge-std + OZ v5.7.0 submodules + TakeoverEscrow.sol +
+  TakeoverEscrow.t.sol (29) + MockUSDT + ReentrantToken mocks +
+  invariant test + contracts/README refresh + .gitignore lib-line
+  removal + one-line eslint contracts/lib ignore (owner-authorized) +
+  this checkpoint
+TESTS RUN: forge build clean exit 0 (36 files, solc 0.8.28, zero
+  warnings); forge test green exit 0 — 30/30 (29 unit/matrix/fuzz/
+  reentrancy + invariant 128 runs/1920 calls/0 reverts, gas summary
+  emitted); forge fmt --check clean exit 0; TS/JS battery post-fix —
+  typecheck exit 0, lint exit 0 zero errors, test exit 0 identical to
+  b4a9b54 (api 20 files/168 pass + 21 files/259 skip, web 16/129,
+  shared 1/1; no DATABASE_URL, live suites skip as at baseline),
+  build exit 0. Forge items NOT re-run after the eslint fix (JS-only
+  change, nothing touches Solidity).
+RESULT: single commit (message below, submodules + .gitmodules inside);
+  push gated on green battery + exact file set (matched)
+KNOWN ISSUES:
+- The contract is NOT deployed. Backend release/refund paths remain
+  mock-verified only until 14e-2 lands and the address is wired.
+- The format gate waiver is unchanged (prettier --check red repo-wide,
+  pre-existing; separate hygiene chore).
+- Micro-decision (1): release() reverts on toProvider == address(0) —
+  fail-closed because no admin recovery exists; a zero payout would lock
+  funds permanently. Conforming callers unaffected.
+- Micro-decision (2): repeat dispute() reverts AlreadyDisputed — the
+  disputed flag is recorded on-chain, matching the doc's exactly-one-
+  event-per-escrow rule.
+- Interface-doc loose phrase "the timestamp it enforces" (Trust boundary
+  section) is prose, not a functional requirement; the contract
+  implements zero time logic. Flagged, not treated as a gap.
+- Mumbai mention at AGENTS.md:128 ('0x13881' Mumbai testnet) — known doc
+  residue, separate doc pass.
+- escrows.provider_payout_address immutability, lazy auto-refund, missing
+  dispute UI, 14d-4 frontend gap — carried, unchanged.
+SECURITY NOTES: no private key anywhere in the repo; no deployment
+  performed; no testnet transaction sent; contract has no admin, no
+  pause, no upgrade path by design. Signer-gated release/refund proven
+  by tests (16-cell matrix); exact-allowance enforced on-chain so
+  infinite approval is unusable even if requested; state precedes
+  transfers under nonReentrant on all four entry points (malicious-token
+  tests prove no double-spend). The eslint fix is a scan-scope
+  correction only — no rule weakened for project code.
+FILES CHANGED: contracts/foundry.toml (new), contracts/remappings.txt
+  (new), contracts/src/TakeoverEscrow.sol (new),
+  contracts/test/TakeoverEscrow.t.sol (new),
+  contracts/test/mocks/MockUSDT.sol (new),
+  contracts/test/mocks/ReentrantToken.sol (new), .gitmodules (new),
+  contracts/lib/forge-std + contracts/lib/openzeppelin-contracts
+  (submodule gitlinks), contracts/README.md, .gitignore (lib line
+  removed), eslint.config.js (one-line contracts/lib ignore,
+  owner-authorized), AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: feat: phase 14e-1 — TakeoverEscrow contract and Foundry
+  tests (single commit with this checkpoint; hash recorded at push)
+NEXT TASK: Phase 14e-2 — deploy to Polygon Amoy and wire the address
+  into backend config. Do NOT start automatically.
+BLOCKED BY: none
+```
+
 ## Consolidation chore — contract deliverable → contracts/ (2026-09-16)
 
 Chore: prepares the in-repo home for the USDT escrow contract (owner
