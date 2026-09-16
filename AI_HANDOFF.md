@@ -3,6 +3,113 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14e-2d — logging in place; Railway retry blocked on Amoy gas spike (2026-09-16)
+
+Diagnostic instrumentation for the Railway-only release failure is
+implemented, tested, committed, and pushed (single file,
+`apps/api/src/escrow/polygon/client.ts`, commit `72961eb`). Every wrap
+site reachable during a release broadcast now emits one structured fd-2
+line (`[escrow-polygon-error]`) with the viem error anatomy (name,
+message, cause chain, metaMessages) plus public context only (escrow id,
+signer address, RPC hostname). No behavior changed; error types and
+messages are identical. The Railway retry did NOT happen: Polygon Amoy
+is in a sustained gas spike (500 gwei, confirmed on three independent
+RPCs for 25+ minutes) and the fresh probe escrow could not be funded —
+the buyer wallet's 0.0173 POL cannot cover approve (~0.023) + deposit
+(~0.06), and the signer's 0.00434 POL cannot cover a release (~0.048).
+The probe rows were cleaned up scoped-by-ID; nothing with on-chain
+funds is outstanding. Separately, no new Railway deployment appeared
+within ~23 minutes of the push, so the logging build going live is
+UNCONFIRMED. Next session: verify deploy, wait for normal gas, walk a
+fresh escrow, retry confirm-receipt, read the marker line from the
+service logs.
+
+```text
+CURRENT PHASE: Phase 14e-2d diagnosed — Railway escrow release failure
+  root cause NOT yet captured; logging instrumented and pushed, retry
+  blocked on Amoy gas spike. Fix deferred to owner decision.
+COMPLETED: state verification (tree d55b5c2 clean, 0 escrows, contract
+  balance 0, signer 0.00434 POL/nonce 3, buyer 11 USDT + 0.0173 POL) +
+  Phase A logging (5 sites in client.ts: release signer-load,
+  chain-probe, broadcast + receipt fetch/head; helpers for hostname,
+  Bearer-redact, cause-chain walk; fd-2 sink because the client.ts
+  source-scan guard forbids the console literal and Fastify's logger is
+  unreachable from the pure client; refund/deposit/dispute sites
+  deliberately untouched) + typecheck/build/eslint green + pushed as
+  72961eb + Railway /health green + fresh probe escrow walked to
+  escrow-intent on LIVE Railway (slot 99715ca9…, claim c118f5c1…,
+  intent 1500000 exact, EID 0x335e3853…, correct contract) + gas-spike
+  finding (500000000063 wei on tenderly + AMOY_RPC_URL + keyed Alchemy;
+  deployer 0.0422 POL — combined holdings still short at 500 gwei) +
+  scoped cleanup + this checkpoint
+TESTS RUN: typecheck exit 0 (all workspaces + db); build
+  (tsc -p tsconfig.build.json) exit 0; eslint on changed file exit 0;
+  escrow-signer 7/7 green; escrow-refund-client 6/6 green (includes the
+  client.ts source-scan guard); escrow-release 10 skipped (no
+  DATABASE_URL in shell — live suite, same as baseline); no repo-wide
+  re-run (single-file logging change). Live legs: Railway challenge +
+  verify 200 for fresh buyer/provider; slot create 201 + publish 200;
+  claim 200; intent 200 exact-amount. Cast approve FAILED as predicted
+  by the spike (estimation: gas exceeds allowance).
+RESULT: pushed commit 72961eb (1 file, +109/-1); no source behavior
+  changed. Retry + log capture pending on two environmental gates:
+  (1) logging build live on Railway (unconfirmed), (2) Amoy gas back
+  near normal (spike blocks approve/deposit AND any release).
+KNOWN ISSUES:
+- Original Railway-only 503 (requestId 36ac79e5…, nonce never
+  advanced) still unexplained — no new evidence this phase. Prime
+  suspect IF the spike predates it: signer-insufficient-funds at
+  spiked gas (an RPC-level insufficient-funds classification); but a
+  32 gwei observation stands in the ruled-out list, so treat as
+  unconfirmed hypothesis, not a finding.
+- Amoy gas spike (500 gwei sustained): at that price the current
+  testnet wallets cannot transact at all (buyer needs ~0.083, has
+  0.0173; signer needs ~0.048, has 0.00434; deployer 0.0422 does not
+  close the gap). Faucet top-up or normalization required before any
+  on-chain leg. Re-check gas first next session.
+- Deploy unconfirmed: no new Railway deployment within ~23 min of
+  pushing 72961eb (live deployment still b17adb09). Either slow builds
+  or push-trigger not firing. Next session must confirm the logging
+  build is live (deployment list + marker line after a failing
+  retry) before trusting a no-marker result.
+- Signer key rotation → Phase 15 (40 hex chars leaked in a prior
+  session's tool output; testnet-only; 96 bits unknown).
+- Auto-release gap (spec FR-12 vs. code — delivered escrows never
+  auto-release).
+- Contract unverified on Polygonscan.
+- Refund path NOT tested end-to-end.
+- Dispute path NOT tested end-to-end.
+- Carried residuals: format waiver, Mumbai mention at
+  AGENTS.md:128, payout-address immutability, lazy auto-refund,
+  no dispute UI, 14d-4 frontend gap, Foundry PATH prefix,
+  "timestamp" prose, fromBlock-0 scan fragility.
+- Infra note (pre-existing, out of scope): Railway build logs warn
+  that the image bakes ARG/ENV secrets (ESCROW_SIGNER_PRIVATE_KEY,
+  SESSION_SECRET) into layers. Flag for Phase 15 hardening; not
+  touched here.
+SECURITY NOTES: no private key, full RPC URL, or session token
+  printed at any point (env parsed to booleans/hostnames/balances
+  only; Bearer tokens lived in memory + one TEMP file, deleted);
+  cast --private-key values passed via shell vars, never echoed;
+  new log helper redacts Bearer material, logs RPC hostname only,
+  never dumps raw errors, never touches the signer secret (source
+  scans green); scoped DB deletes by exact IDs (global 22/18/0
+  unrelated rows untouched); probe escrow never funded (nothing
+  locked); TEMP keys/state deleted.
+FILES CHANGED: apps/api/src/escrow/polygon/client.ts (this phase);
+  AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: chore: phase 14e-2d — log underlying viem error on escrow
+  release failure (72961eb, pushed) + this checkpoint as a second
+  commit (hash recorded at push; verify with git log origin/main -2)
+NEXT TASK: Railway fix follow-up (verify logging build live, wait for
+  normal gas, fresh escrow, retry confirm-receipt, capture marker
+  line) OR Frontend escrow UI (not scoped) OR auto-release gap
+  scoping. Owner decision.
+BLOCKED BY: owner priority decision on next phase; environmentally
+  gated on (1) Railway deploy of 72961eb, (2) Amoy gas normalization
+  or faucet top-up (buyer + signer POL).
+```
+
 ## Phase 14e-2c — end-to-end deposit → release verified; Railway broadcast path still 503 (2026-09-16)
 
 Full USDT escrow lifecycle closed on the live Amoy contract
