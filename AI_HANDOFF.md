@@ -3,6 +3,63 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14e-2b — backend wired to the deployed Amoy contract (2026-09-16)
+
+Wiring proven live: escrow-intent serves the Amoy contract address and
+verify-deposit returns `pending` against the real chain. The 503 root
+cause was RPC capability, not connectivity — the backend scans logs
+fromBlock 0, and drpc (old) / onfinality / publicnode all reject
+genesis-range scans (500 / 500 / explicit 10k-block cap). Tenderly
+gateway serves the full-range scan; Railway now points there. Full
+deposit→release end-to-end is 14e-2c (needs a USDT-funded buyer wallet).
+
+```text
+CURRENT PHASE: Phase 14e-2b complete — backend wired to the deployed
+  Amoy contract; end-to-end flow pending (14e-2c).
+COMPLETED: RPC diagnosis (range-scan capability, not throttling) +
+  POLYGON_RPC_URL → tenderly gateway via CLI + redeploy + live
+  intent/verify-deposit proof + signer tests + zero-residue cleanup +
+  this checkpoint
+TESTS RUN: candidate probes — onfinality (block/code ok, wide logs
+  500), publicnode (10k cap), tenderly (all three green, empty logs);
+  Railway var set exit 0 + auto-redeploy + /health ok; live journey
+  (real Nimiq signature, Bearer auth): intent 200 with contract
+  0x7F8F66E1…Fc06 + exact 1500000 amounts, verify-deposit 200
+  { status: 'pending' }; escrow-signer suite 7/7 green; cleanup
+  deleted 1 slot/claim/escrow + 3 audits + session/user/challenge,
+  residue re-check 0/0/0
+RESULT: single checkpoint commit (AI_HANDOFF.md only); no source
+  changed — the fix was config (RPC URL), not code
+KNOWN ISSUES:
+- Contract NOT verified on Polygonscan (no API key) — carried.
+- Full deposit→release end-to-end is 14e-2c — carried.
+- drpc throttles/rejects wide scans from here and from Railway egress;
+  demo now uses the tenderly gateway. Production should use a paid RPC
+  tier. The backend's fromBlock-0 scan is the deeper fragility — bounding
+  it by escrow creation (noted in client.ts) is future work.
+- RAILWAY_TOKEN is NOT scope-blocked — the 14c handoff note is stale.
+  All five writes this track (4 env vars + 1 RPC swap) exited 0 via CLI.
+  Historical checkpoints left untouched; correction recorded here.
+- Format-gate waiver, Mumbai residue (AGENTS.md:128), payout-address
+  immutability, lazy auto-refund, missing dispute UI, 14d-4 frontend
+  gap, Foundry PATH prefix, 14e-1 micro-decisions, "timestamp" prose
+  flag — carried, unchanged.
+SECURITY NOTES: no private key printed at any point (Railway values
+  never listed; env parsed by script with boolean-only confirmation);
+  probe rows tagged per-run and fully removed; bearer-only live calls
+  (no cookies, no CSRF surface); fake deposit reference was random
+  never-broadcast hex; no USDT moved; no signed chain transactions.
+FILES CHANGED: AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: chore: phase 14e-2b — verify-deposit wiring live on Amoy
+  (single commit with this checkpoint; hash recorded at push)
+NEXT TASK: Phase 14e-2c — full end-to-end deposit → release against
+  the real contract (needs a buyer EVM wallet funded with the
+  third-party USDT at
+  0xC885e1eeD2A2f2215b756Fa04B89aAD1A27559dE). Do NOT start
+  automatically.
+BLOCKED BY: buyer wallet funding (owner).
+```
+
 ## Phase 14e-2a — deploy TakeoverEscrow to Polygon Amoy (2026-09-16)
 
 Live on Amoy (chainId 80002):
