@@ -19,3 +19,7 @@ dist/
 coverage/
 *.log
 npm-debug.log*
+
+# Solidity — Vercel never builds contracts/; keep it (Foundry deps can be
+# large) out of the deploy upload payload.
+contracts/

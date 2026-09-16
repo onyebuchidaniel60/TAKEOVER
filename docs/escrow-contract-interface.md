@@ -1,13 +1,14 @@
 # Escrow contract interface (Polygon USDT)
 
-Authoritative spec for the separate Solidity repo. That repo implements
-this document; this repo's backend calls it (14d-2+) through the
-TypeScript binding in `packages/shared/src/escrow/contract.ts`, whose
-ABI mirrors the signatures below exactly. Do NOT write Solidity here.
+Authoritative spec for the USDT escrow contract in this repo under
+`contracts/`. That directory implements this document; this repo's backend
+calls it (14d-2+) through the TypeScript binding in
+`packages/shared/src/escrow/contract.ts`, whose ABI mirrors the signatures
+below exactly. Do NOT write Solidity in this document.
 
 ## Contract name and standard
 
-- Name: `TakeoverEscrow` (working title; the contract repo owns the final name).
+- Name: `TakeoverEscrow` (working title; the Solidity implementation phase owns the final name).
 - A single escrow contract on Polygon holding USDT (ERC-20, 6 decimals).
 - Solidity `^0.8.x`, OpenZeppelin `SafeERC20` and `ReentrancyGuard` base
   contracts. Fixed from the audit requirement; no alternatives.

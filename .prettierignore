@@ -11,3 +11,9 @@ IMPLEMENTATION_PLAN.md
 PROJECT_SPEC.md
 TAKEOVER_COMPLETE_BLUEPRINT.md
 AI_HANDOFF.md
+# Solidity is formatted by `forge fmt`, not prettier; Foundry artifacts and
+# vendored libs are not sources. contracts/README.md stays prettier-eligible.
+contracts/lib/
+contracts/out/
+contracts/cache/
+contracts/**/*.sol

@@ -3,6 +3,78 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Consolidation chore — contract deliverable → contracts/ (2026-09-16)
+
+Chore: prepares the in-repo home for the USDT escrow contract (owner
+decision: monorepo under `contracts/`, reversing the earlier separate-repo
+plan). Six files only — a placeholder README, three ignore-file blocks, a
+one-line layout entry, and a framing-only refresh of the frozen interface
+doc. No Solidity, no Foundry config, no vendored deps, no submodules, no
+source/test/config changes.
+
+Prior session did the work and ran the battery, then STOPPED correctly:
+`prettier --check .` is red repo-wide (~100 files) for a pre-existing
+systemic reason — the pre-chore committed interface doc already fails the
+check, while the chore's new files and edited hunks are individually
+clean. Owner waived battery item 4 for this chore; the format gate's
+reliability is a separate follow-up chore (not started here). No
+`prettier --write` was run anywhere. The remaining battery was not re-run
+after the waiver; prior results stand as cited below.
+
+```text
+CURRENT PHASE: Consolidation chore complete — contracts/ prepared;
+  Solidity implementation still pending (separate track). Do NOT begin
+  the Solidity contract or the frontend escrow UI.
+COMPLETED: contracts/README.md placeholder + Foundry ignore blocks
+  (.gitignore: out/cache/lib, broadcast deliberately NOT ignored) +
+  .prettierignore (libs/artifacts/sol; README stays eligible) +
+  .vercelignore (contracts/ out of the upload payload) + README layout
+  line + interface-doc framing refresh (separate-repo language → in-repo
+  contracts/; signatures/events/invariants/trust-boundary untouched) +
+  this checkpoint
+TESTS RUN (prior session; NOT re-run after the owner waiver): typecheck
+  clean exit 0; lint clean exit 0; test green exit 0 with counts
+  UNCHANGED from 3ac268d (api 20 files/168 passed + 21 skipped/259
+  skipped without DATABASE_URL; web 16 files/129; shared 1/1);
+  build clean exit 0; format RED pre-existing (~100 files repo-wide,
+  waived by owner — see KNOWN ISSUES); check-ignore spot checks matched
+  expectations (out/cache/lib ignored exit 0; broadcast + README not
+  ignored exit 1); .vercelignore contracts/ match confirmed
+RESULT: single commit (message below); push gated on clean tree +
+  exact 7-file set (matched)
+KNOWN ISSUES:
+- The Solidity contract does not exist yet; release/refund paths remain
+  mock-verified only until it deploys.
+- `npm.cmd run format` (prettier --check .) is red repo-wide (~100
+  files) at 3ac268d and at the chore commit. Pre-existing; unrelated to
+  this chore; waived by owner. A separate follow-up chore should
+  diagnose (likely line-ending drift; verify before fixing) and restore
+  the gate as a trustworthy signal.
+- README NIM-only intro (lines 5-7) remains — Phase 15 scope.
+- LIVE DB / DOC DIVERGENCE (paid legacy enum value) — still open
+- paid-word residuals in PROJECT_SPEC.md and ARCHITECTURE.md
+- SECURITY_REVIEW.md payment rows + item 7 → 14d-8
+- escrows.provider_payout_address is set by the provider at delivery time;
+  no way to change it after the first successful call (still deferred)
+- Auto-refund is lazy (read-triggered); no worker/cron exists
+- The buyer-side dispute UI does not exist yet
+- 14d-4 frontend gap: no UI renders provider_contact_note yet
+SECURITY NOTES: chore touches docs + ignore files only; no code, no
+  endpoints, no auth/payment/state logic, no secrets, no new dependency;
+  no broadcast/deployment material committed or ignored either way (the
+  Solidity phase decides); API surface unchanged.
+FILES CHANGED: contracts/README.md (new), .gitignore, .prettierignore,
+  .vercelignore, README.md (layout line only),
+  docs/escrow-contract-interface.md (framing only), AI_HANDOFF.md (this
+  checkpoint)
+GIT COMMIT: chore: consolidate escrow contract deliverable into contracts/
+  (single commit with this checkpoint; hash recorded at push)
+NEXT TASK: Owner decides — remaining pending work: (i) format gate
+  hygiene chore (diagnose, likely endOfLine), (ii) Solidity contract in
+  contracts/, (iii) frontend escrow UI. Do NOT start automatically.
+BLOCKED BY: none
+```
+
 ## Phase 14d-4 — post-funding provider contact details (2026-09-16)
 
 Backend-only slice live: provider sets a free-form contact note on their

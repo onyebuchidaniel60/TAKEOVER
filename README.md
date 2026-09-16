@@ -58,6 +58,7 @@ apps/web          # React + Vite + Tailwind frontend (placeholder page in Phase 
 apps/api          # Fastify backend (GET /health in Phase 1)
 packages/shared   # shared types/contracts placeholder (no business logic yet)
 db/               # Drizzle config + empty schema placeholder (no tables yet)
+contracts/        # USDT escrow contract on Polygon (interface spec only for now)
 tests/            # root-level test staging (per-phase suites land here later)
 docs/checkpoints/ # phase checkpoint notes
 ```

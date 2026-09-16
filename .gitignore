@@ -27,3 +27,9 @@ Thumbs.db
 
 # Hosting CLIs
 .vercel/
+
+# Foundry (Solidity toolchain) — build outputs and vendored deps only.
+# contracts/broadcast/ is deliberately NOT ignored (Solidity phase decides).
+contracts/out/
+contracts/cache/
+contracts/lib/
