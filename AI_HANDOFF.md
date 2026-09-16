@@ -3,6 +3,101 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14e-2d RESUME — root cause captured: Tenderly gateway refuses broadcasts (2026-09-16)
+
+The Railway-only release failure is DIAGNOSED, verbatim. With funded
+wallets (signer 0.104 POL, buyer 0.117 POL + 11 USDT) and the 72961eb
+logging live, a fresh end-to-end escrow (slot 7f0224ce…, claim
+95eb5a4d…, EID 0x55695787…, 1.5 USDT deposited on-chain at block
+47759805) walked to `delivered` on Railway, and confirm-receipt
+returned the same 503 (requestId
+`5962d325-1053-4b12-b707-11a5674966a9`). The new marker line records
+the underlying error: Tenderly's public Amoy gateway rejects
+`eth_sendRawTransaction` with "Request exceeds defined limit /
+Details: rate limit exceeded" (chain:
+ContractFunctionExecutionError → TransactionExecutionError →
+LimitExceededRpcError → RpcRequestError). Everything upstream of the
+send is PROVEN good — chain-id probe, fee estimation, and local
+signing all succeeded (the signed blob is in the log). Nonce still 3;
+1.5 USDT remains locked. The gas-starvation hypothesis is REFUTED for
+this attempt. Systemic picture: no single configured RPC serves both
+methods the backend needs — Tenderly serves full-range scans but
+refuses sends; keyed Alchemy serves sends but caps getLogs ranges
+(which is why Railway verify-deposit 503'd three times while Railway
+pointed at Alchemy). Fix (split read/broadcast RPCs and/or bounded
+scans and/or paid tier) is an owner decision — NOT attempted here.
+Escrow rows + TEMP keys PRESERVED for the follow-up retry.
+
+```text
+CURRENT PHASE: Phase 14e-2d diagnosis captured — Tenderly gateway
+  refuses eth_sendRawTransaction (rate limit exceeded); signer, fees,
+  and params proven good; fix deferred to owner decision.
+COMPLETED: Step 0 (tree 08c931a clean; signer 0.1043 POL; buyer
+  0.1173 POL + 11 USDT; gas ~441 gwei noted-but-affordable — proceeded
+  on affordability math, documented; key-derived buyer address matches
+  0x19A2…; deploy aa26349e SUCCESS + /health ok) + found Railway
+  POLYGON_RPC_URL on Alchemy (boolean-only probe) explaining three
+  fast (~1.3 s) verify-deposit 503s → restored public tenderly gateway
+  via CLI (new deploy 4d47ff8e SUCCESS) → verify funded → delivered
+  (payout 0x0400bb98…) → confirm-receipt 503 + marker line captured +
+  nonce-still-3 / contract-1500000 confirmation + this checkpoint
+TESTS RUN: no repo suites (no source changed this session). Live
+  evidence: approve mined (0x8936f4c1…, 47198 gas @30 gwei eff. —
+  explicit 30 gwei tip needed, Amoy enforces 25 gwei min);
+  deposit mined (0xce117753…, status 1, Deposited event exact);
+  submission 200; verify 3x503 on Alchemy then 200 funded on
+  tenderly; deliver 200; confirm 503 + [escrow-polygon-error]
+  site=release-broadcast verbatim (see KNOWN ISSUES).
+RESULT: root cause captured verbatim; no fix attempted per STOP
+  rule. Probe escrow (delivered, real 1.5 USDT on-chain) + TEMP keys
+  PRESERVED. Temp scripts deleted. No source files touched.
+KNOWN ISSUES:
+- RAW ERROR (verbatim core): site=release-broadcast,
+  name=ContractFunctionExecutionError, message="Request exceeds
+  defined limit. URL: https://polygon-amoy.gateway.tenderly.co
+  Request body: {"method":"eth_sendRawTransaction",...}" with
+  details "rate limit exceeded" (LimitExceededRpcError in chain).
+  Classification: RPC provider-policy rejection of broadcasts —
+  NOT funds, NOT signing, NOT network, NOT timeout.
+- Gas-starvation hypothesis REFUTED for current conditions (funded
+  signer signs fine; send refused downstream of signing).
+- No single RPC serves both backend needs (tenderly: scans yes /
+  sends no; Alchemy: sends yes / wide scans no) + fromBlock-0 scan
+  fragility now live-fire confirmed. Fix options for owner: (a)
+  separate read vs broadcast RPC config, (b) bound scans by escrow
+  creation, (c) paid RPC tier. Railway currently points at tenderly
+  (reads work; sends fail).
+- Amoy fee notes: default estimation sets 1 wei tip (below 25 gwei
+  minimum) — cast sends needed explicit 30 gwei tip; eth_gasPrice
+  read 441-500 gwei while effective paid was 30 gwei. Future demo
+  funding ~0.1 POL/wallet remains the right guidance.
+- Fresh instruction observed: an unrelated prior Deposited event
+  (escrow 0x3058202c…, same buyer wallet, block 47747875) exists on
+  the contract — not ours; owner may know its provenance.
+- Signer key rotation → Phase 15 (40 hex chars leaked earlier;
+  testnet-only).
+- Auto-release gap (FR-12 vs code). Contract unverified on
+  Polygonscan. Refund / dispute paths NOT tested E2E. Railway build
+  bakes secrets as ARG/ENV (Phase 15).
+- Carried residuals: format waiver, Mumbai AGENTS.md:128, payout
+  immutability, lazy auto-refund, no dispute UI, 14d-4 frontend gap,
+  Foundry PATH prefix, "timestamp" prose.
+SECURITY NOTES: no private key, keyed URL, or token printed at any
+  point (boolean-only env probes; --private-key via shell vars never
+  echoed; signed blob in the log is public tx data); fresh probe
+  users only; TEMP keys preserved deliberately (escrow terminal
+  retry needs buyer auth); no source change.
+FILES CHANGED: AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: chore: phase 14e-2d resume checkpoint — Tenderly
+  broadcast refusal captured (single commit; hash recorded at push)
+NEXT TASK: Railway follow-up (owner picks fix: split RPCs and/or
+  bounded scans and/or paid tier; then retry confirm-receipt on
+  preserved escrow 95eb5a4d… with TEMP e2d-resume keys) OR Frontend
+  escrow UI (not scoped) OR auto-release gap scoping. Owner decision.
+BLOCKED BY: owner fix decision + (for retry) nothing else — escrow
+  is delivered, wallets funded, logging live.
+```
+
 ## Phase 14e-2d — logging in place; Railway retry blocked on Amoy gas spike (2026-09-16)
 
 Diagnostic instrumentation for the Railway-only release failure is
