@@ -3,6 +3,84 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14e-2e — Railway release live with split RPC; 14e-2c fully complete (2026-09-16)
+
+Railway escrow release verified end-to-end with the read/broadcast RPC
+split. A fresh 1.5 USDT escrow (slot 7f0224ce…, claim 95eb5a4d…, EID
+0x55695787…) walked to `delivered` on Railway, confirm-receipt
+returned 200 pending with release `0x16318af2…34bb84f` (broadcast via
+the keyed Alchemy endpoint), and a single follow-up poll returned
+`released`. On-chain: receipt status 1 at block 47761026 with exact
+Released + Transfer logs, provider payout 0 → 1500000, contract
+balance back to 0. Scoped cleanup removed our rows (global DB keeps
+22 slots / 18 claims of unrelated test data, escrows 0). The USDT
+escrow track is functionally complete: deposit → release proven on
+both local (0xaa0b…5eab) and Railway (0x1631…bb84f) backends.
+
+```text
+CURRENT PHASE: Phase 14e-2e complete — Railway escrow release verified
+  end-to-end with split read/broadcast RPC. 14e-2c fully complete
+  (local + Railway). USDT escrow track is functionally complete.
+COMPLETED: state verification (tree e309390 clean, escrow delivered
+  0x55695787…/1500000, contract 1500000, TEMP keys present, gas 500
+  gwei, signer 0.104 POL) + split-RPC source change (3 files:
+  POLYGON_BROADCAST_RPC_URL schema + tolerant getter in env.ts,
+  walletClient routing in releaseTx/refundTx + truthful rpcHost in
+  the broadcast log line in client.ts, documented placeholder in
+  .env.example; reads/probes/receipts unchanged; unset = old
+  behavior) + typecheck/build/eslint + pushed 1d585e2 + Railway env
+  (reads tenderly, broadcasts keyed Alchemy) + deploy 0d7bfd29
+  SUCCESS + /health + fresh confirm-receipt 200 pending → poll
+  released → on-chain proof → scoped cleanup + this checkpoint
+TESTS RUN: typecheck exit 0 (all workspaces + db); eslint on both
+  changed sources exit 0; escrow-signer 7/7; escrow-refund-client
+  6/6 (source-scan guard holds); escrow-release 10 skipped (no
+  DATABASE_URL in shell, baseline). Live: approve 0x8936f4c1… +
+  deposit 0xce117753… (status 1, explicit 30 gwei tip required);
+  submission 200; verify 200 funded (after RPC restore); deliver
+  200; confirm 200 pending (3ba2f1c3…) then released; receipt
+  status 1 block 47761026; payout 0→1500000; contract →0; cleanup 1
+  escrow/claim/slot + 9 audits + 3 sessions + 2 users.
+RESULT: two commits (1d585e2 source + this checkpoint), both pushed.
+  No behavior change when the new var is unset; refund path shares
+  the broadcast routing (untested E2E, same as before).
+KNOWN ISSUES:
+- RPC split is now a hard deployment requirement:
+  POLYGON_RPC_URL must serve wide getLogs; POLYGON_BROADCAST_RPC_URL
+  must serve eth_sendRawTransaction. Single-RPC deployments will
+  fail one path or the other on free tiers — document for production.
+- Amoy fee quirks: cast estimation yields a 1-wei tip (below the 25
+  gwei minimum) — explicit 30 gwei tip was required for manual
+  sends; viem's estimation (32 gwei observed) is fine, backend
+  unaffected. Paid effective price hit 500 gwei during the spike;
+  ~0.1 POL/wallet funding guidance stands.
+- fromBlock-0 scan fragility remains (Alchemy caps it, tenderly
+  serves it) — bound scans by escrow creation as a Phase-15+ item.
+- Signer key rotation → Phase 15 (40 hex chars leaked in prior
+  tool output; testnet-only; 96 bits unknown).
+- Auto-release gap (spec FR-12 vs. code).
+- Contract unverified on Polygonscan.
+- Refund / dispute paths NOT tested E2E.
+- Railway build bakes secrets as ARG/ENV (Phase 15).
+- Carried residuals: format waiver, Mumbai AGENTS.md:128, payout
+  immutability, lazy auto-refund, no dispute UI, 14d-4 frontend gap,
+  Foundry PATH prefix, "timestamp" prose.
+SECURITY NOTES: no private key, keyed URL, or token printed at any
+  point (boolean-only env probes; --private-key via shell vars never
+  echoed; Bearer tokens in memory + one TEMP file, deleted); fresh
+  probe users only; scoped deletes by exact ID; TEMP keys deleted
+  after terminal state; new env var is a non-secret URL read with
+  the same tolerance as the existing one.
+FILES CHANGED: apps/api/src/env.ts, apps/api/src/escrow/polygon/
+  client.ts, .env.example (phase change 1d585e2); AI_HANDOFF.md
+  (this checkpoint)
+GIT COMMIT: feat: phase 14e-2e — split read/broadcast RPC for escrow
+  (1d585e2, pushed) + this checkpoint (hash recorded at push)
+NEXT TASK: Frontend escrow UI (not scoped) OR auto-release gap
+  scoping OR Phase 15 submission readiness. Owner decision.
+BLOCKED BY: owner priority decision.
+```
+
 ## Phase 14e-2d RESUME — root cause captured: Tenderly gateway refuses broadcasts (2026-09-16)
 
 The Railway-only release failure is DIAGNOSED, verbatim. With funded
