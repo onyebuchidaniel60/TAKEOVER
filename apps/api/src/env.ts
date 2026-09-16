@@ -41,6 +41,7 @@ const envSchema = z.object({
     z.coerce.number().int().positive().optional(),
   ),
   POLYGON_RPC_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  POLYGON_BROADCAST_RPC_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
   USDT_ESCROW_CONTRACT_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   USDT_TOKEN_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   ESCROW_SIGNER_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
@@ -56,6 +57,23 @@ export type Env = z.infer<typeof envSchema>;
 // Pure parser: throws a ZodError on invalid values (used by tests and later phases).
 export function parseEnv(input: Record<string, string | undefined>): Env {
   return envSchema.parse(input);
+}
+
+/**
+ * Optional broadcast-only Polygon RPC endpoint (Phase 14e-2e read/write
+ * split). When set, server-signed broadcasts (release/refund wallet
+ * client) use it, while reads (event scans, receipts, chain-id probes)
+ * keep using POLYGON_RPC_URL. Unset/blank → undefined, and callers fall
+ * back to POLYGON_RPC_URL — byte-identical behavior to before the split.
+ */
+export function getPolygonBroadcastRpcUrl(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): string | undefined {
+  const raw = env.POLYGON_BROADCAST_RPC_URL;
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    return raw.trim();
+  }
+  return undefined;
 }
 
 /** Dev fallback for local Vite (http://localhost:5173). Never used in production. */

@@ -30,6 +30,7 @@ import type {
   EscrowContractClient,
 } from '../../../../../packages/shared/src/escrow/contract';
 import { loadEscrowSigner, EscrowSignerUnavailableError } from './signer';
+import { getPolygonBroadcastRpcUrl } from '../../env';
 
 export { EscrowSignerUnavailableError };
 
@@ -462,8 +463,12 @@ async function releaseTx(
     });
     throw new EscrowContractUnavailableError('Polygon RPC request failed.');
   }
+  // Phase 14e-2e read/write split: the broadcast wallet uses the optional
+  // broadcast endpoint when configured; reads stay on POLYGON_RPC_URL.
+  // Unset → identical to before (same URL for both paths).
+  const broadcastRpcUrl = getPolygonBroadcastRpcUrl() ?? rpcUrl;
   try {
-    const wallet = createWalletClient({ account, chain, transport: http(rpcUrl) });
+    const wallet = createWalletClient({ account, chain, transport: http(broadcastRpcUrl) });
     const txHash = await wallet.writeContract({
       address: contractAddress,
       abi: [RELEASE_FUNCTION],
@@ -478,7 +483,7 @@ async function releaseTx(
     logPolygonFailure('release-broadcast', err, {
       escrowId,
       signerAddress: account.address,
-      rpcHost: rpcHostOf(rpcUrl),
+      rpcHost: rpcHostOf(broadcastRpcUrl),
     });
     throw new EscrowContractUnavailableError('Release transaction failed.');
   }
@@ -523,8 +528,12 @@ async function refundTx(
     }
     throw new EscrowContractUnavailableError('Polygon RPC request failed.');
   }
+  // Phase 14e-2e read/write split: the broadcast wallet uses the optional
+  // broadcast endpoint when configured; reads stay on POLYGON_RPC_URL.
+  // Unset → identical to before (same URL for both paths).
+  const broadcastRpcUrl = getPolygonBroadcastRpcUrl() ?? rpcUrl;
   try {
-    const wallet = createWalletClient({ account, chain, transport: http(rpcUrl) });
+    const wallet = createWalletClient({ account, chain, transport: http(broadcastRpcUrl) });
     const txHash = await wallet.writeContract({
       address: contractAddress,
       abi: [REFUND_FUNCTION],
