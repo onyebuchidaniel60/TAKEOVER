@@ -3,6 +3,146 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## 14d-3a addendum — signer chain-id source (2026-09-15)
+
+What happened. The `viem/chains` barrel import pulls in DOM types that the
+API's DOM-less `tsc` build cannot resolve, breaking the build. Bisected to
+that import.
+
+The fix. The wallet/signer descriptor now carries the chain id resolved from
+the live RPC at runtime instead of importing it from `viem/chains`. No new
+dependency; `viem` core is unchanged.
+
+The trade-off. Chain identity is now determined by whatever
+`POLYGON_RPC_URL` reports. A misconfigured RPC pointing at the wrong network
+will cause the signer to sign for that network without complaint. Acceptable
+for the competition demo; flagged for 14d-3b and Phase 15 to consider adding
+a chain-id guard (`ESCROW_EXPECTED_CHAIN_ID`, checked at signer load).
+
+Release-replay note (14d-3a finding): release replay across escrows maps to
+409 `CONFLICT` via the existing UNIQUE constraint on the release tx hash,
+requiring no new code. Correct behavior; no action needed.
+
+## Chore — test infrastructure: connection pool saturation (2026-09-16)
+
+Interrupted-chore recovery (case C): the prior session left two uncommitted,
+well-formed edits — the 14d-3a addendum above (accepted as-is) and a
+`poolOptions.forks.singleFork: true` edit in `apps/api/vitest.config.ts`
+(not accepted — see diagnosis). No chore commit, no checkpoint, empty stash;
+`origin/main` was at `a666369`. Resumed from the dirty state, ran the
+skipped Step 0 investigation, then implemented authorized fix (C).
+
+Step 0 facts (verbatim):
+1. Pool config: single instantiation site `db/client.ts:21` —
+   `drizzle(new Pool({ connectionString: url }))`, no `max` passed.
+   Effective client max is the pg-pool default
+   (`node_modules/pg-pool/index.js:89`:
+   `this.options.max = this.options.max || this.options.poolSize || 10`)
+   → 10 per process. Pools are never closed: grep for `.end(` /
+   `pool.end` across `apps/api/test/*.ts` + `db/*.ts` returns zero matches.
+2. "15" is Supabase's server-side cap, not ours and not the library
+   default (10). Evidence (host/port only, no secrets): `DATABASE_URL`
+   resolves to host `aws-0-eu-west-2.pooler.supabase.com`, port 5432, no
+   query params → Supabase Supavisor in session mode. Server error
+   verbatim: `(EMAXCONNSESSION) max clients reached in session mode - max
+   clients are limited to pool_size: 15`. No env var or code of ours sets
+   15 (`.env.example` carries a bare `DATABASE_URL=`); it cannot be raised
+   from code.
+3. Pre-chore runner parallelism: none configured — `HEAD` version of
+   `apps/api/vitest.config.ts` is only `environment: 'node'` + `include`.
+   Vitest 2.1.9 defaults applied: pool `forks`, `maxForks = numCpus - 1`
+   (`resolveConfig.rBxzbVsl.js:6733/6735`). This box has 4 logical
+   processors → 3 concurrent fork workers, each a separate process with
+   its own Pool(max 10, never closed) → worst case 30 server sessions vs
+   the 15 cap.
+4. `singleFork: true` full API run: GREEN, exit 0, 36 files / 388 tests,
+   elapsed 1093 s (~18.2 min). Works by serializing everything (~3x the
+   parallel wall time).
+5. Reverted (default 3-fork) full API run via untracked temp
+   `vitest.repro.config.ts` + `--config` (zero tracked-file edits,
+   scaffold deleted after): RED, exit 1, elapsed 375 s —
+   `test/concurrency-sweep.test.ts` 5/7 failed, all EMAXCONNSESSION-rooted
+   (13 occurrences; 2 surfacing the raw error, 3 as
+   `expected 500 to be 200` where challenge issuance at
+   `apps/api/src/routes/auth.ts:73` 500'd on EMAXCONNSESSION). Failures
+   land ~5 min into the run, when the sweep file collides with other
+   live-DB files. Totals: 35/36 files, 383/388.
+
+Diagnosis: total sessions ≈ forks x per-fork pool max, with idle clients
+lingering (pg-pool default `idleTimeoutMillis` is 10 s —
+`node_modules/pg-pool/index.js:98-99` — verified, so lingering is real but
+bounded by the per-fork max). Fix (A) inapplicable: 15 is Supabase's cap,
+and raising our client max would worsen exhaustion. Fix (B) wrong, proven
+empirically: `maxForks: 8` went 4 files / 8 tests red in 230 s
+(`claims`, `concurrency-sweep`, `e2e-acceptance`, `security-concurrency`;
+13 EMAXCONNSESSION) — contention scales monotonically with worker count
+(3 forks: 1 file/5 tests; 8 forks: 4 files/8 tests), so no `maxForks ≥ 2`
+bounds total sessions. `singleFork: true` rejected as the permanent fix:
+it contradicts the full-parallel-run acceptance criterion and costs ~18
+min for the API suite alone.
+
+Fix (C): per-process pool sizing. `db/client.ts` reads pool `max` from new
+non-secret env var `PGPOOL_MAX` (blank/invalid → 10; production default
+unchanged at 10); `apps/api/vitest.config.ts` sets `test.env.PGPOOL_MAX =
+'3'` with default fork count restored (no `maxForks`, no `singleFork`).
+Arithmetic on this runner: 3 forks x 3 = 9 < 15, headroom 6; the bound
+holds even with infinite lingering. No `PGPOOL_IDLE_TIMEOUT_MS` knob: it
+adds nothing once the per-fork max bounds the worst case. Caveat: the "3
+forks" factor is CPU-dependent (an 8-CPU runner defaults to 7 forks →
+7x3 = 21 > 15); revisit if runner hardware changes. No test file touched;
+no new dependency. Fallback tiers (`PGPOOL_MAX=2`, then + `maxForks: 4`,
+then documented `singleFork`) were authorized but not needed — tier 1
+(`PGPOOL_MAX=3`, default forks) went green three times consecutively.
+
+```text
+CURRENT PHASE: Chore done — per-fork pool bound live, suite fully parallel
+  again. Do NOT begin Phase 14d-3b.
+COMPLETED: Step 0 investigation + fix (C) (PGPOOL_MAX env var, test-mode 3,
+  .env.example doc) + full battery + this checkpoint
+TESTS RUN: typecheck clean exit 0 (all workspaces + db); lint clean exit 0;
+  full `npm.cmd run test` x3 consecutive, all green with identical counts:
+  run 1 exit 0 elapsed 417 s, run 2 exit 0 elapsed 417 s, run 3 exit 0
+  elapsed 487 s — each api 36 files/388 pass + web 16 files/129 pass +
+  shared 1 pass; zero EMAXCONNSESSION lines in all three logs; the four
+  previously-failing files (claims, concurrency-sweep 7/7,
+  e2e-acceptance, security-concurrency) pass inside the full runs;
+  build clean exit 0
+RESULT: single commit (message below); push gated on green battery +
+  expected file set (matched)
+KNOWN ISSUES:
+- LIVE DB / DOC DIVERGENCE (paid legacy enum value) — still open
+- paid-word residuals in PROJECT_SPEC.md and ARCHITECTURE.md
+- SECURITY_REVIEW.md payment rows + item 7 → 14d-8
+- README.md NIM-only intro → Phase 15
+- release path untested against a real deployed contract (mock-only until
+  the contract repo deploys)
+- escrows.provider_payout_address is set by the provider at delivery time;
+  no way to change it after the first successful call (admin path is
+  14d-3b territory)
+- Test infrastructure: each vitest fork owns its own pg.Pool; the pool
+  max is now configurable via PGPOOL_MAX (default 10, test mode 3).
+  Pools are never explicitly closed in the test harness. If the suite
+  grows further, runner CPU count rises (default forks = numCpus - 1),
+  or Supabase's session cap changes, revisit. 3 forks x 3 = 9 < 15 was
+  measured on a 4-CPU runner.
+- singleFork: true remains a valid but very slow fallback (~1093 s API
+  suite) if pool sizing ever regresses; do not adopt without amending
+  the parallel-run acceptance criterion.
+SECURITY NOTES: no secrets printed at any point (host/port/param-names
+  only for the connection string; values never shown); PGPOOL_MAX is a
+  non-secret tuning knob; production pool behavior unchanged (default
+  10); no auth/payment/state logic touched.
+FILES CHANGED: db/client.ts (PGPOOL_MAX reader + Pool max wiring),
+  apps/api/vitest.config.ts (test.env.PGPOOL_MAX=3, default forks
+  restored — no singleFork, no maxForks), .env.example (PGPOOL_MAX doc),
+  AI_HANDOFF.md (14d-3a addendum, accepted as-is, + this checkpoint)
+GIT COMMIT: chore: bound per-fork connection pool in test mode
+  (single commit with this checkpoint; hash recorded at push)
+NEXT TASK: Phase 14d-3b — dispute, admin resolve, auto-refund (do NOT
+  start automatically)
+BLOCKED BY: none
+```
+
 ## Phase 14d-3a — mark-delivered, confirm-receipt, USDT release (2026-09-15)
 
 USDT happy-path release slice live: provider marks delivery, buyer confirms
