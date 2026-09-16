@@ -319,6 +319,91 @@ export function disputeCallData(escrowId: string, contractAddress?: string): Dis
 }
 
 /**
+ * Phase 14e-2d: fd-2 diagnostics for the opaque release path.
+ *
+ * The service maps every signer/contract failure to a generic 503, and the
+ * AppError branch never reaches the server log — so a broadcast failure was
+ * undebuggable in production. Each wrap site below now emits one structured
+ * line carrying the underlying error anatomy (name, message, cause chain,
+ * viem metaMessages) plus public context only (escrow id, signer address,
+ * RPC hostname). Curated fields only: the raw error is never dumped
+ * wholesale, the full RPC URL (keyed) is never included, Bearer material is
+ * redacted, and the signer secret is never in scope here (it is handled
+ * solely inside the signer module, which this client touches only through
+ * loadEscrowSigner).
+ *
+ * Sink note: Fastify's request logger is unreachable from this pure client,
+ * so diagnostics go to fd 2, which Railway captures in the service logs.
+ * Control flow, error types, and messages below are unchanged — logging
+ * only, and the logging itself never throws.
+ */
+function rpcHostOf(rpcUrl: string): string {
+  try {
+    return new URL(rpcUrl).hostname;
+  } catch {
+    return 'unparseable';
+  }
+}
+
+function redactBearerText(value: string): string {
+  return value.replace(/Bearer\s+[A-Za-z0-9._~+/-]+/gi, 'Bearer [REDACTED]');
+}
+
+interface FailureCauseLevel {
+  name: string;
+  message: string;
+}
+
+function failureCauseLevels(err: Error, maxDepth = 5): FailureCauseLevel[] {
+  const levels: FailureCauseLevel[] = [];
+  let current: unknown = err;
+  for (let depth = 0; depth < maxDepth; depth++) {
+    if (!(current instanceof Error)) {
+      break;
+    }
+    const shaped = current as Error & {
+      cause?: unknown;
+      metaMessages?: unknown;
+      shortMessage?: unknown;
+      details?: unknown;
+    };
+    let message = redactBearerText(current.message).slice(0, 600);
+    if (typeof shaped.shortMessage === 'string' && shaped.shortMessage.length > 0) {
+      message += ` | short: ${redactBearerText(shaped.shortMessage).slice(0, 300)}`;
+    }
+    if (typeof shaped.details === 'string' && shaped.details.length > 0) {
+      message += ` | details: ${redactBearerText(shaped.details).slice(0, 300)}`;
+    }
+    if (Array.isArray(shaped.metaMessages) && shaped.metaMessages.length > 0) {
+      message += ` | meta: ${redactBearerText(shaped.metaMessages.map(String).join(' / ')).slice(0, 600)}`;
+    }
+    levels.push({ name: current.name, message });
+    current = shaped.cause;
+  }
+  return levels;
+}
+
+function logPolygonFailure(site: string, err: unknown, context: Record<string, string>): void {
+  const fields =
+    err instanceof Error
+      ? {
+          name: err.name,
+          message: redactBearerText(err.message).slice(0, 1000),
+          causes: failureCauseLevels(err),
+        }
+      : {
+          name: typeof err,
+          message: redactBearerText(String(err)).slice(0, 1000),
+          causes: [],
+        };
+  try {
+    process.stderr.write(`[escrow-polygon-error] ${JSON.stringify({ site, ...fields, ...context })}\n`);
+  } catch {
+    // Diagnostics must never break the payment path.
+  }
+}
+
+/**
  * Broadcast the contract release(escrowId, toProvider) from the server
  * signer. Returns the tx hash immediately after broadcast — confirmation
  * polling is the service's job (getTransactionReceipt). Signer problems
@@ -349,6 +434,11 @@ async function releaseTx(
     if (err instanceof EscrowSignerUnavailableError) {
       throw err;
     }
+    logPolygonFailure('release-signer-load', err, {
+      escrowId,
+      signerAddress: process.env.ESCROW_SIGNER_ADDRESS ?? 'unset',
+      rpcHost: rpcHostOf(rpcUrl),
+    });
     throw new EscrowSignerUnavailableError();
   }
   let chain: Chain;
@@ -365,6 +455,11 @@ async function releaseTx(
     if (err instanceof EscrowContractUnavailableError) {
       throw err;
     }
+    logPolygonFailure('release-chain-probe', err, {
+      escrowId,
+      signerAddress: account.address,
+      rpcHost: rpcHostOf(rpcUrl),
+    });
     throw new EscrowContractUnavailableError('Polygon RPC request failed.');
   }
   try {
@@ -380,6 +475,11 @@ async function releaseTx(
     if (err instanceof EscrowSignerUnavailableError) {
       throw err;
     }
+    logPolygonFailure('release-broadcast', err, {
+      escrowId,
+      signerAddress: account.address,
+      rpcHost: rpcHostOf(rpcUrl),
+    });
     throw new EscrowContractUnavailableError('Release transaction failed.');
   }
 }
@@ -459,6 +559,10 @@ async function receiptTx(
     if (err instanceof TransactionReceiptNotFoundError) {
       return null;
     }
+    logPolygonFailure('receipt-fetch', err, {
+      txHash,
+      rpcHost: rpcHostOf(rpcUrl),
+    });
     throw new EscrowContractUnavailableError('Polygon RPC request failed.');
   }
   if (receipt.status === 'reverted') {
@@ -467,7 +571,11 @@ async function receiptTx(
   let head: bigint;
   try {
     head = await client.getBlockNumber();
-  } catch {
+  } catch (err) {
+    logPolygonFailure('receipt-head', err, {
+      txHash,
+      rpcHost: rpcHostOf(rpcUrl),
+    });
     throw new EscrowContractUnavailableError('Polygon RPC request failed.');
   }
   return { confirmations: Number(head - receipt.blockNumber) + 1 };
