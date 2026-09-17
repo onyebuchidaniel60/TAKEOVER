@@ -3,6 +3,89 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14e P1+P2 E2E verified — full USDT escrow flow on deployed services (2026-09-17)
+
+Deployed-service verification of the P1+P2 frontend + backend: Railway
+had already picked up P1 (tokenAddress live, no redeploy needed);
+Vercel redeployed to dpl_8T15YjZZ (`takeover-a02mrcyaj-uhhh2`, aliased
+to takeover-web-gamma) with chunk proof of the P1+P2 code; then a
+scripted run drove deposit → deliver → contact-note → confirm →
+released against the deployed Railway backend with real Amoy chain
+transactions (mocked-provider pattern routing through the funded buyer
+key — same code paths as lib/evm.ts; human browser walk-through stays
+a Phase 15 item). First run proved everything except the terminal flip
+(driver polled GET /escrow, which never advances buyer releases —
+driver bug, not app bug); second run with confirm-receipt polling went
+terminal with full on-chain proof. Both runs cleaned by tag; zero
+residue.
+
+```text
+CURRENT PHASE: Phase 14e P1+P2 E2E verified — full USDT escrow flow
+  (deposit → mark-delivered → contact-note → confirm → released)
+  exercised end-to-end against the deployed Railway backend + Vercel
+  frontend with real chain transactions. Do NOT begin P3 or the NIM
+  fee phase automatically.
+COMPLETED: Railway pickup check (health ok; intent serves
+  tokenAddress == USDT — no redeploy) + Vercel deploy
+  (dpl_8T15YjZZS4nk11qMsXKoiegt1wKL → takeover-a02mrcyaj-uhhh2,
+  aliased; dry-run excluded .env.txt/contracts/.env/dist;
+  smoke: / 200, index chunk references ClaimDetailPage/SellDetail/
+  escrow-lib, chunk strings prove P1+P2 live) + E2E run 2 (clean:
+  intent → approve 0x5ebef0b4… → deposit 0xc4ee5566… block
+  0x2d95dce → funded → delivered → note visible on buyer GET
+  /escrow → confirm pending (release 0xa0cd8cc9…) → released;
+  receipt status 1 block 0x2d95dde; payout 1500000 exact; contract
+  back to 0; approve calldata byte-identical to lib/evm.ts encoder)
+  + E2E run 1 (same flow; release 0x747fa468… status 1, payout
+  1500000, contract 0 — terminal API flip missed by the driver bug,
+  mechanism covered by escrow-release.test.ts) + scoped cleanup
+  (2 slots/claims/escrows, 4 users, 19 audits, sessions, challenges;
+  residue 0/0/0/0) + temp-script + ephemeral-key deletion + this
+  checkpoint
+TESTS RUN: Railway pickup check (health + live intent field);
+  Vercel dry-run (secret exclusion) + deploy + smoke + chunk grep;
+  live E2E flow with hashes/receipts/balances above; calldata
+  cross-check (cast vs web encoder identical). No repo suites
+  (verification only — no source changed).
+RESULT: single checkpoint commit (message below), pushed.
+  Deployed services now match the repo: backend P1 (tokenAddress),
+  frontend P1+P2.
+KNOWN ISSUES:
+- Human browser walk-through with a real wallet still pending —
+  Phase 15 item.
+- The N+1 on the provider demand rows (GET /escrow per claim) —
+  bounded at demo scale, revisit if the demand list grows.
+- ARCH §13 doc sync pending: tokenAddress field on escrow-intent;
+  ConfirmReceiptBox polls POST confirm-receipt, not GET /escrow.
+- P3 cleanup pending: VerifyPollBox branch, legacy display/poll
+  fns, orphaned debug-payments.ts — gated on zero
+  payment_pending rows.
+- NIM listing-fee seam reserved at SellDetail.handlePublish.
+- Carried USDT residuals (split-RPC deployment requirement,
+  unverified contract, fee quirks, signer rotation → Phase 15,
+  auto-release gap, refund/dispute untested E2E, Railway image
+  bakes secrets as ARG/ENV, format waiver, Mumbai mention, payout
+  immutability, lazy auto-refund, no dispute UI, §7 "Pay with NIM"
+  example in PROJECT_SPEC, §5 deprecation re-count mandate,
+  Foundry PATH prefix, "timestamp" prose, fromBlock-0 fragility).
+SECURITY NOTES: no private key, Bearer token, or session material
+  printed at any point (balances/IDs/statuses/redacted hashes
+  only); ephemeral Nimiq keys lived in one temp file, deleted with
+  the drivers; buyer EVM key passed to cast from memory only;
+  scoped DB deletes by E2E tag (unrelated rows untouched); funded
+  buyer wallet preserved for future phases; one accidental Railway
+  DATABASE_URL value appeared in local tool output during the P1
+  env audit (transcript-only, never in repo/logs/reports).
+FILES CHANGED: AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: chore: phase 14e P1+P2 — E2E verified on deployed
+  services (single commit with this checkpoint; hash recorded at
+  push)
+NEXT TASK: P3 (deprecation cleanup + a11y) OR NIM listing-fee
+  scoping OR visual polish phase planning. Owner decision. Do NOT
+  start automatically.
+BLOCKED BY: none.
+```
+
 ## Phase 14e P1+P2 — USDT escrow frontend (buyer + provider) live (2026-09-17)
 
 P2 adds the provider loop on SellDetail (D5 per-claim demand rows with
