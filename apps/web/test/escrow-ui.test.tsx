@@ -4,7 +4,7 @@
 // serving ARCHITECTURE.md §13 envelopes. No network, no wallet.
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../src/lib/evm', () => ({
@@ -21,8 +21,11 @@ import * as evm from '../src/lib/evm';
 import ClaimCard from '../src/components/ClaimCard';
 import ClaimStatusBadge from '../src/components/ClaimStatusBadge';
 import ConfirmReceiptBox from '../src/components/ConfirmReceiptBox';
+import ContactNoteForm, { validateContactNote } from '../src/components/ContactNoteForm';
 import EscrowPanel from '../src/components/EscrowPanel';
+import MarkDeliveredForm from '../src/components/MarkDeliveredForm';
 import VerifyDepositBox from '../src/components/VerifyDepositBox';
+import SellDetail from '../src/routes/SellDetail';
 
 const CLAIM_ID = '123e4567-e89b-12d3-a456-426614174000';
 const CONTRACT = '0x7f8f66e1e07372dc371edf8f21d2d84208a4fc06';
@@ -332,5 +335,271 @@ describe('escrow badges + cards', () => {
     );
     expect(second.getByText('View hold')).toBeTruthy();
     second.unmount();
+  });
+});
+
+describe('EscrowPanel contact-note display (P2, render-what-it-gets)', () => {
+  function panelWithNote(note: string | null): void {
+    backend.escrow = escrowRow('funded');
+    backend.escrowError = null;
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = String(url);
+        if (href.endsWith(`/claims/${CLAIM_ID}/escrow`)) {
+          return jsonResponse({
+            data: {
+              escrow: escrowRow('funded'),
+              claim: { ...claim('escrow_funded'), provider_contact_note: note },
+            },
+          });
+        }
+        return (original as typeof fetch)(url, init);
+      }) as unknown as typeof fetch,
+    );
+  }
+
+  it('renders a non-null note under the status', async () => {
+    panelWithNote('Meet at the side entrance and ask for Maria.');
+    render(<EscrowPanel claim={claim('escrow_funded') as never} onUpdate={vi.fn()} />);
+    expect(await screen.findByText('Provider contact')).toBeTruthy();
+    expect(
+      await screen.findByText('Meet at the side entrance and ask for Maria.'),
+    ).toBeTruthy();
+  });
+
+  it('hides the note block when null', async () => {
+    panelWithNote(null);
+    render(<EscrowPanel claim={claim('escrow_funded') as never} onUpdate={vi.fn()} />);
+    expect(await screen.findByText('Funds in escrow. Waiting for provider.')).toBeTruthy();
+    expect(screen.queryByText('Provider contact')).toBeNull();
+  });
+});
+
+describe('MarkDeliveredForm', () => {
+  const PAYOUT = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+  it('rejects a malformed address client-side without fetching', async () => {
+    const user = userEvent.setup();
+    const calls: string[] = [];
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        calls.push(String(url));
+        return (original as typeof fetch)(url, init);
+      }) as unknown as typeof fetch,
+    );
+    render(<MarkDeliveredForm claimId={CLAIM_ID} onDelivered={vi.fn()} />);
+    await user.type(screen.getByLabelText(/payout address/i), 'not-an-address');
+    await user.click(screen.getByText('Mark delivered'));
+    expect(await screen.findByText(/valid payout address/i)).toBeTruthy();
+    expect(calls).toHaveLength(0);
+  });
+
+  it('submits the trimmed address body and shows delivered', async () => {
+    const user = userEvent.setup();
+    const bodies: unknown[] = [];
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = String(url);
+        if (href.endsWith('/mark-delivered')) {
+          bodies.push(init?.body !== undefined ? JSON.parse(String(init.body)) : undefined);
+          return jsonResponse({
+            data: { escrow: escrowRow('delivered'), claim: claim('delivered') },
+          });
+        }
+        return (original as typeof fetch)(url, init);
+      }) as unknown as typeof fetch,
+    );
+    const onDelivered = vi.fn();
+    render(<MarkDeliveredForm claimId={CLAIM_ID} onDelivered={onDelivered} />);
+    await user.type(screen.getByLabelText(/payout address/i), `  ${PAYOUT}  `);
+    await user.click(screen.getByText('Mark delivered'));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toEqual({ providerPayoutAddress: PAYOUT });
+    expect(await screen.findByText('Marked delivered.')).toBeTruthy();
+    expect(onDelivered).toHaveBeenCalledTimes(1);
+  });
+
+  it('maps 409 CONFLICT to the immutability copy', async () => {
+    const user = userEvent.setup();
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = String(url);
+        if (href.endsWith('/mark-delivered')) {
+          return errorEnvelope('CONFLICT', 409);
+        }
+        return (original as typeof fetch)(url, init);
+      }) as unknown as typeof fetch,
+    );
+    render(<MarkDeliveredForm claimId={CLAIM_ID} onDelivered={vi.fn()} />);
+    await user.type(screen.getByLabelText(/payout address/i), PAYOUT);
+    await user.click(screen.getByText('Mark delivered'));
+    expect(await screen.findByText(/can’t be changed after delivery/i)).toBeTruthy();
+  });
+});
+
+describe('ContactNoteForm', () => {
+  const SLOT = 'slot-1';
+
+  function slotWithNote(note: string | null): Record<string, unknown> {
+    return { id: SLOT, provider_contact_note: note };
+  }
+
+  it('validateContactNote mirrors the server rules', () => {
+    expect(validateContactNote('   ')).toMatch(/Clear/);
+    expect(validateContactNote('x'.repeat(501))).toMatch(/500/);
+    expect(validateContactNote('see https://example.com/x')).toMatch(/Links/);
+    expect(validateContactNote('visit WWW.example.com')).toMatch(/Links/);
+    expect(validateContactNote('Meet at the side entrance.')).toBeNull();
+  });
+
+  it('saves the trimmed note via PATCH', async () => {
+    const user = userEvent.setup();
+    const calls: Array<{ url: string; body: unknown }> = [];
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = String(url);
+        if (href.endsWith('/contact-note')) {
+          const body = init?.body !== undefined ? JSON.parse(String(init.body)) : undefined;
+          calls.push({ url: href, body });
+          return jsonResponse({ data: { slot: slotWithNote((body as { provider_contact_note: string }).provider_contact_note) } });
+        }
+        return (original as typeof fetch)(url, init);
+      }) as unknown as typeof fetch,
+    );
+    const onSaved = vi.fn();
+    render(<ContactNoteForm slot={slotWithNote(null) as never} onSaved={onSaved} />);
+    await user.type(screen.getByLabelText(/buyer contact note/i), '  Meet at gate B.  ');
+    await user.click(screen.getByText('Save note'));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0]?.body).toEqual({ provider_contact_note: 'Meet at gate B.' });
+    expect(await screen.findByText('Saved.')).toBeTruthy();
+    expect(onSaved).toHaveBeenCalledTimes(1);
+  });
+
+  it('clear sends null', async () => {
+    const user = userEvent.setup();
+    const bodies: unknown[] = [];
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = String(url);
+        if (href.endsWith('/contact-note')) {
+          bodies.push(init?.body !== undefined ? JSON.parse(String(init.body)) : undefined);
+          return jsonResponse({ data: { slot: slotWithNote(null) } });
+        }
+        return (original as typeof fetch)(url, init);
+      }) as unknown as typeof fetch,
+    );
+    render(<ContactNoteForm slot={slotWithNote('Old note.') as never} onSaved={vi.fn()} />);
+    await user.click(screen.getByText('Clear'));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toEqual({ provider_contact_note: null });
+  });
+
+  it('blocks URL-ish input client-side without fetching', async () => {
+    const user = userEvent.setup();
+    const calls: string[] = [];
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        calls.push(String(url));
+        return (original as typeof fetch)(url, init);
+      }) as unknown as typeof fetch,
+    );
+    render(<ContactNoteForm slot={slotWithNote(null) as never} onSaved={vi.fn()} />);
+    await user.type(screen.getByLabelText(/buyer contact note/i), 'see https://x.example/y');
+    await user.click(screen.getByText('Save note'));
+    expect(await screen.findByText(/Links/)).toBeTruthy();
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe('SellDetail demand section (P2)', () => {
+  const PUBLISHED_SLOT = {
+    id: 'slot-9',
+    title: 'Table for two',
+    description: null,
+    category: 'dining',
+    location_label: 'Mitte',
+    starts_at: new Date(Date.now() + 3600_000).toISOString(),
+    ends_at: null,
+    price_nim: '1500000',
+    total_quantity: 4,
+    available_quantity: 3,
+    status: 'published',
+    published_at: new Date().toISOString(),
+    providerDisplay: 'Bistro',
+    payout_wallet: 'NQ0700000000000000000000000000000000',
+    provider_contact_note: null,
+  };
+
+  function demandFetch(): void {
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = String(url);
+        if (href.endsWith('/api/v1/slots/slot-9')) {
+          return jsonResponse({ data: { slot: PUBLISHED_SLOT } });
+        }
+        if (href.endsWith('/me/slots/slot-9/claims')) {
+          return jsonResponse({
+            data: {
+              claims: [
+                {
+                  id: 'claim-9',
+                  quantity: 1,
+                  status: 'escrow_funded',
+                  claimed_at: new Date().toISOString(),
+                  hold_expires_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                  buyerDisplay: 'NQ07…0000',
+                },
+              ],
+              counts: {},
+            },
+          });
+        }
+        if (href.endsWith('/claims/claim-9/escrow')) {
+          return jsonResponse({
+            data: { escrow: escrowRow('funded'), claim: claim('escrow_funded') },
+          });
+        }
+        if (href.endsWith('/mark-delivered')) {
+          return jsonResponse({ data: { escrow: escrowRow('delivered'), claim: claim('delivered') } });
+        }
+        return (original as typeof fetch)(url, init);
+      }) as unknown as typeof fetch,
+    );
+  }
+
+  it('lists the funded claim with a Mark delivered form; delivering updates the row', async () => {
+    const user = userEvent.setup();
+    demandFetch();
+    render(
+      <MemoryRouter initialEntries={['/sell/slot-9']}>
+        <Routes>
+          <Route path="/sell/:slotId" element={<SellDetail />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('Demand')).toBeTruthy();
+    expect(await screen.findByText('NQ07…0000')).toBeTruthy();
+    const input = await screen.findByLabelText(/payout address/i);
+    await user.type(input, '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+    await user.click(screen.getByText('Mark delivered'));
+    expect(await screen.findByText('Marked delivered.')).toBeTruthy();
   });
 });

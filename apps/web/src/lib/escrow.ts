@@ -89,7 +89,32 @@ export interface DisputeResult {
 
 export interface FetchEscrowResult {
   escrow: EscrowView;
-  claim: ClaimView;
+  claim: EscrowClaimView;
+}
+
+/**
+ * Claim view as served by the escrow endpoints. The buyer projection
+ * carries the provider contact note past the escrow gate (14d-4:
+ * funded/delivered/disputed/releasing/released show it, otherwise null).
+ * The backend gates; the UI renders-what-it-gets (null → hidden).
+ */
+export type EscrowClaimView = ClaimView & {
+  provider_contact_note?: string | null;
+};
+
+export interface MarkDeliveredResult {
+  escrow: EscrowView;
+  claim: EscrowClaimView;
+}
+
+export function markDelivered(claimId: string, providerPayoutAddress: string): Promise<MarkDeliveredResult> {
+  return apiFetch<MarkDeliveredResult>(
+    `/api/v1/claims/${encodeURIComponent(claimId)}/mark-delivered`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ providerPayoutAddress }),
+    },
+  );
 }
 
 export function createEscrowIntent(claimId: string): Promise<EscrowIntentResult> {

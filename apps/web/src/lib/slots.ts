@@ -92,8 +92,11 @@ export function fetchSlot(slotId: string): Promise<{ slot: PublicSlot }> {
 }
 
 // Phase 5: owner projection — everything public plus the payout wallet.
+// Phase 14e P2: plus the provider contact note (14d-4 owner projection;
+// may be absent on stale mocks — callers treat undefined as null).
 export interface OwnerSlot extends PublicSlot {
   payout_wallet: string;
+  provider_contact_note?: string | null;
 }
 
 export interface MySlotsResponse {
@@ -340,6 +343,20 @@ export function cancelSlot(slotId: string): Promise<{ slot: OwnerSlot }> {
   return apiFetch<{ slot: OwnerSlot }>(`/api/v1/slots/${encodeURIComponent(slotId)}/cancel`, {
     method: 'POST',
     body: JSON.stringify({}),
+  });
+}
+
+// Phase 14e P2: one-way provider contact note (14d-4). Body shape mirrors
+// the server schema exactly ({ provider_contact_note: string | null } —
+// null clears). Client-side length/URL checks live in ContactNoteForm (UX
+// only); the server stays authoritative.
+export function updateSlotContactNote(
+  slotId: string,
+  providerContactNote: string | null,
+): Promise<{ slot: OwnerSlot }> {
+  return apiFetch<{ slot: OwnerSlot }>(`/api/v1/me/slots/${encodeURIComponent(slotId)}/contact-note`, {
+    method: 'PATCH',
+    body: JSON.stringify({ provider_contact_note: providerContactNote }),
   });
 }
 

@@ -29,7 +29,7 @@ import VerifyDepositBox from './VerifyDepositBox';
 type LoadState =
   | { kind: 'loading' }
   | { kind: 'no-escrow' }
-  | { kind: 'ready'; escrow: EscrowView }
+  | { kind: 'ready'; escrow: EscrowView; contactNote: string | null }
   | { kind: 'error'; message: string };
 
 function formatUsdt(baseUnits: string): string {
@@ -65,14 +65,21 @@ export default function EscrowPanel({
   const refresh = useCallback(() => {
     setLoad((current) => (current.kind === 'loading' ? current : { kind: 'loading' }));
     void fetchEscrow(claim.id)
-      .then(({ escrow }) => {
+      .then(({ escrow, claim: escrowClaim }) => {
         // Defensive: a malformed 200 without an escrow projection is treated
         // as "no escrow yet" (instruction step) rather than crashing.
         if (!escrow || typeof escrow.status !== 'string') {
           setLoad({ kind: 'no-escrow' });
           return;
         }
-        setLoad({ kind: 'ready', escrow });
+        // Render-what-it-gets: the backend gates note visibility (14d-4);
+        // a non-empty string renders, anything else hides.
+        const contactNote =
+          typeof escrowClaim?.provider_contact_note === 'string' &&
+          escrowClaim.provider_contact_note !== ''
+            ? escrowClaim.provider_contact_note
+            : null;
+        setLoad({ kind: 'ready', escrow, contactNote });
       })
       .catch((err: unknown) => {
         if (err instanceof ApiError && err.code === 'ESCROW_NOT_FOUND') {
@@ -120,6 +127,15 @@ export default function EscrowPanel({
     return <InstructionStep claimId={claim.id} onSubmitted={handleUpdate} />;
   }
   const escrow = load.escrow;
+  // Buyer-side contact note (P2): the backend gates visibility (14d-4);
+  // a non-null note renders under the status, null hides. No re-gating here.
+  const noteBlock =
+    load.contactNote !== null ? (
+      <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+        <p className="text-sm font-medium text-slate-900">Provider contact</p>
+        <p className="mt-1 text-sm text-slate-600">{load.contactNote}</p>
+      </div>
+    ) : null;
   switch (escrow.status) {
     case 'created':
       return escrow.deposit_tx_hash ? (
@@ -136,26 +152,35 @@ export default function EscrowPanel({
               Delivery expected by {staticDate(escrow.delivery_deadline)}.
             </p>
           )}
+          {noteBlock}
         </div>
       );
     case 'delivered':
-      return <ConfirmReceiptBox claimId={claim.id} escrow={escrow} onUpdate={handleUpdate} />;
+      return (
+        <>
+          <ConfirmReceiptBox claimId={claim.id} escrow={escrow} onUpdate={handleUpdate} />
+          {noteBlock}
+        </>
+      );
     case 'disputed':
       return (
         <div className="mt-4 rounded-lg bg-amber-50 p-3" aria-live="polite">
           <p className="text-sm font-medium text-amber-900">Dispute open. Admin will resolve.</p>
+          {noteBlock}
         </div>
       );
     case 'releasing':
       return (
         <div className="mt-4 rounded-lg bg-slate-50 p-3" aria-live="polite">
           <p className="text-sm text-slate-600">Releasing to provider…</p>
+          {noteBlock}
         </div>
       );
     case 'released':
       return (
         <div className="mt-4 rounded-lg bg-slate-50 p-3" aria-live="polite">
           <p className="text-sm font-medium text-slate-900">Released. Complete.</p>
+          {noteBlock}
         </div>
       );
     case 'refunding':

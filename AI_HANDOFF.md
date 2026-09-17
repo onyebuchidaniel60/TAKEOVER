@@ -3,6 +3,77 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14e P1+P2 — USDT escrow frontend (buyer + provider) live (2026-09-17)
+
+P2 adds the provider loop on SellDetail (D5 per-claim demand rows with
+escrow state + MarkDeliveredForm for escrow_funded claims) and the
+contact-note surfaces (ContactNoteForm set/clear on the slot;
+EscrowPanel renders the gated note buyer-side, render-what-it-gets).
+Pushed together with P1 (2177d32) as planned — the app is deployable
+again: buyers can fund AND providers can deliver through the UI.
+
+```text
+CURRENT PHASE: Phase 14e P1+P2 complete — USDT escrow frontend
+  (buyer + provider) live; deprecated direct-payment UI retired.
+  Do NOT begin P3 or the NIM listing-fee phase automatically.
+COMPLETED: prereqs (clean at 2177d32, P1 confirmed unpushed,
+  Railway /health ok) + lib additions (lib/escrow.ts markDelivered
+  + EscrowClaimView; lib/slots.ts OwnerSlot.provider_contact_note +
+  updateSlotContactNote) + MarkDeliveredForm (EVM validation,
+  409-CONFLICT immutability copy) + ContactNoteForm (1–500/no-URL
+  client mirror, save/clear) + SellDetail demand section
+  (in-file DemandSection/ClaimDemandRow, provider-scoped
+  GET /escrow per claim, graceful 404/malformed handling) +
+  EscrowPanel note block (funded/delivered/disputed/releasing/
+  released branches) + tests (10 new P2 cases) + this checkpoint
+TESTS RUN: typecheck exit 0 (all + db); lint exit 0; escrow-ui
+  36/36; FULL with DATABASE_URL exit 0 — api 41 files/427 pass,
+  web 18 files/183 pass, shared 1/1; build exit 0 (lib/escrow.ts
+  splits into its own escrow-*.js chunk, out of the index bundle).
+  Delta vs P1 baseline (api 41/427, web 18/173, shared 1): api
+  unchanged, web +10 tests, no new files.
+RESULT: single commit (message below) PUSHED TOGETHER with P1 —
+  origin/main shows both commits.
+KNOWN ISSUES:
+- Admin escrow UI out of scope (D4).
+- NIM listing-fee seam reserved at SellDetail.handlePublish; not
+  built. ContactNoteForm/SellDetail edits deliberately did not
+  touch it.
+- Manual E2E (human acceptance) NOT run: requires pushed+deployed
+  code (Vercel frontend + Railway backend with tokenAddress).
+  Owner walks slot→claim→approve/deposit→deliver→confirm→released
+  on Amoy after deploy, verifying on the explorer.
+- Partial deprecation stands (P1 gate): VerifyPollBox branch +
+  legacy display + deprecated read/poll lib fns retained;
+  debug-payments.ts orphaned → P3.
+- Carried USDT residuals (split-RPC deployment requirement,
+  unverified contract, fee quirks, signer rotation → Phase 15,
+  auto-release gap, refund/dispute untested E2E, Railway image
+  bakes secrets as ARG/ENV, format waiver, Mumbai mention, payout
+  immutability, lazy auto-refund, no dispute UI, §7 "Pay with NIM"
+  example in PROJECT_SPEC, §5 deprecation re-count mandate,
+  Foundry PATH prefix, "timestamp" prose, fromBlock-0 fragility).
+SECURITY NOTES: no secrets printed (env parsed keys-only; Railway
+  DATABASE_URL exposure from P1 noted there and not repeated);
+  provider payout is EVM-validated client-side and authoritative
+  server-side (immutable after first deliver); contact note carries
+  no URLs by client+server rule; buyer wallets stay truncated
+  server-side (buyerDisplay).
+FILES CHANGED: apps/web/src/components/MarkDeliveredForm.tsx +
+  ContactNoteForm.tsx (new), apps/web/src/routes/SellDetail.tsx
+  (demand section + note form), apps/web/src/lib/escrow.ts
+  (markDelivered + note type), apps/web/src/lib/slots.ts
+  (OwnerSlot note + PATCH fn), apps/web/src/components/
+  EscrowPanel.tsx (note block), apps/web/test/escrow-ui.test.tsx
+  (+10 P2 cases), AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: feat: phase 14e P2 — USDT escrow provider loop and
+  contact note (single commit; pushed with P1 — hashes verified on
+  origin/main)
+NEXT TASK: Phase 14e P3 (deprecation cleanup + a11y) OR NIM
+  listing-fee scoping. Owner decision. Do NOT start automatically.
+BLOCKED BY: none.
+```
+
 ## Phase 14e P1 — USDT escrow buyer loop live in the frontend (2026-09-17)
 
 Buyer-side USDT escrow flow replaces the deprecated direct-payment UI:
