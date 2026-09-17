@@ -1,3 +1,5 @@
+SUPERSEDED (14f-r, 2026-09-17): the NIM custodial escrow rail was retired before implementation completed. This document is historical. Do not implement.
+
 # Phase 14f — NIM custodial escrow path: scope
 
 Status: PROPOSED (scoping phase — no code changed, no tests run).

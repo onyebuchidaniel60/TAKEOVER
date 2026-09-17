@@ -34,11 +34,6 @@ import {
 const TEST_CONTRACT = '0x3333333333333333333333333333333333333333';
 process.env.USDT_ESCROW_CONTRACT_ADDRESS = TEST_CONTRACT;
 
-// Phase 14f P-NIM-1: the NIM intent gate is open; NIM rows carry NULL
-// contract fields and a NIM deposit instruction (no on-chain escrow id).
-const NIM_TEST_WALLET = deriveNimiqAddress(new Uint8Array(32).fill(42));
-process.env.NIM_ESCROW_WALLET_ADDRESS = NIM_TEST_WALLET;
-
 describe.skipIf(!isDatabaseConfigured())('USDT escrow deposit (live DB, mocked Polygon)', () => {
   const stubVerifier: VerifySignatureFn = () => true;
 
@@ -467,36 +462,17 @@ describe.skipIf(!isDatabaseConfigured())('USDT escrow deposit (live DB, mocked P
     expect(foreignGet.statusCode).toBe(404);
   });
 
-  it('token NIM → 200 with NIM instruction and NULL-contract row (gate open in 14f-1)', async () => {
+  it("token NIM → 409 ESCROW_TOKEN_UNSUPPORTED with no escrow row", async () => {
     resetFake();
     const db = getDb();
-    const buyerWallet = randomWallet();
-    const cookie = await loginAs(buyerWallet);
+    const cookie = await loginAs(randomWallet());
     const slotId = await makeSlot();
     const claimId = await claimAs(cookie, slotId);
     const res = await intentAs(cookie, claimId, 'NIM');
-    expect(res.statusCode).toBe(200);
-    const body = res.json() as {
-      data: {
-        escrow: { payment_token: string; status: string; contract_address: unknown; on_chain_escrow_id: unknown };
-        depositInstruction: Record<string, unknown>;
-      };
-    };
-    expect(body.data.escrow.payment_token).toBe('NIM');
-    expect(body.data.escrow.status).toBe('created');
-    expect(body.data.escrow.contract_address).toBeNull();
-    expect(body.data.escrow.on_chain_escrow_id).toBeNull();
-    expect(body.data.depositInstruction).toEqual({
-      escrowWalletAddress: NIM_TEST_WALLET,
-      nimAmount: SLOT_PRICE.toString(),
-      dataBinding: `TAKEOVER:v1:${claimId}`,
-      buyerWallet,
-    });
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { error: { code: string } }).error.code).toBe('ESCROW_TOKEN_UNSUPPORTED');
     const rows = await db.select().from(escrows).where(eq(escrows.claimId, claimId));
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.paymentToken).toBe('NIM');
-    expect(rows[0]?.contractAddress).toBeNull();
-    expect(rows[0]?.onChainEscrowId).toBeNull();
+    expect(rows).toHaveLength(0);
   });
 
   it('RPC failure → 503 ESCROW_CONTRACT_UNAVAILABLE with state unchanged', async () => {

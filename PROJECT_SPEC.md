@@ -10,13 +10,13 @@ Date: 2026-09-11
 
 **One-line description:** TAKEOVER is a last-minute marketplace where providers publish released or otherwise unused scarce capacity and nearby customers can claim it immediately.
 
-TAKEOVER supports two payment rails: NIM (native Nimiq) and USDT on Polygon. For USDT, funds are held in an escrow smart contract on Polygon and released on delivery confirmation. For NIM, funds are held in a backend-controlled escrow wallet and released on delivery confirmation. TAKEOVER never custodies USDT; it custodies NIM only for the duration of an escrow hold.
+TAKEOVER supports USDT on Polygon for escrowed payments. Funds are held in a non-custodial escrow smart contract on Polygon and released on delivery confirmation. The backend never custodies funds.
 
 **Positioning:** The last-minute marketplace for released capacity.
 
 **Supporting line:** Something valuable just became available. Claim it before it’s gone.
 
-TAKEOVER is a consumer marketplace, not a crypto product. NIM is the payment rail because the Mini App must make Nimiq Pay a core part of the experience.
+TAKEOVER is a consumer marketplace, not a crypto product. Nimiq Pay is the wallet and identity layer because the Mini App must make Nimiq Pay a core part of the experience. NIM is retained in the product as a future platform listing fee (separate phase, not built here).
 
 ### Problem
 
@@ -56,7 +56,7 @@ TAKEOVER is organized around **scarce capacity that is available now or soon**, 
 
 ### Primary use case
 
-A provider has a slot available today/soon, publishes it, a buyer discovers it, places a short hold, pays in NIM through Nimiq Pay, and receives a confirmed claim.
+A provider has a slot available today/soon, publishes it, a buyer discovers it, places a short hold, pays USDT through the escrow flow, and receives a confirmed claim.
 
 ### Secondary use cases
 
@@ -89,7 +89,7 @@ TAKEOVER MVP does **not**:
 
 The MVP uses a **provider-created listing model**.
 
-Payment is escrowed. A buyer's funds are held in escrow until the provider marks the service delivered and the buyer confirms receipt, or the dispute window expires without dispute, or an admin resolves a dispute. USDT is escrowed by a smart contract on Polygon; the backend never holds USDT. NIM is escrowed by a backend wallet and released by backend-signed transactions. Supply remains self-attested: escrow protects payment, not the existence of the underlying reservation.
+Payment is escrowed. A buyer's funds are held in escrow until the provider marks the service delivered and the buyer confirms receipt, or the dispute window expires without dispute, or an admin resolves a dispute. USDT is escrowed by a smart contract on Polygon; the backend never holds USDT. Supply remains self-attested: escrow protects payment, not the existence of the underlying reservation.
 
 The future concept of a customer transferring an existing booking is explicitly deferred because transfer rights and provider-system verification create a materially larger product and legal surface.
 
@@ -117,10 +117,7 @@ The future concept of a customer transferring an existing booking is explicitly 
 - Production error handling and basic monitoring.
 - Unit, integration, security, and E2E tests for critical paths.
 - Public MIT-licensed repository for competition submission.
-- Dual payment rails: NIM and USDT on Polygon
 - Smart contract escrow for USDT payments (Polygon)
-- Custodial escrow wallet for NIM payments
-- Buyer choice of payment token at claim time
 
 ### SHOULD HAVE
 
@@ -161,7 +158,7 @@ Anything not explicitly listed above is out of scope unless required to make a M
 
 ### Buyer
 
-Can browse active public slots, view details, create a claim, select a payment token, create an escrow intent, submit the deposit reference, confirm receipt, and dispute within the window, and view their own claim status/history.
+Can browse active public slots, view details, create a claim, create an escrow intent, submit the deposit reference, confirm receipt, and dispute within the window, and view their own claim status/history.
 
 Cannot edit another user’s slot, change a slot price, mark a payment verified, cancel another user’s claim, or access private provider/admin data.
 
@@ -272,18 +269,16 @@ Processing:
 
 Hold window: 10 minutes from claim creation. If the hold expires before a deposit is verified, its reserved quantity is returned atomically.
 
-Everything from token selection onward (escrow intent, deposit, deposit verification, delivery, release, refund, disputes) is owned by FR-06 and FR-12, not by this requirement.
+Everything from escrow intent onward (deposit, deposit verification, delivery, release, refund, disputes) is owned by FR-06 and FR-12, not by this requirement.
 
 Acceptance criteria:
 - Two concurrent buyers cannot both reserve the final available unit.
 - Duplicate claim requests for the same buyer/slot are idempotent or return the existing active claim.
 - Expired holds are no longer claimable.
 
-### FR-06 Pay and verify (dual-token escrow)
+### FR-06 Pay and verify (USDT escrow)
 
-Purpose: Complete a claim using NIM or USDT, with funds held in escrow until a release condition is met.
-
-Token choice: At escrow-intent time the buyer selects NIM or USDT. The server returns the appropriate deposit instruction for the chosen token.
+Purpose: Complete a claim using USDT, with funds held in escrow until a release condition is met.
 
 USDT path (non-custodial):
 - Backend returns the escrow contract address, USDT amount, and approval instructions.
@@ -292,14 +287,7 @@ USDT path (non-custodial):
 - Contract holds the funds; release and refund are contract functions.
 - Backend never custodies USDT.
 
-NIM path (custodial):
-- Backend returns the escrow wallet address and exact NIM amount.
-- Buyer sends NIM to the escrow wallet with the TAKEOVER data binding via Nimiq Pay.
-- Backend verifies the deposit on-chain (existing Phase 8 logic, repurposed: recipient is the escrow wallet, not the provider).
-- Backend holds the NIM in the escrow wallet; release and refund are backend-signed transactions.
-- NIM custody exists only for the duration of the escrow hold.
-
-Escrow lifecycle (both tokens):
+Escrow lifecycle:
 - Buyer deposits; claim moves to escrow_funded.
 - Provider marks service delivered; claim moves to delivered.
 - Buyer confirms receipt -> funds release to provider.
@@ -313,7 +301,9 @@ Acceptance criteria:
 - Same release cannot settle two escrows.
 - Funds release to the provider only on confirmed delivery or timeout.
 - Funds refund to the buyer only on delivery timeout or admin resolution.
-- USDT escrow is enforced on-chain; NIM escrow is enforced by the backend escrow wallet.
+- USDT escrow is enforced on-chain by the escrow contract.
+
+2026-09-17 decision: NIM custodial escrow retired (14f-r). Rationale: custodial escrow infrastructure — backend wallet custody, double-entry ledger reconciliation, invariant enforcement, KMS handling — is not justified for the MVP demo. The non-custodial USDT rail covers the escrow need fully. NIM remains part of the product as a small platform listing fee (separate, future phase — NOT built here).
 
 ### FR-07 My Claims
 
@@ -339,6 +329,8 @@ Admin can disable users/listings and mark reports resolved. Admin actions genera
 
 ### FR-12 Escrow lifecycle
 
+USDT on Polygon is the only escrow rail. The NIM custodial escrow rail described in earlier revisions was retired (14f-r, 2026-09-17). The lifecycle states below remain token-agnostic in the schema; only the USDT path is implemented.
+
 Purpose: Hold buyer funds and release them per the delivery condition.
 
 Escrow states: escrow_funded, delivered, disputed, released, refunded.
@@ -351,12 +343,10 @@ Transitions:
   disputed      -> refunded        (admin rules for buyer)
   escrow_funded -> refunded        (delivery deadline expires)
 
-Authority per token:
+Authority:
   USDT: the on-chain escrow contract is the source of truth.
-  NIM:  the backend escrow service is the source of truth, backed by
-        the escrow wallet's on-chain balance.
 
-Every fund movement writes an audit event. NIM movements also write a double-entry escrow_ledger row; USDT movements are on-chain events mirrored by the backend.
+Every fund movement writes an audit event. USDT movements are on-chain events mirrored by the backend.
 
 ### FR-13 Post-funding provider contact details
 
@@ -378,9 +368,9 @@ The MVP is complete only when a clean user can:
 3. Browse a seeded or provider-created active slot.
 4. View all commercial details.
 5. Claim an available slot.
-6. Initiate payment (NIM or USDT) through the escrow flow.
+6. Initiate payment (USDT) through the escrow flow.
 7. Have the backend verify the real transaction.
-7a. See their funds held in escrow (on-chain for USDT, escrow wallet for NIM).
+7a. See their funds held in escrow (on-chain for USDT).
 7b. As the provider, mark the service delivered.
 7c. As the buyer, confirm receipt and see funds release to the provider.
 7d. In a second flow, have the provider not mark delivery, let the delivery deadline pass, and see an automatic refund.

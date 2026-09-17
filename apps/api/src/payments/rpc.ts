@@ -54,15 +54,6 @@ export interface NimiqRpcClient {
   getTransactionByHash(hash: string): Promise<TxRecord | null>;
   /** Current chain head height (confirmations fallback only). */
   getBlockNumber(): Promise<number>;
-  /**
-   * Phase 14f P-NIM-1: escrow-wallet balance in luna base units (decimal
-   * integer string). Reserved for P-NIM-2's ledger invariant check — no
-   * runtime caller yet. NOTE: the public nimiqwatch proxy allowlists only
-   * getTransactionByHash/getBlockNumber and rejects this method ("Method
-   * not allowed"); P-NIM-2 needs a full-node NIMIQ_RPC_URL (or an approved
-   * alternate) before the invariant check can run live.
-   */
-  getBalance(address: string): Promise<string>;
 }
 
 /** Thrown for transport/RPC failures. Never for "tx not found" (that is null). */
@@ -214,14 +205,6 @@ export function createRpcClient(url: string): NimiqRpcClient {
         throw new RpcUnavailableError('Nimiq RPC returned a malformed block number.');
       }
       return height;
-    },
-    async getBalance(address: string): Promise<string> {
-      const data = await rpcCall(url, 'getBalance', [address]);
-      try {
-        return normalizeValue(data);
-      } catch {
-        throw new RpcUnavailableError('Nimiq RPC returned a malformed balance.');
-      }
     },
   };
 }

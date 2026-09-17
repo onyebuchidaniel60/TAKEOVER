@@ -3,6 +3,104 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14f-r — NIM custodial escrow retired; USDT-only escrow shipped (2026-09-17)
+
+Owner decision (final): the NIM custodial escrow path is retired.
+Custodial infrastructure — backend wallet custody, double-entry ledger
+reconciliation, invariant enforcement, KMS handling — is not justified
+for the MVP demo. USDT on Polygon (non-custodial smart contract) is the
+sole escrow rail. NIM is retained in the product as a future platform
+listing fee (separate phase, not built here). 14f-1's deposit path and
+ledger foundation plus the uncommitted P-NIM-2 signing work are fully
+removed; the worktree `apps/api/src` + `apps/api/test` is byte-identical
+to pre-14f-1 (verified by empty `git diff 81dc470^`).
+
+```text
+CURRENT PHASE: Phase 14f-r complete — NIM custodial escrow retired;
+  USDT on Polygon is the sole escrow rail. NIM is retained as a
+  platform listing fee (future phase, not built here). Do NOT begin
+  the fee phase.
+COMPLETED: Step 0 (tree dirty with authorized P-NIM-2 dirt → discarded
+  per resume authorization + contracts/.env NIM lines stripped, clean
+  at 81dc470; 14f-1 diff read fully — 21 files, matches prompt;
+  NIM-usage grep confined to service.ts + NIM modules, no cascade;
+  @nimiq/core runtime unused by production code; DB 0 NIM escrows /
+  0 escrows / 0 ledger rows) + Step 1 (deleted nimiq/wallet.ts,
+  nimiq/verify-deposit.ts, nimiq/ dir, ledger.ts per R2 — only NIM
+  imported it; service.ts/env.ts/rpc.ts/verify.ts reverted wholesale
+  to 81dc470^; @nimiq/core uninstalled from takeover-api, root
+  devDep kept; .env.example both NIM blocks removed) + Step 2
+  (deleted escrow-nim-unit/deposit tests; escrow-service.test.ts +
+  6 fakes reverted wholesale; worktree src+test == pre-14f-1) +
+  Step 3 (ARCH §4.5 oracle-only + 14f-r note, §6 D5 removed +
+  retirement note, §9 ledger unused-retained note, §13 intent 409 +
+  retirement note, §16 NIM paragraphs marked not-applicable; §8/§15
+  untouched; PROJECT_SPEC §1/§2(one sentence)/§3/buyer-role/FR-05/
+  FR-06 USDT-only + dated decision/FR-12/acceptance baseline;
+  scope-doc SUPERSEDED banner) + this checkpoint
+TESTS RUN: typecheck exit 0 (all workspaces + db); lint exit 0;
+  FULL with DATABASE_URL exit 1 first pass — api 40/41 files,
+  426/427 tests (single failure: security.test.ts brute-force
+  budgets 30 s timeout under parallel load), web 16/129 green,
+  shared 1/1 green; isolated re-run of security.test.ts 41/41 exit
+  0 (the slow test alone takes 26 s → environmental flake, file is
+  byte-identical to pre-14f-1, not a regression); build exit 0 (all
+  workspaces). Delta from 14f-1 baseline (api 43/472): -2 files,
+  -45 tests (31 unit + 14 deposit), exactly as predicted.
+RESULT: single commit (message below); push gated on green battery +
+  expected file set (matched) + zero NIM residue (0/0/0 post-run)
+KNOWN ISSUES:
+- NIM escrow path retired. USDT is the sole escrow rail.
+- escrows.payment_token enum still contains 'NIM'; escrow_ledger
+  table still exists. Both unused; retained because removing enum
+  values or dropping tables needs a migration that is not justified
+  for a demo.
+- @nimiq/core is once again root-devDependency-only (test oracle).
+  Verified: no production import; `npm ls` shows it at root only.
+- NIM platform listing fee is a future phase — not implemented.
+- Banked P-NIM-2 finding (for any future NIM work, not needed now):
+  the public Nimiq testnet proxy accepts-but-never-mines malformed
+  sendRawTransaction payloads; only a correctly-built and
+  correctly-networked (testnet id 5) tx mines. Proven live 2026-09-16
+  (mined probe d11e9758…, 51 confirmations, fee 1000 luna).
+- contracts/.env NIM escrow wallet lines (address + private key,
+  added during superseded P-NIM-2 Step 1) were stripped as part of
+  14f-r cleanup. File stays gitignored. No key material was ever
+  printed, committed, or logged.
+- docs/phase-14e-frontend-escrow-scope.md still lists the NIM
+  decision — it is now answered (deferred). No change needed.
+- All USDT residuals carry forward (split-RPC deployment
+  requirement, unverified contract, fee quirks, signer rotation →
+  Phase 15, auto-release gap, refund/dispute untested E2E, Railway
+  image bakes secrets as ARG/ENV, format waiver, Mumbai mention,
+  payout immutability, lazy auto-refund, no dispute UI, 14d-4
+  frontend gap, Foundry PATH prefix, "timestamp" prose, fromBlock-0
+  fragility).
+SECURITY NOTES: no secrets printed at any point (env parsed to
+  booleans/counts only; key present=false verified by name match,
+  never by value); DB probes were SELECT-only; deletions are
+  NIM-path-only (USDT byte-identical to pre-14f-1, proven by empty
+  worktree diff); no migration written (schema untouched).
+FILES CHANGED: apps/api/src/escrow/service.ts, apps/api/src/env.ts,
+  apps/api/src/payments/rpc.ts, apps/api/src/payments/verify.ts,
+  apps/api/src/escrow/ledger.ts (deleted),
+  apps/api/src/escrow/nimiq/wallet.ts (deleted),
+  apps/api/src/escrow/nimiq/verify-deposit.ts (deleted),
+  apps/api/test/escrow-nim-unit.test.ts (deleted),
+  apps/api/test/escrow-nim-deposit.test.ts (deleted),
+  apps/api/test/escrow-service.test.ts, 6 test fakes (stub revert),
+  apps/api/package.json, package-lock.json, .env.example,
+  ARCHITECTURE.md, PROJECT_SPEC.md,
+  docs/phase-14f-nim-escrow-scope.md (banner),
+  AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: chore: phase 14f-r — retire the NIM custodial escrow path
+  (single commit with this checkpoint; hash recorded at push)
+NEXT TASK: Frontend escrow UI (USDT-only) — Phase 14e P1/P2/P3 as
+  scoped, minus NIM slots. OR NIM listing-fee scoping. Owner decision
+  on ordering. Do NOT start automatically.
+BLOCKED BY: none.
+```
+
 ## Phase 14f P-NIM-1 — NIM escrow deposit path live; ledger foundation in place (2026-09-16)
 
 First NIM-rail implementation: escrow-intent accepts `NIM` (instruction

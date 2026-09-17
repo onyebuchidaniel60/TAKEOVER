@@ -116,19 +116,17 @@ is pinned byte-for-byte in tests.
 
 Production verification (`apps/api/src/auth/nimiq-verify.ts`) uses only
 `tweetnacl` (Ed25519) + `@noble/hashes` (Blake2b for address derivation) +
-Node `crypto` (SHA-256) and does NOT depend on `@nimiq/core` at runtime
-(unchanged).
+Node `crypto` (SHA-256) and does NOT depend on `@nimiq/core` at runtime.
 
-`@nimiq/core` (^2.21.0) serves two uses (revised in 14f-1): it remains a
-root devDependency and the test oracle in
-`apps/api/test/nimiq-oracle.test.ts` (keys, addresses, hashes, and
-signatures produced by the official library, only consumed/verified by
-production code, cross-checked in both directions) — AND it is now also a
-runtime dependency of the `takeover-api` workspace, where it signs
-transactions from the NIM escrow wallet (Phase 14f). Verification stays
-dependency-minimal; only the signing path — which has no tweetnacl-only
-equivalent without reimplementing Nimiq transaction serialization — uses
-the official library at runtime.
+`@nimiq/core` (^2.21.0, root devDependency) is used exclusively as a test
+oracle in `apps/api/test/nimiq-oracle.test.ts`: keys, addresses, hashes, and
+signatures are produced by the official library and only consumed/verified by
+production code (cross-checked in both directions). It is never imported by
+production code.
+
+Reverted in 14f-r (2026-09-17): the 14f-1 dual-use revision was for NIM
+escrow-wallet signing, which has been retired. `@nimiq/core` is once again
+a root devDependency used exclusively as the test oracle.
 
 Citation (both confirmed 2026-09-11): official Hub `signMessage` docs —
 https://nimiq.github.io/api-reference/sign-message ("Prefixing and Hashing"
@@ -153,8 +151,12 @@ Every API accepting a user-controlled ID must load the resource and compare the 
 
 ### MVP payment model
 
-Dual-path escrow. All new payments route through escrow; the buyer
-chooses NIM or USDT at escrow-intent time.
+USDT on Polygon is the sole escrow rail. All new payments route through
+the non-custodial escrow contract; the buyer pays USDT at escrow-intent
+time. (Retired in 14f-r, 2026-09-17: the NIM custodial escrow rail —
+Path B below and the D5 sender-bound note — was removed before
+implementation completed. The design text is retained for reference;
+only the USDT path is implemented.)
 
 Path A — USDT on Polygon:
   - Buyer approves and deposits into the TAKEOVER escrow contract.
@@ -180,25 +182,17 @@ Path B — NIM:
   - Dispute -> admin resolves -> backend signs release or refund.
   - Delivery timeout -> backend signs refund to the buyer.
 
-D5 divergence note (Phase 14f, deliberate): NIM deposit binding is
-sender-bound: the on-chain sender must equal the buyer's
-authenticated Nimiq wallet address. This differs from the USDT
-model, where the on-chain buyer is recorded for refund routing but
-is not compared against the authenticated user. The divergence is
-deliberate — NIM uses the same chain for identity and payment, so
-sender comparison is free; USDT would require a cross-chain
-identity mapping the MVP does not have.
-
 ### Payment intent
 
 Key management:
   - USDT path: server signer key for calling contract functions.
     KMS-protected in production; env secret for the competition
     build (documented gap).
-  - NIM path: escrow wallet private key. KMS-protected in production;
-    env secret for the competition build (documented gap).
+  - NIM path (retired, see the note above): escrow wallet private key.
+    KMS-protected in production; env secret for the competition build
+    (documented gap).
 
-Ledger invariant (NIM only):
+Ledger invariant (retired NIM design, retained for reference):
   SUM(credits to 'escrow:wallet') minus SUM(debits from
   'escrow:wallet') across escrow_ledger must equal the on-chain NIM
   escrow wallet balance at all times.
@@ -525,7 +519,12 @@ Deprecated: the payment_intents table is kept for historical rows only. All new 
 - created_at TIMESTAMPTZ NOT NULL
 - updated_at TIMESTAMPTZ NOT NULL
 
-### escrow_ledger (NIM only)
+### escrow_ledger (retired NIM design — table retained, currently unused)
+
+No backend code writes to this table (the NIM custodial rail that used
+it was retired in 14f-r). The table is retained because dropping it
+would need a migration that is not justified for a demo. Field
+reference (schema is authoritative):
 
 - id UUID PK
 - escrow_id UUID FK escrows.id
@@ -842,25 +841,24 @@ Auth: session + buyer owner, and safe to call repeatedly.
 
 Server re-queries Nimiq state and attempts deterministic verification.
 
-### POST /api/v1/claims/:claimId/escrow-intent (Phase 14d-2: USDT live, 14f-1: NIM live)
+### POST /api/v1/claims/:claimId/escrow-intent (Phase 14d-2: USDT live)
 
 Auth: session + buyer owner (foreign → 404 `CLAIM_NOT_FOUND`, anonymous → 401).
 
 Request: `{ token: 'NIM' | 'USDT_POLYGON' }` (strict, no unknown fields).
-Unknown token → 409 `ESCROW_TOKEN_UNSUPPORTED`; wrong claim state →
+`NIM` → 409 `ESCROW_TOKEN_UNSUPPORTED` (no row created); wrong claim state →
 409 `CLAIM_NOT_PAYABLE`; funded → 409 `ESCROW_ALREADY_FUNDED`.
 
-Response: `{ escrow, claim, depositInstruction }`. The USDT instruction
+(Retired in 14f-r, 2026-09-17: NIM escrow intent was briefly live in
+14f-1 and now returns 409 again. USDT on Polygon is the sole escrow
+rail.)
+
+Response: `{ escrow, claim, depositInstruction }` where the instruction
 carries `contractAddress`, `usdtAmount` (string, 6-decimal base units),
 `onChainEscrowId`, `approveTo` (= contractAddress), `approveAmount` (exact, =
 usdtAmount — exact-amount approval only, never infinite), and `buyerWallet`
-(frontend sanity-check). The NIM instruction (14f-1) carries
-`escrowWalletAddress` (omnibus custodial wallet), `nimAmount` (string,
-luna base units), `dataBinding` (`TAKEOVER:v1:<claimId>`, sender-bound
-per the D5 note in §6), and `buyerWallet` (the authenticated Nimiq
-address the on-chain sender must equal). NIM rows store NULL
-`contract_address`/`on_chain_escrow_id`. Existing escrow pre-funding →
-returned as-is (idempotent, no new row).
+(frontend sanity-check). Existing escrow pre-funding → returned as-is
+(idempotent, no new row).
 
 Rate limit: per-IP 10/60s (matches the deprecated intent path).
 
@@ -1255,8 +1253,12 @@ Role is server-controlled. Never accept role changes from client input. Admin me
 
 - Smart-contract vulnerability (USDT): reentrancy, integer issues, access control. Mitigation: OpenZeppelin base contracts, external audit, fuzz tests, exact-amount approvals, revoke after deposit.
 - Server signer key compromise (USDT): key that can call contract release/refund. Mitigation: KMS in production, env secret for competition build, least-privilege signing service.
-- NIM escrow wallet key compromise: KMS in production, env secret for competition build, cold/hot separation, balance monitoring.
-- Ledger drift (NIM): double-entry invariant; periodic reconciliation against on-chain balance; halt on mismatch.
+- NIM escrow wallet key compromise (not applicable in the current product
+  scope — NIM escrow retired in 14f-r; analysis retained: KMS in production,
+  env secret for competition build, cold/hot separation, balance monitoring).
+- Ledger drift (not applicable in the current product scope — NIM escrow
+  retired in 14f-r; analysis retained: double-entry invariant, periodic
+  reconciliation against on-chain balance, halt on mismatch).
 - Deposit replay across claims: UNIQUE deposit_tx_hash + claim binding.
 - Release replay: UNIQUE release_tx_hash.
 - Refund replay: UNIQUE refund_tx_hash.
