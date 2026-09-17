@@ -898,11 +898,13 @@ Request: `{ token: 'NIM' | 'USDT_POLYGON' }` (strict, no unknown fields).
 rail.)
 
 Response: `{ escrow, claim, depositInstruction }` where the instruction
-carries `contractAddress`, `usdtAmount` (string, 6-decimal base units),
-`onChainEscrowId`, `approveTo` (= contractAddress), `approveAmount` (exact, =
-usdtAmount — exact-amount approval only, never infinite), and `buyerWallet`
-(frontend sanity-check). Existing escrow pre-funding → returned as-is
-(idempotent, no new row).
+carries `contractAddress`, `tokenAddress` (canonical USDT ERC-20 address the
+`approve()` call targets — served from `USDT_TOKEN_ADDRESS`, 503 when
+unconfigured; added in P1 so the frontend never hardcodes it), `usdtAmount`
+(string, 6-decimal base units), `onChainEscrowId`, `approveTo` (=
+contractAddress), `approveAmount` (exact, = usdtAmount — exact-amount
+approval only, never infinite), and `buyerWallet` (frontend sanity-check).
+Existing escrow pre-funding → returned as-is (idempotent, no new row).
 
 Rate limit: per-IP 10/60s (matches the deprecated intent path).
 
@@ -972,6 +974,13 @@ confirmations, ... }`; at/over → one transaction flips both rows to
 200 no-op without any RPC call. Signer/RPC/contract failure → 503
 `ESCROW_RELEASE_FAILED` with no state change.
 
+Poll target (P3 note, 14e E2E finding): the buyer confirms by polling
+THIS endpoint, not `GET /escrow`. The first call stores
+`release_tx_hash` while the rows stay `delivered` — and `delivered`
+is not a lazy-transition state — so reads never observe the
+confirmation count or flip the rows. Only repeated `POST
+confirm-receipt` receipt-polls a broadcast release into `released`.
+
 Rate limit: per-IP 10/60s.
 
 ### POST /api/v1/claims/:claimId/dispute (Phase 14d-3b: USDT live)
@@ -1013,7 +1022,11 @@ beyond the shared API backstops.
 Lazy transitions run BEFORE the projection: a `funded` escrow past its
 `delivery_deadline` broadcasts `refund()` and returns `refunding`;
 `refunding`/`releasing` rows with met confirmation policies return
-`refunded`/`released`. A due transition with an unreachable chain fails
+`refunded`/`released`. Only those three states transition on reads: a
+buyer-initiated release broadcast leaves the rows `delivered` (with
+`release_tx_hash` set), so `GET /escrow` never flips a buyer release to
+`released` — the buyer must poll `POST confirm-receipt` (see above).
+A due transition with an unreachable chain fails
 closed (503); rows that cannot transition are returned without any chain
 call, so reads keep working when the RPC is down. NOT triggered from
 `GET /me/claims` (no side effects from a list view).

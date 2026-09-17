@@ -3,6 +3,104 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14e P3 complete — deprecated direct-payment UI retired (as far as live rows allow), ARCH §13 synced, test suite stability checked, a11y extended to escrow + fee components. Do NOT begin Phase 15 automatically.
+
+Deprecation gate decided by live DB (5 payment_pending, 4 paid,
+8 payment_review — all non-zero): no deprecated code deleted.
+Standalone VerifyPollBox/PaymentPanel were already gone; the kept
+VerifyPollBox lives in-file in ClaimDetailPage and still serves the
+5 live rows, as do createPaymentIntent/verifyPayment/poll helpers
+and the paid/review display branches. Full removal waits for zero
+live rows (Phase 15+). ARCH §13 now documents the P1 `tokenAddress`
+intent field and the confirm-receipt (not GET /escrow) poll target
+with the mechanism. Timeout fix (global 30 s, security file+test
+60 s) resolved the consistent timeout flakes; gate run green.
+
+```text
+CURRENT PHASE: Phase 14e P3 complete — deprecated direct-payment
+  UI retired (as far as live rows allow), ARCH §13 synced, test
+  suite stability checked, a11y extended to escrow + fee
+  components. Do NOT begin Phase 15 automatically.
+COMPLETED: prereqs (HEAD 029b022 clean; live counts 5/4/8 → SKIP
+  deletions per gate) + STEP 1 (verified PaymentPanel +
+  standalone VerifyPollBox already deleted; in-file VerifyPollBox
+  + lib fns + paid/review branches KEPT for live rows; recount
+  comment 2→5 in lib/slots.ts; debug-payments.ts KEPT — still
+  imported by deployment-config.test.ts) + STEP 2 (ARCH §13:
+  `tokenAddress` field documented on escrow-intent; poll-target
+  note on confirm-receipt + read-transition clarification on GET
+  /escrow — mechanism verified in service.ts: lazy reads cover
+  funded/refunding/releasing only; broadcast leaves rows
+  `delivered`, so only POST confirm-receipt advances buyer
+  releases) + STEP 3 (3-run check + fix + green gate — below) +
+  STEP 4 (ContactNoteForm char-count via aria-describedby +
+  escrow-a11y.test.tsx 16/16, 0 critical/serious) + battery +
+  this checkpoint
+TESTS RUN: api run1 450/451 (security brute-force 30 s timeout
+  only); run2 449/451 (+ escrow-schema 5 s timeout); fix (global
+  testTimeout/hookTimeout 30 s in vitest.config.ts; security file
+  30 s→60 s + brute-force per-test 30 s→60 s); run3 450/451
+  (security green; escrow-schema green); security alone 41/41;
+  schema with 60 s budget 10/10; web 3/3 green (20 files/206
+  each); full1 450/451 + web 20/20 + shared 1/1 (one-off
+  escrow-release concurrent 500); full2 same single 500 (same
+  test); escrow-release alone 10/10 + contention-group 49/49;
+  GATE RUN green 43/43 files, 451/451 tests, exit 0.
+  Classification: timeout flakes = fixed class (budgets raised,
+  proven by green runs); escrow-release concurrent 500 =
+  load-dependent one-off in unmodified code (analyzed: atomic
+  flip, convergent loser paths; passes alone/group/3 full runs;
+  fails only twice at peak 43-file load) → documented baseline,
+  no fix (escrow flow is out of scope to touch).
+RESULT: single commit (message below), pushed.
+KNOWN ISSUES:
+- Deprecated UI kept for live rows (5 payment_pending + 4 paid +
+  8 payment_review at P3 recount): VerifyPollBox (in-file,
+  ClaimDetailPage), createPaymentIntent/verifyPayment/poll
+  helpers + types (lib/slots.ts), paid/review display branches,
+  verify-poll.test.ts, debug-payments.ts. Remove after zero live
+  rows (Phase 15+; rows age out or admin-resolve).
+- Timeout budgets raised (vitest.config.ts global 30 s/30 s;
+  security.test.ts 60 s file + 60 s brute-force test). If the DB
+  gets slower, the next lever is fewer parallel forks, not larger
+  budgets.
+- escrow-release concurrent-confirm 500 (2 occurrences, both at
+  peak full-suite load; 10/10 alone, 49/49 contention-group,
+  green in 4 other full runs): load-dependent baseline, no logic
+  defect found, escrow flow untouched per scope. Reopen if it
+  ever fails alone or 3 full runs in a row.
+- Carried USDT residuals (split-RPC deployment requirement,
+  unverified contract, fee quirks, signer rotation → Phase 15,
+  auto-release gap, refund/dispute untested E2E, Railway image
+  bakes secrets as ARG/ENV, format waiver, Mumbai mention, payout
+  immutability, lazy auto-refund, no dispute UI, §7 "Pay with NIM"
+  example in PROJECT_SPEC, §5 deprecation gate re-count mandate,
+  Foundry PATH prefix, "timestamp" prose, fromBlock-0 fragility).
+- Carried NIM fee residuals (fee-wallet mainnet rotation →
+  Phase 15; Railway secrets-in-output pattern noted).
+- P3 admin-escrow UI decision (D4) still open — owner call in
+  Phase 15 if a live dispute needs ruling.
+- Visual polish phase deferred.
+SECURITY NOTES: no secrets printed (env parsed keys-only or not
+  at all; addresses/hashes/counts only); temp scripts lived in
+  the repo only during their run and were deleted the same
+  command block (git status confirms); no key material involved
+  in this phase at all; no escrow/fee logic touched.
+FILES CHANGED: apps/web/src/lib/slots.ts (recount comment),
+  ARCHITECTURE.md (§13 tokenAddress + poll-target notes),
+  apps/web/src/components/ContactNoteForm.tsx (char count +
+  aria-describedby), apps/api/vitest.config.ts (global 30 s
+  budgets), apps/api/test/security.test.ts (60 s budgets),
+  apps/web/test/escrow-a11y.test.tsx (new, 16),
+  AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: chore: phase 14e P3 — deprecation cleanup, ARCH sync,
+  a11y, test stability (single commit with this checkpoint; hash
+  recorded at push)
+NEXT TASK: Phase 15 — submission readiness. Do NOT start
+  automatically.
+BLOCKED BY: none.
+```
+
 ## Phase 14g-1 — NIM listing fee live (testnet E2E green, Railway env set, deploy pending)
 
 Sellers pay 400 NIM via Nimiq Pay to publish when the fee is configured.

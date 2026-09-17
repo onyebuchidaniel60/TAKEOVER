@@ -384,8 +384,9 @@ export function updateSlotContactNote(
 // submission path is dead — submitPayment and the NIM-SDK-only
 // baseUnitsToSafeNumber go with it. createPaymentIntent + verifyPayment +
 // the poll helpers STAY: the kept payment_pending branch (VerifyPollBox in
-// ClaimDetailPage) still serves 2 live legacy rows. Full removal in P3 once
-// zero payment_pending rows remain (§5 gates).
+// ClaimDetailPage) still serves live legacy rows (5 payment_pending at the
+// 14e-P3 recount, 2026-09-18). Full removal in a later phase once zero
+// payment_pending rows remain (§5 gates).
 export interface PaymentIntent {
   id: string;
   claimId: string;

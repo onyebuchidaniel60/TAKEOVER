@@ -85,8 +85,12 @@ export default function ContactNoteForm({
         onChange={(e) => setText(e.target.value)}
         rows={3}
         maxLength={CONTACT_NOTE_MAX_LENGTH + 50}
+        aria-describedby={`contact-note-count-${slot.id}`}
         className="mt-2 min-h-touch w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
       />
+      <p id={`contact-note-count-${slot.id}`} className="mt-1 text-xs text-slate-500">
+        {text.trim().length}/{CONTACT_NOTE_MAX_LENGTH} characters
+      </p>
       {error && (
         <p className="mt-1 text-sm text-red-700" role="alert">
           {error}

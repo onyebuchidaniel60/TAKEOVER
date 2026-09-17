@@ -28,9 +28,12 @@ import {
   users,
 } from '../../../db/schema';
 
-// Remote-Postgres latency: every test in this file gets a 30s budget
-// (Phase 10 precedent — sequential live round trips exceed the 5s default).
-vi.setConfig({ testTimeout: 30000 });
+// Remote-Postgres latency: every test in this file gets a 60s budget
+// (Phase 10 precedent — sequential live round trips exceed the 5s default;
+// raised 30s → 60s in 14e P3 after the brute-force budget test timed out
+// at 30s under parallel load — the rate-limit windows it sleeps through
+// are wall-clock by design).
+vi.setConfig({ testTimeout: 60000 });
 
 // Vitest runs with cwd = apps/api, so anchor source/dist scans there
 // (the api tsconfig targets CommonJS, where import.meta is unavailable).
@@ -1066,7 +1069,9 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     } finally {
       await mutateApp.close();
     }
-  }, 30000);
+    // 14e P3: 60 s — this budget test sleeps through real rate-limit
+    // windows plus slow-DB round trips; 30 s timed out under parallel load.
+  }, 60000);
 
   // -- payment manipulation --------------------------------------------------------------
 
