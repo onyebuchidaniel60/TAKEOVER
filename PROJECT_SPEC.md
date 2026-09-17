@@ -253,6 +253,12 @@ Rules:
 - Required fields must be complete.
 - start_at must still be in the future.
 - publication creates immutable commercial fields for the active lifecycle: provider, price, capacity, start/end times.
+- When the NIM listing fee is configured (`LISTING_FEE_NIM` +
+  `TAKEOVER_FEE_WALLET_ADDRESS`), publishing requires payment of the fee:
+  the seller pays the exact NIM amount via Nimiq Pay with the binding
+  `TAKEOVER:fee:v1:<slotId>`, and the backend verifies the on-chain transfer
+  (sender, recipient, amount, data, confirmations, replay) before the slot
+  flips to published. The fee wallet only receives; there is no custody.
 
 ### FR-05 Claim slot
 

@@ -44,11 +44,11 @@ Deployment:
 - Supabase database
 
 Payment:
-- NIM (native Nimiq) and USDT (ERC-20 on Polygon); both payments escrowed
-- Nimiq Pay `sendBasicTransactionWithData()` for NIM deposit initiation
-- Server-side Nimiq read/RPC verification for NIM deposits
+- USDT (ERC-20 on Polygon) escrowed by a non-custodial smart contract; NIM (native Nimiq) as the env-gated listing fee paid by sellers at publish time (verified on-chain, receive-only wallet, no custody)
+- Nimiq Pay `sendBasicTransactionWithData()` for NIM transfers (listing-fee payment)
+- Server-side Nimiq read/RPC verification for NIM fee payments
 - USDT deposits verified via Polygon escrow-contract events
-- Custodial backend wallet for NIM escrow; non-custodial smart contract for USDT escrow
+- Non-custodial smart contract for USDT escrow; the NIM fee wallet only receives (never signs, no private key server-side)
 
 AI:
 - None in MVP.
@@ -67,12 +67,12 @@ AI:
 - The same blockchain transaction cannot settle two claims.
 - Provider cancellation is unavailable after a claim has a verified payment.
 - USDT escrow is non-custodial: funds are held by a Polygon smart contract, never by TAKEOVER.
-- NIM escrow is custodial: funds are held by a backend-controlled wallet for the escrow hold duration, then released or refunded.
+- NIM is the env-gated listing fee, not escrow: the fee wallet only receives; it never signs, holds, or forwards funds, and no private key exists server-side.
 - Funds release to the provider only on confirmed delivery or on expiry of the undisputed dispute window.
 - Funds refund to the buyer only on delivery timeout or admin resolution of a dispute.
 - Every fund movement writes an audit event in the same DB transaction as the state change (NIM) or mirrors the on-chain event (USDT).
-- The escrow wallet private key and the Polygon contract signer key must never be logged, printed, returned in any API response, or committed.
-- The NIM ledger invariant (sum of escrow:wallet ledger entries == on-chain balance) is a security invariant, not a nice-to-have. Any mismatch halts escrow operations.
+- The Polygon contract signer key must never be logged, printed, returned in any API response, or committed. (There is no NIM wallet key to protect: the fee wallet never signs.)
+- (Retired 14f-r: the NIM custodial escrow wallet, its private key, and the escrow:wallet ledger invariant no longer exist. Do not reintroduce them.)
 - Do not expose private wallet/session/authentication information.
 
 ## Product scope rules

@@ -69,6 +69,17 @@ export const meSlotsQuerySchema = z
 
 export const slotIdParamsSchema = z.object({ slotId: z.string().uuid() }).strict();
 
+// Phase 14g-1: publish body. Wire-optional ({} stays valid for the no-fee
+// path); required-by-policy when the fee is configured (the lifecycle throws
+// PAYMENT_INVALID_TX then). Shape-only here — hash well-formedness is the
+// service's normalizeFeeHash check. Strict: unknown fields → 400.
+export const publishBodySchema = z.preprocess(
+  (value: unknown) => (value === undefined ? {} : value),
+  z.object({ transactionHash: z.string().optional() }).strict(),
+);
+
+export type PublishBody = z.infer<typeof publishBodySchema>;
+
 // Phase 14d-4: one-way provider contact note. Free-form text, 1–500 chars
 // after trimming; null clears the note. The no-URLs rule (any scheme `://`
 // or `www.`, case-insensitive) keeps the note from becoming an off-platform

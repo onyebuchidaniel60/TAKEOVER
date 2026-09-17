@@ -4,9 +4,23 @@
 // transitions fail closed instead of silently overwriting each other.
 import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
-import { claims, slots } from '../../../../db/schema';
+import { claims, slots, users } from '../../../../db/schema';
 import { writeAuditEvent } from '../audit/events';
+import { isUniqueViolation } from '../claims/service';
+import { getListingFeeState } from '../env';
 import { AppError } from '../http/errors';
+import {
+  assessListingFee,
+  expectedFeeDataForSlot,
+  normalizeFeeHash,
+} from '../listing-fee/verify';
+import { nimToBaseUnits } from '../payments/amounts';
+import {
+  createRpcClient,
+  getNimiqRpcUrl,
+  RpcUnavailableError,
+  type NimiqRpcClient,
+} from '../payments/rpc';
 import { toOwnerSlot, type OwnerSlot } from './owner-slot';
 import { loadProviderDisplay, loadProviderDisplayMap } from './provider-display';
 import { serializePriceNim } from './price';
@@ -164,7 +178,45 @@ export async function updateSlotContactNote(
   return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
 }
 
+export interface PublishFeeOptions {
+  /** Client-supplied fee tx hash (fee path only; ignored when no fee is configured). */
+  transactionHash?: string;
+  /** Injected chain reader (tests). Defaults to the Nimiq RPC client. */
+  rpc?: NimiqRpcClient;
+}
+
 export async function publishSlot(
+  db: Db,
+  ownerId: string,
+  slotId: string,
+  audit?: { requestId?: string | null },
+  fee?: PublishFeeOptions,
+): Promise<OwnerSlot> {
+  const feeState = getListingFeeState();
+  if (!feeState.required) {
+    return publishSlotUnpaid(db, ownerId, slotId, audit);
+  }
+  // F4 fail-closed: a half-configured fee never degrades to "no fee".
+  if (feeState.misconfigured || feeState.walletAddress === null || feeState.amountNim === null) {
+    throw new AppError(503, 'INTERNAL_ERROR', 'Listing fee is misconfigured. Contact support.');
+  }
+  const hash = normalizeFeeHash(fee?.transactionHash);
+  if (hash === null) {
+    throw new AppError(
+      400,
+      'PAYMENT_INVALID_TX',
+      `Publishing requires a ${feeState.amountNim} NIM listing fee. Send the fee, then retry with its transaction hash.`,
+    );
+  }
+  return publishSlotWithFee(db, ownerId, slotId, audit, {
+    feeAmountNim: feeState.amountNim,
+    feeWallet: feeState.walletAddress,
+    hash,
+    rpc: fee?.rpc,
+  });
+}
+
+async function publishSlotUnpaid(
   db: Db,
   ownerId: string,
   slotId: string,
@@ -216,6 +268,196 @@ export async function publishSlot(
     return row;
   });
   return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
+}
+
+/**
+ * Phase 14g-1: fee-gated publish. Verifies the seller's on-chain NIM fee
+ * transfer before flipping draft → published. Stateless across attempts:
+ * nothing is stored until verification succeeds, so a failed attempt leaves
+ * the slot draft and the client retries with the same hash (D6); the
+ * listing_fee_tx_hash UNIQUE constraint is the replay backstop.
+ *
+ * Error mapping (ARCH §15 only): missing/malformed hash → 400
+ * PAYMENT_INVALID_TX; unknown hash → 409 PAYMENT_NOT_FOUND; under-confirmed
+ * → 409 PAYMENT_NOT_CONFIRMED; field mismatches → the matching 409
+ * PAYMENT_*_MISMATCH; reused hash → 409 PAYMENT_REPLAY; RPC failure → 503
+ * RPC_UNAVAILABLE.
+ */
+async function publishSlotWithFee(
+  db: Db,
+  ownerId: string,
+  slotId: string,
+  audit: { requestId?: string | null } | undefined,
+  fee: { feeAmountNim: string; feeWallet: string; hash: string; rpc?: NimiqRpcClient },
+): Promise<OwnerSlot> {
+  // Fail fast on slot state BEFORE any chain lookup: ownership, draft, and
+  // publishability are checked first. The one exception is the idempotent
+  // re-POST: an already-published slot carrying this exact fee hash returns
+  // its state (same transfer, same slot, exactly once).
+  const preRows = await db
+    .select()
+    .from(slots)
+    .where(and(eq(slots.id, slotId), eq(slots.providerId, ownerId)))
+    .limit(1);
+  const pre = preRows[0];
+  if (!pre) {
+    throw new AppError(404, 'NOT_FOUND', 'Slot not found.');
+  }
+  if (pre.status === 'published' && pre.listingFeeTxHash === fee.hash) {
+    return toOwnerSlot(pre, await loadProviderDisplay(db, pre.providerId));
+  }
+  requireDraftForPublish(pre.status);
+  const now = new Date();
+  const failed = validatePublishable(
+    {
+      title: pre.title,
+      startsAt: pre.startsAt,
+      endsAt: pre.endsAt,
+      priceNim: pre.priceNim,
+      totalQuantity: pre.totalQuantity,
+      payoutWallet: pre.payoutWallet,
+    },
+    now,
+  );
+  if (failed.length > 0) {
+    throw new AppError(400, 'INVALID_INPUT', `Cannot publish: invalid ${failed.join(', ')}.`);
+  }
+  const ownerRows = await db
+    .select({ walletAddress: users.walletAddress })
+    .from(users)
+    .where(eq(users.id, ownerId))
+    .limit(1);
+  const ownerWallet = ownerRows[0]?.walletAddress;
+  if (!ownerWallet) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+  }
+  // Replay gate (D4): a fee transfer settles at most one publish. A hash
+  // already stored on ANY slot is rejected here — before the data check —
+  // so reuse always reports PAYMENT_REPLAY (the UNIQUE constraint below
+  // remains the backstop for a check-then-write race).
+  const usedRows = await db
+    .select({ id: slots.id })
+    .from(slots)
+    .where(eq(slots.listingFeeTxHash, fee.hash))
+    .limit(1);
+  if (usedRows.length > 0) {
+    throw new AppError(409, 'PAYMENT_REPLAY', 'This fee payment was already used.');
+  }
+
+  // Chain lookup happens OUTSIDE any DB transaction — never hold a pooled
+  // connection across a 5s network call (same rule as verify-payment).
+  const rpc = fee.rpc ?? createRpcClient(getNimiqRpcUrl());
+  let found;
+  try {
+    found = await rpc.getTransactionByHash(fee.hash);
+  } catch (err) {
+    if (err instanceof RpcUnavailableError) {
+      throw new AppError(
+        503,
+        'RPC_UNAVAILABLE',
+        'Listing-fee verification is temporarily unavailable. Please try again.',
+      );
+    }
+    throw err;
+  }
+  const assessment = assessListingFee(found, {
+    sender: ownerWallet,
+    recipient: fee.feeWallet,
+    amountLuna: nimToBaseUnits(fee.feeAmountNim),
+    data: expectedFeeDataForSlot(slotId),
+  });
+  if (assessment.status === 'pending') {
+    if (assessment.reason === 'not-found') {
+      throw new AppError(
+        409,
+        'PAYMENT_NOT_FOUND',
+        'Fee payment not found on-chain yet. Please try again.',
+      );
+    }
+    const n = assessment.confirmations ?? 0;
+    throw new AppError(
+      409,
+      'PAYMENT_NOT_CONFIRMED',
+      `Fee payment needs 3 confirmations (${n} so far). Please try again.`,
+    );
+  }
+  if (assessment.status === 'review') {
+    switch (assessment.reason) {
+      case 'sender_mismatch':
+        throw new AppError(
+          409,
+          'PAYMENT_SENDER_MISMATCH',
+          'Fee payment came from a different wallet. Pay from the wallet that owns this opening. Fee transfers are final.',
+        );
+      case 'recipient_mismatch':
+        throw new AppError(
+          409,
+          'PAYMENT_RECIPIENT_MISMATCH',
+          'Fee payment went to the wrong address. Pay to the address shown on this page. Fee transfers are final.',
+        );
+      case 'amount_mismatch':
+        throw new AppError(
+          409,
+          'PAYMENT_AMOUNT_MISMATCH',
+          `Fee payment must be exactly ${fee.feeAmountNim} NIM. Fee transfers are final.`,
+        );
+      default:
+        throw new AppError(
+          409,
+          'PAYMENT_DATA_MISMATCH',
+          'Fee payment does not match this opening. Fee transfers are final.',
+        );
+    }
+  }
+
+  // Verified: single conditional-write transaction records the receipt and
+  // flips the slot. A UNIQUE hit on the fee hash means the transfer already
+  // settled another publish → replay.
+  try {
+    const row = await db.transaction(async (tx) => {
+      const updated = await tx
+        .update(slots)
+        .set({
+          status: 'published',
+          listingFeeTxHash: fee.hash,
+          listingFeePaidAt: now,
+          publishedAt: now,
+          updatedAt: now,
+        })
+        .where(and(eq(slots.id, slotId), eq(slots.status, 'draft')))
+        .returning();
+      const row = updated[0];
+      if (!row) {
+        // Lost a race: re-read the winner. Same hash on this slot is the
+        // idempotent success; anything else is no longer publishable.
+        const winner = await tx
+          .select()
+          .from(slots)
+          .where(and(eq(slots.id, slotId), eq(slots.providerId, ownerId)))
+          .limit(1);
+        const current = winner[0];
+        if (current && current.status === 'published' && current.listingFeeTxHash === fee.hash) {
+          return current;
+        }
+        throw new AppError(409, 'SLOT_NOT_PUBLISHABLE', 'Only draft slots can be published.');
+      }
+      await writeAuditEvent(tx, {
+        actorUserId: ownerId,
+        eventType: 'slot.published',
+        entityType: 'slot',
+        entityId: row.id,
+        requestId: audit?.requestId ?? null,
+        metadata: { from: 'draft', to: 'published', feeTxHash: fee.hash },
+      });
+      return row;
+    });
+    return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      throw new AppError(409, 'PAYMENT_REPLAY', 'This fee payment was already used.');
+    }
+    throw err;
+  }
 }
 
 export async function cancelSlot(

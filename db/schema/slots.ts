@@ -28,6 +28,12 @@ export const slots = pgTable(
     availableQuantity: integer('available_quantity').notNull(),
     payoutWallet: text('payout_wallet').notNull(),
     status: slotStatus('status').notNull().default('draft'),
+    // Phase 14g-1: NIM listing-fee receipt. NULL = unpaid (pre-fee slot or
+    // fee-not-configured publish). UNIQUE when present: the same on-chain fee
+    // transfer can never publish two slots (replay backstop; Postgres treats
+    // NULLs as distinct, so unpaid rows never collide).
+    listingFeeTxHash: text('listing_fee_tx_hash').unique(),
+    listingFeePaidAt: timestamp('listing_fee_paid_at', { withTimezone: true }),
     publishedAt: timestamp('published_at', { withTimezone: true }),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     expiredAt: timestamp('expired_at', { withTimezone: true }),

@@ -16,12 +16,15 @@ import StatusBadge from '../components/StatusBadge';
 import { ApiError } from '../lib/api';
 import { fetchEscrow } from '../lib/escrow';
 import { usePageMeta } from '../lib/meta';
+import { connectWallet, sendListingFee } from '../lib/nimiq';
 import {
   cancelSlot,
+  fetchConfig,
   fetchOwnerSlot,
   fetchSlotClaims,
   publishSlot,
   updateSlot,
+  type ListingFeeConfig,
   type OwnerSlot,
   type ProviderSlotClaim,
   type SlotWrite,
@@ -44,6 +47,28 @@ export default function SellDetail() {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Phase 14g-1: NIM listing-fee state. feeConfig null = not loaded (or the
+  // config read failed — then plain publish is attempted and the backend,
+  // which is authoritative, enforces the fee). feeHash preserves the
+  // broadcast hash for the D6 same-hash retry (never auto-retried).
+  const [feeConfig, setFeeConfig] = useState<ListingFeeConfig | null>(null);
+  const [feeStep, setFeeStep] = useState<'paying' | 'verifying' | null>(null);
+  const [feeHash, setFeeHash] = useState<string | null>(null);
+  const [verifyFailed, setVerifyFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchConfig()
+      .then(({ listingFee }) => {
+        if (!cancelled) setFeeConfig(listingFee);
+      })
+      .catch(() => {
+        if (!cancelled) setFeeConfig(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const load = useCallback(() => {
     if (!slotId) {
@@ -89,19 +114,89 @@ export default function SellDetail() {
       });
   };
 
-  const handlePublish = (): void => {
-    if (!slotId) return;
-    setPublishing(true);
-    setActionError(null);
-    void publishSlot(slotId)
+  const postPublish = (id: string, hash: string | undefined, broadcasted: boolean): void => {
+    void publishSlot(id, hash)
       .then(({ slot }) => {
         refreshAfter(slot);
         setPublishing(false);
+        setFeeStep(null);
+        setFeeHash(null);
+        setVerifyFailed(false);
       })
       .catch((err: unknown) => {
-        setActionError(err instanceof ApiError ? err.message : 'Something went wrong.');
+        // D6: after a broadcast, the hash is preserved and the failure
+        // surfaces a persistent retry banner (same hash, manual retry only).
+        // Without a broadcast there is nothing to retry — plain error.
+        if (broadcasted) {
+          setVerifyFailed(true);
+        } else {
+          setActionError(err instanceof ApiError ? err.message : 'Something went wrong.');
+        }
+        if (broadcasted && err instanceof ApiError) {
+          setActionError(err.message);
+        }
         setPublishing(false);
+        setFeeStep(null);
       });
+  };
+
+  const handlePublish = (): void => {
+    if (!slotId) return;
+    // No-fee path (unchanged): fee not required, or the config read failed
+    // (the backend still enforces the fee when it is configured).
+    if (!feeConfig || !feeConfig.required) {
+      setPublishing(true);
+      setActionError(null);
+      postPublish(slotId, undefined, false);
+      return;
+    }
+    if (feeConfig.misconfigured || !feeConfig.amountNim || !feeConfig.walletAddress) {
+      setActionError('Listing fee is misconfigured. Publishing is unavailable — contact support.');
+      return;
+    }
+    // Fee path: pay through Nimiq Pay first, then publish with the hash.
+    const { amountNim, walletAddress } = feeConfig;
+    setPublishing(true);
+    setFeeStep('paying');
+    setActionError(null);
+    setVerifyFailed(false);
+    void (async (): Promise<void> => {
+      let provider;
+      try {
+        ({ provider } = await connectWallet());
+      } catch (err: unknown) {
+        setActionError(err instanceof Error ? err.message : 'Something went wrong.');
+        setPublishing(false);
+        setFeeStep(null);
+        return;
+      }
+      let hash: string;
+      try {
+        hash = await sendListingFee(provider, {
+          to: walletAddress,
+          nimAmount: amountNim,
+          slotId,
+        });
+      } catch (err: unknown) {
+        // Broadcast failure (user cancel, wallet error): nothing on-chain,
+        // nothing to retry — surface the wallet's message.
+        setActionError(err instanceof Error ? err.message : 'Something went wrong.');
+        setPublishing(false);
+        setFeeStep(null);
+        return;
+      }
+      setFeeHash(hash);
+      setFeeStep('verifying');
+      postPublish(slotId, hash, true);
+    })();
+  };
+
+  const handleRetryPublish = (): void => {
+    if (!slotId || !feeHash) return;
+    setPublishing(true);
+    setFeeStep('verifying');
+    setActionError(null);
+    postPublish(slotId, feeHash, true);
   };
 
   const handleCancel = (): void => {
@@ -152,8 +247,12 @@ export default function SellDetail() {
             confirmingCancel={confirmingCancel}
             cancelling={cancelling}
             actionError={actionError}
+            feeConfig={feeConfig}
+            feeStep={feeStep}
+            verifyFailed={verifyFailed}
             onSave={handleSave}
             onPublish={handlePublish}
+            onRetryPublish={handleRetryPublish}
             onAskCancel={() => setConfirmingCancel(true)}
             onDismissCancel={() => setConfirmingCancel(false)}
             onConfirmCancel={handleCancel}
@@ -173,8 +272,12 @@ function ManageSlot({
   confirmingCancel,
   cancelling,
   actionError,
+  feeConfig,
+  feeStep,
+  verifyFailed,
   onSave,
   onPublish,
+  onRetryPublish,
   onAskCancel,
   onDismissCancel,
   onConfirmCancel,
@@ -187,8 +290,12 @@ function ManageSlot({
   confirmingCancel: boolean;
   cancelling: boolean;
   actionError: string | null;
+  feeConfig: ListingFeeConfig | null;
+  feeStep: 'paying' | 'verifying' | null;
+  verifyFailed: boolean;
   onSave: (body: SlotWrite) => void;
   onPublish: () => void;
+  onRetryPublish: () => void;
   onAskCancel: () => void;
   onDismissCancel: () => void;
   onConfirmCancel: () => void;
@@ -196,6 +303,15 @@ function ManageSlot({
 }) {
   const isDraft = slot.status === 'draft';
   const canCancel = slot.status === 'draft' || slot.status === 'published';
+  // Phase 14g-1: fee disclosure. Rendered only when the config says a fee is
+  // required (never Luna, never on the no-fee path). Misconfigured → publish
+  // is disabled with a support banner instead.
+  const feeRequired = feeConfig?.required === true;
+  const feeMisconfigured =
+    feeRequired && (feeConfig?.misconfigured === true || !feeConfig?.amountNim || !feeConfig?.walletAddress);
+  const feeLabel =
+    feeStep === 'paying' ? 'Paying…' : feeStep === 'verifying' ? 'Verifying…' : undefined;
+  const publishLabel = feeRequired && !feeMisconfigured ? 'Approve payment & publish' : undefined;
   // The trigger unmounts while the inline confirmation is open, so the
   // dialog hook's restore is a no-op here: focus the re-mounted trigger
   // when the confirmation closes instead.
@@ -224,7 +340,13 @@ function ManageSlot({
             onSubmit={onSave}
           />
           <div className="flex flex-wrap items-center gap-2">
-            <PublishButton onPublish={onPublish} publishing={publishing} />
+            <PublishButton
+              onPublish={onPublish}
+              publishing={publishing}
+              disabled={feeMisconfigured}
+              label={publishLabel}
+              busyLabel={feeLabel}
+            />
             {!confirmingCancel ? (
               <button
                 ref={cancelTriggerRef}
@@ -236,6 +358,32 @@ function ManageSlot({
               </button>
             ) : null}
           </div>
+          {feeRequired && !feeMisconfigured && feeConfig?.amountNim ? (
+            <p className="text-sm text-slate-600">
+              Pay {feeConfig.amountNim} NIM through Nimiq Pay to publish.
+            </p>
+          ) : null}
+          {feeMisconfigured ? (
+            <p className="text-sm font-medium text-red-800" role="alert">
+              Listing fee is misconfigured. Publishing is unavailable — contact support.
+            </p>
+          ) : null}
+          {verifyFailed ? (
+            <div
+              className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+              role="alert"
+            >
+              <p className="font-medium">Payment sent but publish failed. Retry with the same transaction.</p>
+              <button
+                type="button"
+                onClick={onRetryPublish}
+                disabled={publishing}
+                className="mt-2 min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {publishing ? 'Retrying…' : 'Retry publish'}
+              </button>
+            </div>
+          ) : null}
           {!actionError ? null : (
             <p className="text-sm font-medium text-red-800" role="alert">
               {actionError}

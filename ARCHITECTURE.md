@@ -17,9 +17,9 @@ TAKEOVER uses a deliberately boring architecture:
 - Database: PostgreSQL
 - Database access: Drizzle ORM
 - Authentication: wallet-signature challenge + secure server session
-- Payments: NIM (native Nimiq) and USDT (ERC-20 on Polygon).
-  Escrow: custodial backend wallet for NIM; non-custodial smart
-  contract on Polygon for USDT.
+- Payments: USDT (ERC-20 on Polygon) escrowed by a non-custodial smart
+  contract; NIM (native Nimiq) as the env-gated listing fee paid by sellers
+  at publish time (verified on-chain, receive-only wallet, no custody).
 - Blockchain verification: Nimiq JSON-RPC/read API + Polygon contract-event verification, from server
 - File/media storage: none for MVP; image URLs only
 - Background jobs: none required for core correctness; expired records are resolved lazily plus optional periodic maintenance job
@@ -43,16 +43,20 @@ Buyer
   v
 Nimiq Pay Mini App
   |
-  +--> NIM  --> Nimiq chain  --> Backend escrow wallet
-  |                                    |
-  |                                    | read-back
-  |                                    v
-  |                              Fastify backend
-  |                                    ^
-  |                                    | events
-  |                                    |
+  +--> NIM listing fee --> Nimiq chain --> TAKEOVER fee wallet (receive-only)
+  |                                                |
+  |                                                | read-back (verification)
+  |                                                v
+  |                                          Fastify backend
+  |                                                ^
+  |                                                | events
+  |                                                |
   +--> USDT --> Polygon chain --> Escrow smart contract
 ```
+
+(F3 cleanup, 2026-09-17: the NIM custodial escrow wallet was retired in
+14f-r and replaced in 14g-1 by the receive-only listing-fee wallet. No
+backend key, no signing, no ledger, no custody.)
 
 ## 3. Architectural principles
 
@@ -61,7 +65,7 @@ Nimiq Pay Mini App
 3. Database transactions protect scarce inventory.
 4. Every security-sensitive API checks authorization server-side.
 5. Payment is not considered successful until server-side blockchain verification succeeds.
-6. Buyer funds are held in escrow until a release condition is met. USDT is escrowed by a non-custodial smart contract on Polygon. NIM is escrowed by a backend-controlled wallet. The escrow contract is the authoritative source of truth for USDT; the escrow wallet's on-chain balance is the authoritative source of truth for NIM.
+6. Buyer funds are held in escrow until a release condition is met. USDT is escrowed by a non-custodial smart contract on Polygon; the escrow contract is the authoritative source of truth. (F3 cleanup, 2026-09-17: the NIM custodial escrow wallet was retired in 14f-r. NIM is now only the publish-time listing fee — a receive-only wallet, verified on-chain, never custody.)
 7. No LLM controls financial or ownership decisions.
 8. Every state transition is explicit. State transitions are performed through service-layer functions rather than arbitrary controller updates.
 9. Every irreversible action is narrow and audited.
@@ -181,6 +185,22 @@ Path B — NIM:
     wallet to the provider.
   - Dispute -> admin resolves -> backend signs release or refund.
   - Delivery timeout -> backend signs refund to the buyer.
+
+### NIM listing fee (Phase 14g-1)
+
+Publishing a slot costs a pinned NIM listing fee when configured
+(`LISTING_FEE_NIM`, decimal string, e.g. `"400"`; `TAKEOVER_FEE_WALLET_ADDRESS`
+is the receive-only wallet). The seller pays via Nimiq Pay with the exact
+binding `TAKEOVER:fee:v1:<slotId>`; the publish endpoint verifies the
+transfer on-chain (sender = slot owner, recipient = fee wallet, exact Luna
+amount via `nimToBaseUnits`, confirmations >= 3, replay-guarded by the
+`listing_fee_tx_hash` UNIQUE column) before flipping draft → published.
+When either var is unset, publishing behaves as before (no fee). A set
+amount with a missing/malformed wallet fails closed (503). The fee wallet
+only receives: no private key exists server-side, nothing ever signs from
+it, no ledger is written, no custody of any kind. Users see "400 NIM" —
+Luna never reaches the UI. Fee terms are served publicly by
+`GET /api/v1/config`.
 
 ### Payment intent
 
@@ -753,6 +773,30 @@ Auth: session + owner.
 
 Publishes valid draft.
 
+Body (strict, Phase 14g-1): `{}` or `{ transactionHash: string }`. When the
+NIM listing fee is configured (`LISTING_FEE_NIM` + `TAKEOVER_FEE_WALLET_ADDRESS`
+both set), the hash is required and verified on-chain before the flip
+(sender = owner, recipient = fee wallet, exact Luna amount, data
+`TAKEOVER:fee:v1:<slotId>`, >= 3 confirmations): missing/malformed → 400
+`PAYMENT_INVALID_TX`; unknown hash → 409 `PAYMENT_NOT_FOUND`;
+under-confirmed → 409 `PAYMENT_NOT_CONFIRMED`; field mismatches → the
+matching 409 `PAYMENT_*_MISMATCH`; reused hash → 409 `PAYMENT_REPLAY`.
+Half-configured fee → 503 `INTERNAL_ERROR` (fail-closed). On success the
+slot flips draft → published with `listing_fee_tx_hash`/`listing_fee_paid_at`
+recorded and a `slot.published` audit (carries the fee hash). Re-POST of the
+same hash on the same published slot is an idempotent 200. When no fee is
+configured the body is ignored and behavior is unchanged.
+
+### GET /api/v1/config (Phase 14g-1)
+
+Auth: none (public).
+
+Returns the NIM listing-fee terms: `{ listingFee: { required, amountNim,
+walletAddress, misconfigured? } }` — `amountNim` is a decimal NIM string
+(never Luna); `required` is true only when both fee vars are set;
+`misconfigured: true` marks a set amount with a missing/malformed wallet
+(publish fails closed then). `Cache-Control: no-store`.
+
 ### POST /api/v1/slots/:slotId/cancel
 
 Auth: session + owner.
@@ -1239,7 +1283,7 @@ Never trust amount/recipient/sender/tx data from browser after payment intent cr
 
 ### Secrets
 
-All secrets server-only. The NIM escrow wallet private key and the Polygon contract signer key are server-only secrets (KMS in production); they are never logged, printed, returned, or committed.
+All secrets server-only. The Polygon contract signer key is a server-only secret (KMS in production); it is never logged, printed, returned, or committed. (F3 cleanup, 2026-09-17: the NIM escrow wallet private key named here before no longer exists — the 14g-1 fee wallet is receive-only and has no server-side key.)
 
 ### Sensitive data exposure
 
@@ -1434,7 +1478,7 @@ GitHub (public, MIT)
 - USDT contract address on Polygon
 - TAKEOVER escrow contract address on Polygon
 - Server signer address (contract caller)
-- NIM escrow wallet address
+- NIM listing-fee wallet address (receive-only; `TAKEOVER_FEE_WALLET_ADDRESS`, per-environment)
 - Note: competition build may use env secrets for keys; production requires KMS.
 
 Environment-specific configuration is separated between development and production.
@@ -1468,7 +1512,7 @@ Minimum operational metrics:
 - escrow refunds
 - disputes opened
 - dispute resolutions
-- NIM ledger reconciliation checks
+- listing-fee verifications (NIM)
 - errors
 
 ## 24. Architecture invariants
@@ -1479,8 +1523,8 @@ The coding agent must treat these as non-negotiable:
 2. Fastify backend.
 3. PostgreSQL + Drizzle.
 4. Nimiq wallet authentication.
-5. Dual payment rails: NIM (native Nimiq) and USDT (ERC-20 on Polygon), both escrowed.
-6. Escrow: buyer funds are held per token. USDT in a Polygon smart contract (non-custodial). NIM in a backend wallet (custodial for the escrow duration). The escrow contract's state is authoritative for USDT; the escrow wallet's on-chain balance is authoritative for NIM.
+5. Payment rails: USDT (ERC-20 on Polygon) escrowed by the non-custodial escrow contract; NIM (native Nimiq) as the env-gated listing fee paid by sellers at publish time (verified on-chain, receive-only wallet, no custody). (F3 cleanup, 2026-09-17: the dual-rail custodial NIM escrow was retired in 14f-r.)
+6. Escrow: buyer funds are held in the Polygon smart contract (non-custodial). The escrow contract's state is authoritative for USDT. (F3 cleanup, 2026-09-17: the NIM custodial escrow wallet was retired in 14f-r; there is no NIM escrow balance to be authoritative.)
 7. Server-authoritative payment verification.
 8. DB transaction/locking around claims.
 9. Explicit state machines.

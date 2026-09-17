@@ -31,10 +31,16 @@ import { getPublicSlotById, listPublicSlots } from '../slots/service';
 import {
   contactNoteBodySchema,
   meSlotsQuerySchema,
+  publishBodySchema,
   slotCreateSchema,
   slotIdParamsSchema,
   slotPatchSchema,
 } from '../slots/validation';
+import {
+  createRpcClient,
+  getNimiqRpcUrl,
+  type NimiqRpcClient,
+} from '../payments/rpc';
 
 // Empty query values ("?q=") behave as absent so clearing a filter is a no-op.
 const emptyToUndefined = (value: unknown): unknown => (value === '' ? undefined : value);
@@ -61,6 +67,8 @@ export interface SlotRouteOptions {
     /** Per-IP provider demand-view budget (default 120/min). Bounds claim-state enumeration. */
     providerClaims?: RateLimitOptions;
   };
+  /** Injected chain reader for fee-gated publish (tests). Production defaults to the Nimiq RPC client. */
+  rpcClient?: NimiqRpcClient;
 }
 
 export async function slotRoutes(app: FastifyInstance, opts: SlotRouteOptions = {}): Promise<void> {
@@ -150,8 +158,17 @@ export async function slotRoutes(app: FastifyInstance, opts: SlotRouteOptions = 
     if (!params.success) {
       throw new AppError(400, 'INVALID_INPUT', 'Invalid slot id.');
     }
+    // Phase 14g-1: optional fee body. {} stays valid (no-fee path); unknown
+    // fields → 400. Hash well-formedness is the lifecycle's PAYMENT_INVALID_TX.
+    const body = publishBodySchema.safeParse(request.body);
+    if (!body.success) {
+      throw new AppError(400, 'INVALID_INPUT', 'Invalid request body.');
+    }
     const db = getDb();
-    const slot = await publishSlot(db, user.id, params.data.slotId, { requestId: request.id });
+    const slot = await publishSlot(db, user.id, params.data.slotId, { requestId: request.id }, {
+      transactionHash: body.data.transactionHash,
+      rpc: opts.rpcClient ?? createRpcClient(getNimiqRpcUrl()),
+    });
     return successBody(request, { slot });
   });
 

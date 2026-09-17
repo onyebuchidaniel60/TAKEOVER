@@ -2,10 +2,16 @@ export default function PublishButton({
   onPublish,
   publishing,
   disabled,
+  label,
+  busyLabel,
 }: {
   onPublish: () => void;
   publishing: boolean;
   disabled?: boolean;
+  /** Phase 14g-1: idle label override (e.g. "Approve payment & publish"). */
+  label?: string;
+  /** Phase 14g-1: busy label override (e.g. "Paying…" / "Verifying…"). */
+  busyLabel?: string;
 }) {
   return (
     <button
@@ -14,7 +20,7 @@ export default function PublishButton({
       disabled={publishing || disabled}
       className="min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
     >
-      {publishing ? 'Publishing…' : 'Publish'}
+      {publishing ? (busyLabel ?? 'Publishing…') : (label ?? 'Publish')}
     </button>
   );
 }

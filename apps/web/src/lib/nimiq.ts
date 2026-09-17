@@ -83,3 +83,42 @@ export async function sendBasicTransactionWithData(
   });
   return unwrap<string>(result, 'Payment broadcast');
 }
+
+export interface ListingFeeSend {
+  /** TAKEOVER fee wallet (canonical NQ address, from GET /config). */
+  to: string;
+  /** Decimal NIM string from GET /config (e.g. "400") — converted here. */
+  nimAmount: string;
+  /** Slot id the fee pays for (bound into the data string). */
+  slotId: string;
+}
+
+/** 1 NIM = 100,000 base units (Luna). Mirrors lib/slots.ts LUNA_PER_NIM. */
+const LUNA_PER_NIM_FEE = 100_000;
+
+/**
+ * Phase 14g-1: broadcast the NIM listing fee via Nimiq Pay. Wraps
+ * sendBasicTransactionWithData with fee-specific shaping: decimal-NIM →
+ * exact Luna safe-number, data "TAKEOVER:fee:v1:<slotId>". Returns the
+ * wallet's transaction hash for the publish call. Wallet rejections
+ * (including user cancel) throw with the wallet's message.
+ */
+export async function sendListingFee(
+  provider: NimiqProvider,
+  fee: ListingFeeSend,
+): Promise<string> {
+  const trimmed = fee.nimAmount.trim();
+  const match = /^(\d+)(?:\.(\d{1,5}))?$/.exec(trimmed);
+  if (!match) {
+    throw new Error('Invalid listing fee amount.');
+  }
+  const luna = BigInt(match[1] ?? '0') * BigInt(LUNA_PER_NIM_FEE) + BigInt((match[2] ?? '').padEnd(5, '0'));
+  if (luna <= 0n || luna > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error('Invalid listing fee amount.');
+  }
+  return sendBasicTransactionWithData(provider, {
+    recipient: fee.to,
+    value: Number(luna),
+    data: `TAKEOVER:fee:v1:${fee.slotId}`,
+  });
+}

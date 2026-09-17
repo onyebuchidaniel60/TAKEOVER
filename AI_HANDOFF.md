@@ -3,6 +3,110 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14g-1 — NIM listing fee live (testnet E2E green, Railway env set, deploy pending)
+
+Sellers pay 400 NIM via Nimiq Pay to publish when the fee is configured.
+Backend verifies the on-chain transfer (sender/recipient/exact Luna/data/
+confirmations/replay) before draft → published; `GET /api/v1/config`
+(public) serves the terms. Live E2E on testnet with real auth + real
+broadcast. F3 doc drift fixed (AGENTS.md + ARCH §1/§2/§3.6/§6/§13/§16/
+§22/§23/§24 + SPEC FR-04 now say USDT-only escrow + NIM fee).
+
+```text
+CURRENT PHASE: Phase 14g-1 complete — NIM listing fee live.
+  Sellers pay 400 NIM via Nimiq Pay to publish. NIM is now a real
+  product rail. Do NOT begin P3 or Phase 15 automatically.
+COMPLETED: prereqs (fee wallet + provider keypair via @nimiq/core;
+  fee wallet in contracts/.env local; provider funded 2000+ testnet NIM
+  by human) + migration 0008 (listing_fee_tx_hash UNIQUE + paid_at,
+  migrate + verify green) + backend (env getters + fee state,
+  nimFromBaseUnits, assessListingFee wrapper — assessTransaction
+  untouched, public GET /config no-store, publish fee branch with
+  idempotent re-POST + pre-write PAYMENT_REPLAY gate, F4 503
+  fail-closed) + frontend (fetchConfig, publishSlot hash arg,
+  sendListingFee Luna-exact, SellDetail pay→publish + D6 same-hash
+  retry banner, dumb PublishButton labels) + docs (ARCH §6/§13 +
+  F3: §1/§2/§3.6/§6/§13/§16/§22/§23/§24, SPEC FR-04, AGENTS Payment +
+  rules) + .env.example + E2E (below) + Railway vars (below)
+TESTS RUN: listing-fee-unit 15/15 (predicate matrix, hash shape,
+  conversion round-trip, fee-state branches); listing-fee-publish 9/9
+  live-DB fake-RPC (no-fee path, happy path + columns, missing/
+  malformed hash, strict body, 4 mismatch codes, not-found/
+  not-confirmed, replay + idempotency, F4); listing-fee web 7/7
+  (fee pay→publish, plain publish, D6 retry same hash, broadcast vs
+  verify failure, misconfigured disable, conversion vectors);
+  typecheck (api+web+db) exit 0; lint exit 0; build exit 0; web FULL
+  19 files/190 pass; shared 1/1; api FULL 43 files: 447 pass, 4
+  fail — all 4 triaged environmental (see KNOWN ISSUES). E2E live:
+  real challenge/signature auth 200, draft 201, no-hash 400
+  PAYMENT_INVALID_TX, fee broadcast 777d0caa… (testnet head
+  11710592), first poll 10 confirmations, publish 200 published,
+  chain sender = provider / recipient = fee wallet / value 40000000
+  / 14 confs, replay on 2nd slot 409 PAYMENT_REPLAY, cleanup
+  4 slots/2 audits/1 user/3 sessions/3 challenges deleted, residue
+  0/0/0/0. Railway: LISTING_FEE_NIM + TAKEOVER_FEE_WALLET_ADDRESS
+  set via CLI; NIMIQ_RPC_URL already testnet (no flip needed);
+  /health + /config re-check after the push-triggered deploy.
+RESULT: single commit (message below), pushed. Railway deploy +
+  live /config check confirm the fee gate is active on production.
+KNOWN ISSUES:
+- Fee amount is env-configured (LISTING_FEE_NIM="400"). Adjusting
+  requires a Railway var change + redeploy.
+- Fee wallet is a fresh testnet address. For mainnet submission,
+  rotate to a TAKEOVER-controlled mainnet address.
+- No rate limiter on the publish endpoint's fee-verify path —
+  acceptable at demo scale (authenticated endpoint); the shared
+  60/min slot-mutate budget still applies.
+- Re-publish after cancel requires a new fee (the hash column is
+  UNIQUE; a fresh payment is the path).
+- F3 doc cleanup done: AGENTS.md + ARCH §2/§22/§24 no longer
+  describe dual-rail custodial NIM escrow.
+- Battery flakes (environmental, slow remote DB — NOT regressions):
+  security.test.ts brute-force 30 s timeout (documented 14f-r flake,
+  file untouched, 40/41 alone); escrow-schema duplicate-hash 5 s
+  timeout (10/10 with 60 s timeout — file has no timeout budget);
+  moderation payment-reviews 500 + e2e-acceptance browse miss (both
+  pass in isolation; parallel-load pool contention).
+- Carried USDT residuals (split-RPC deployment requirement,
+  unverified contract, fee quirks, signer rotation → Phase 15,
+  auto-release gap, refund/dispute untested E2E, Railway image
+  bakes secrets as ARG/ENV, format waiver, Mumbai mention, payout
+  immutability, lazy auto-refund, no dispute UI, §7 "Pay with NIM"
+  example in PROJECT_SPEC, §5 deprecation gate re-count mandate,
+  Foundry PATH prefix, "timestamp" prose, fromBlock-0 fragility).
+- P3 still pending: deprecation cleanup (VerifyPollBox,
+  debug-payments.ts), ARCH §13 sync for tokenAddress + confirm-
+  poll target.
+- Dispute path not exercised live.
+- Visual polish phase deferred.
+SECURITY NOTES: fee wallet is receive-only (no key server-side);
+  provider-fee keys lived in one temp file (deleted after E2E;
+  addresses only in reports); E2E fee tx sender proves wallet
+  ownership on-chain; Railway `variables` list printed secret values
+  into local tool output (transcript-only exposure, never in repo/
+  logs/reports; testnet/demo scope — rotation tracked Phase 15);
+  no Bearer token or session material printed; scoped DB deletes by
+  exact ID (global unrelated rows untouched).
+FILES CHANGED: db/migrations/0008_* (new) + meta journal/snapshot,
+  db/schema/slots.ts, db/verify.ts, apps/api/src/env.ts,
+  apps/api/src/payments/amounts.ts, apps/api/src/listing-fee/
+  verify.ts (new), apps/api/src/routes/config.ts (new),
+  apps/api/src/routes/slots.ts, apps/api/src/slots/validation.ts,
+  apps/api/src/slots/lifecycle.ts, apps/api/src/app.ts,
+  .env.example, apps/web/src/lib/slots.ts, apps/web/src/lib/
+  nimiq.ts, apps/web/src/routes/SellDetail.tsx,
+  apps/web/src/components/PublishButton.tsx,
+  apps/api/test/listing-fee-unit.test.ts (new, 15),
+  apps/api/test/listing-fee-publish.test.ts (new, 9),
+  apps/web/test/listing-fee.test.tsx (new, 7), ARCHITECTURE.md,
+  PROJECT_SPEC.md, AGENTS.md, AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: feat: phase 14g-1 — NIM listing fee (single commit with
+  this checkpoint; hash recorded at push)
+NEXT TASK: Phase 14e P3 (deprecation cleanup + a11y + ARCH §13
+  sync). Do NOT start automatically.
+BLOCKED BY: none.
+```
+
 ## Phase 14e P1+P2 E2E verified — full USDT escrow flow on deployed services (2026-09-17)
 
 Deployed-service verification of the P1+P2 frontend + backend: Railway

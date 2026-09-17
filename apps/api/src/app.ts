@@ -9,6 +9,7 @@ import { createCsrfGuard } from './http/csrf';
 import { authRoutes, type AuthRouteOptions } from './routes/auth';
 import { adminRoutes, type AdminRouteOptions } from './routes/admin';
 import { claimRoutes, type ClaimRouteOptions } from './routes/claims';
+import { configRoutes } from './routes/config';
 import { escrowRoutes, type EscrowRouteOptions } from './routes/escrow';
 import { reportRoutes } from './routes/reports';
 import { paymentRoutes, type PaymentRouteOptions } from './routes/payments';
@@ -78,6 +79,7 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
       api.addHook('onRequest', sessionMiddleware);
       api.addHook('preHandler', createCsrfGuard(corsAllowlist));
       await api.register(authRoutes, opts);
+      await api.register(configRoutes);
       await api.register(slotRoutes, opts);
       await api.register(claimRoutes, opts);
       await api.register(paymentRoutes, opts);

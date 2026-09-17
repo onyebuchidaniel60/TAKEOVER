@@ -327,15 +327,31 @@ export function updateSlot(slotId: string, body: Partial<SlotWrite>): Promise<{ 
   });
 }
 
-export function publishSlot(slotId: string): Promise<{ slot: OwnerSlot }> {
+export function publishSlot(slotId: string, transactionHash?: string): Promise<{ slot: OwnerSlot }> {
   // Phase 14c round 3 (Fix A1): always send a JSON body — Fastify rejects an
   // empty body under content-type: application/json (400), which broke
   // bodyless mutations on real browsers while inject-based tests (no
   // content-type header) stayed green.
+  // Phase 14g-1: optional fee hash. Omitted (not null) on the no-fee path so
+  // the wire shape stays exactly {} as before.
+  const body = transactionHash === undefined ? {} : { transactionHash };
   return apiFetch<{ slot: OwnerSlot }>(`/api/v1/slots/${encodeURIComponent(slotId)}/publish`, {
     method: 'POST',
-    body: JSON.stringify({}),
+    body: JSON.stringify(body),
   });
+}
+
+// Phase 14g-1: NIM listing-fee terms served by GET /api/v1/config (public).
+// amountNim is a decimal NIM string ("400") — Luna never reaches the UI.
+export interface ListingFeeConfig {
+  required: boolean;
+  amountNim: string | null;
+  walletAddress: string | null;
+  misconfigured?: true;
+}
+
+export function fetchConfig(): Promise<{ listingFee: ListingFeeConfig }> {
+  return apiFetch<{ listingFee: ListingFeeConfig }>('/api/v1/config');
 }
 
 export function cancelSlot(slotId: string): Promise<{ slot: OwnerSlot }> {

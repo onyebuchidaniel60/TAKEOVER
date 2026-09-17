@@ -141,6 +141,15 @@ async function main(): Promise<void> {
   if (!hasProviderContactNote) {
     throw new Error('slots.provider_contact_note column is missing');
   }
+
+  // Phase 14g-1: NIM listing-fee receipt columns on slots.
+  for (const col of ['slots.listing_fee_tx_hash', 'slots.listing_fee_paid_at']) {
+    const has = present.has(col);
+    console.log(`${col} present: ${has}`);
+    if (!has) {
+      throw new Error(`${col} column is missing`);
+    }
+  }
 }
 
 main().catch((err: unknown) => {

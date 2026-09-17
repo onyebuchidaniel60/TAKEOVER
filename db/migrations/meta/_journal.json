@@ -57,6 +57,13 @@
       "when": 1789542438887,
       "tag": "0007_public_wallflower",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789624018511,
+      "tag": "0008_productive_invisible_woman",
+      "breakpoints": true
     }
   ]
 }

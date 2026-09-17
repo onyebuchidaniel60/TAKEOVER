@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { canonicalizeNimiqAddress, InvalidAddressError } from './auth/nimiq-address';
+import { nimFromBaseUnits, nimToBaseUnits } from './payments/amounts';
 
 // Empty .env.example placeholders ("KEY=") parse as "" — treat them as missing.
 const emptyToUndefined = (value: unknown): unknown => (value === '' ? undefined : value);
@@ -49,6 +51,11 @@ const envSchema = z.object({
   // (strict 32-byte-hex validation lives in the signer module, which fails
   // closed at first release attempt, never at boot).
   ESCROW_SIGNER_PRIVATE_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  // Phase 14g-1: NIM listing fee. Decimal NIM string (e.g. "400") — users
+  // never see Luna; the backend converts via nimToBaseUnits. Receive-only
+  // fee wallet (never signs; no private key exists server-side).
+  LISTING_FEE_NIM: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  TAKEOVER_FEE_WALLET_ADDRESS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -224,6 +231,78 @@ export function getEscrowRefundConfirmations(
     }
   }
   return DEFAULT_ESCROW_REFUND_CONFIRMATIONS;
+}
+
+/**
+ * Phase 14g-1: NIM listing-fee amount as a normalized decimal NIM string
+ * (e.g. "400"). Tolerant by design: missing, blank, or invalid values
+ * (garbage, non-positive, >5 decimals — validated via nimToBaseUnits) fall
+ * back to undefined (fee not configured) instead of crashing boot.
+ */
+export function getListingFeeNim(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): string | undefined {
+  const raw = env.LISTING_FEE_NIM;
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    return undefined;
+  }
+  try {
+    return nimFromBaseUnits(nimToBaseUnits(raw));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Phase 14g-1: receive-only NIM listing-fee wallet (canonical form).
+ * Tolerant by design: missing or malformed values (validated via the
+ * existing canonicalization helper) fall back to undefined — the fee state
+ * then reports misconfigured and publish fails closed (F4).
+ */
+export function getTakeoverFeeWalletAddress(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): string | undefined {
+  const raw = env.TAKEOVER_FEE_WALLET_ADDRESS;
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    return undefined;
+  }
+  try {
+    return canonicalizeNimiqAddress(raw);
+  } catch (err) {
+    if (err instanceof InvalidAddressError) {
+      return undefined;
+    }
+    throw err;
+  }
+}
+
+export interface ListingFeeState {
+  /** True only when BOTH the amount and the wallet are configured. */
+  required: boolean;
+  /** Normalized decimal NIM string when required, else null. */
+  amountNim: string | null;
+  /** Canonical fee wallet when required, else null. */
+  walletAddress: string | null;
+  /** F4: amount set but wallet missing/malformed. Publish fails closed. */
+  misconfigured: boolean;
+}
+
+/**
+ * Phase 14g-1: single source of truth for the fee gate, shared by the
+ * config endpoint and the publish flow. Pure and tolerant — never throws.
+ */
+export function getListingFeeState(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): ListingFeeState {
+  const amountNim = getListingFeeNim(env);
+  if (amountNim === undefined) {
+    return { required: false, amountNim: null, walletAddress: null, misconfigured: false };
+  }
+  const walletAddress = getTakeoverFeeWalletAddress(env);
+  if (walletAddress === undefined) {
+    return { required: true, amountNim, walletAddress: null, misconfigured: true };
+  }
+  return { required: true, amountNim, walletAddress, misconfigured: false };
 }
 
 /**

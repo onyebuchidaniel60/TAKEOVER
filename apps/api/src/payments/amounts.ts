@@ -24,3 +24,26 @@ export function nimToBaseUnits(input: string): string {
   }
   return value.toString();
 }
+
+/**
+ * Phase 14g-1 (F2): reverse of nimToBaseUnits — exact base-unit string back
+ * to a trimmed decimal NIM string ("40000000" -> "400", "150000" -> "1.5").
+ * Throws on garbage or non-positive values. Pure BigInt, never floats.
+ */
+export function nimFromBaseUnits(input: string): string {
+  const trimmed = input.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    throw new Error('Enter a base-unit amount like 150000.');
+  }
+  const value = BigInt(trimmed);
+  if (value <= 0n) {
+    throw new Error('Amount must be more than 0.');
+  }
+  const whole = value / BASE_UNITS_PER_NIM;
+  const frac = value % BASE_UNITS_PER_NIM;
+  if (frac === 0n) {
+    return whole.toString();
+  }
+  const fracStr = frac.toString().padStart(MAX_NIM_DECIMALS, '0').replace(/0+$/, '');
+  return `${whole.toString()}.${fracStr}`;
+}
