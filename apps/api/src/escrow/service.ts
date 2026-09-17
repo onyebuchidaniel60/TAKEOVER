@@ -24,7 +24,7 @@ import { randomBytes } from 'node:crypto';
 import { getDb } from '../../../../db/client';
 import { claims, escrows, slots, users } from '../../../../db/schema';
 import { writeAuditEvent } from '../audit/events';
-import { getEscrowContractAddress } from './polygon/client';
+import { getEscrowContractAddress, getUsdtTokenAddress } from './polygon/client';
 import type { EscrowContractClient } from '../../../../packages/shared/src/escrow/contract';
 import {
   getEscrowDeliveryWindowSeconds,
@@ -71,6 +71,8 @@ export interface EscrowView {
 
 export interface DepositInstruction {
   contractAddress: string;
+  /** Phase 14e P1 (D7 variant B): canonical USDT token address for the approve() call. Served, never hardcoded. */
+  tokenAddress: string;
   usdtAmount: string;
   onChainEscrowId: string;
   approveTo: string;
@@ -113,6 +115,22 @@ function newOnChainEscrowId(): string {
 function contractAddressOr503(): string {
   try {
     return getEscrowContractAddress();
+  } catch (err) {
+    if (err instanceof EscrowContractUnavailableError) {
+      throw new AppError(
+        503,
+        'ESCROW_CONTRACT_UNAVAILABLE',
+        'Escrow service is temporarily unavailable. Please try again.',
+      );
+    }
+    throw err;
+  }
+}
+
+/** Phase 14e P1 (D7 variant B): token address or the same generic escrow 503. */
+function tokenAddressOr503(): string {
+  try {
+    return getUsdtTokenAddress();
   } catch (err) {
     if (err instanceof EscrowContractUnavailableError) {
       throw new AppError(
@@ -232,6 +250,7 @@ export async function createEscrowIntent(
     claim: toClaimView(decided.claimRow),
     depositInstruction: {
       contractAddress: escrow.contractAddress,
+      tokenAddress: tokenAddressOr503(),
       usdtAmount: amount,
       onChainEscrowId: escrow.onChainEscrowId,
       approveTo: escrow.contractAddress,

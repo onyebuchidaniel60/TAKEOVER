@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom';
+import { ESCROW_BUCKET_STATUSES } from '../lib/slots';
 import type { ClaimView } from '../lib/slots';
 import ClaimStatusBadge from './ClaimStatusBadge';
 import HoldCountdown from './HoldCountdown';
 
 export default function ClaimCard({ claim }: { claim: ClaimView }) {
+  const inEscrow = (ESCROW_BUCKET_STATUSES as readonly string[]).includes(claim.status);
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
@@ -26,7 +28,7 @@ export default function ClaimCard({ claim }: { claim: ClaimView }) {
           to={`/claim/${claim.id}`}
           className="inline-flex min-h-touch items-center text-slate-900 underline"
         >
-          View hold
+          {inEscrow ? 'View escrow' : 'View hold'}
         </Link>
         <Link
           to={`/slot/${claim.slot_id}`}

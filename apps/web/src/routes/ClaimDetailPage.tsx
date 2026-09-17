@@ -1,14 +1,17 @@
 // Phase 6: one held opening. Live countdown while the hold is live.
 // Phase 7: real payment panel for active holds; submitted/expired/paid states.
 // Phase 8: payment_pending polls verify-payment until the chain confirms.
+// Phase 14e P1: USDT escrow buyer loop replaces the deprecated direct-payment
+// panel for escrow-active states; legacy payment_pending/review branches stay
+// until zero legacy rows remain (§5 deprecation gates).
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import ClaimStatusBadge from '../components/ClaimStatusBadge';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
+import EscrowPanel from '../components/EscrowPanel';
 import HoldCountdown from '../components/HoldCountdown';
 import LoadingSkeleton from '../components/LoadingSkeleton';
-import PaymentPanel from '../components/PaymentPanel';
 import PriceDisplay from '../components/PriceDisplay';
 import TimeBadge from '../components/TimeBadge';
 import { ApiError } from '../lib/api';
@@ -95,6 +98,18 @@ export default function ClaimDetailPage() {
   );
 }
 
+// Phase 14e P1: claim-side escrow statuses render the EscrowPanel. The
+// escrow-internal transitional states (releasing/refunding) never appear
+// on the claim row itself — the panel reads them from GET /escrow.
+const ESCROW_CLAIM_STATUSES = [
+  'deposit_submitted',
+  'escrow_funded',
+  'delivered',
+  'disputed',
+  'released',
+  'refunded',
+];
+
 function ClaimBody({
   claim,
   slot,
@@ -122,7 +137,12 @@ function ClaimBody({
         </div>
         {claim.status === 'active_hold' ? (
           <div className="mt-4">
-            <PaymentPanel claim={claim} slot={slot} onSubmitted={onSubmitted} />
+            <EscrowPanel claim={claim} onUpdate={onSubmitted} />
+          </div>
+        ) : null}
+        {ESCROW_CLAIM_STATUSES.includes(claim.status) ? (
+          <div className="mt-4">
+            <EscrowPanel claim={claim} onUpdate={onSubmitted} />
           </div>
         ) : null}
         {claim.status === 'payment_pending' ? (
@@ -155,7 +175,8 @@ function ClaimBody({
         claim.status !== 'payment_pending' &&
         claim.status !== 'payment_review' &&
         claim.status !== 'expired' &&
-        claim.status !== 'paid' ? (
+        claim.status !== 'paid' &&
+        !ESCROW_CLAIM_STATUSES.includes(claim.status) ? (
           <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
             This hold is no longer active.
           </p>

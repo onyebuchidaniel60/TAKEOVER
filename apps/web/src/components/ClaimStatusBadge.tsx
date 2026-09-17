@@ -1,5 +1,6 @@
 // Phase 6: claim status is always text, never color alone.
 // Phase 11: labels follow the locked status copy.
+// Phase 14e P1: escrow states added (same text+color discipline).
 const STYLES: Record<string, string> = {
   active_hold: 'bg-emerald-100 text-emerald-900',
   expired: 'bg-slate-200 text-slate-700',
@@ -7,6 +8,14 @@ const STYLES: Record<string, string> = {
   payment_pending: 'bg-amber-100 text-amber-900',
   paid: 'bg-emerald-100 text-emerald-900',
   payment_review: 'bg-amber-100 text-amber-900',
+  deposit_submitted: 'bg-amber-100 text-amber-900',
+  escrow_funded: 'bg-emerald-100 text-emerald-900',
+  delivered: 'bg-sky-100 text-sky-900',
+  disputed: 'bg-amber-100 text-amber-900',
+  releasing: 'bg-sky-100 text-sky-900',
+  released: 'bg-emerald-100 text-emerald-900',
+  refunding: 'bg-slate-200 text-slate-700',
+  refunded: 'bg-slate-200 text-slate-700',
 };
 
 const LABELS: Record<string, string> = {
@@ -16,6 +25,14 @@ const LABELS: Record<string, string> = {
   payment_pending: 'Awaiting confirmation',
   paid: 'Paid',
   payment_review: 'Payment under review',
+  deposit_submitted: 'Deposit submitted',
+  escrow_funded: 'In escrow',
+  delivered: 'Delivered',
+  disputed: 'Disputed',
+  releasing: 'Releasing',
+  released: 'Released',
+  refunding: 'Refunding',
+  refunded: 'Refunded',
 };
 
 export default function ClaimStatusBadge({ status }: { status: string }) {

@@ -26,14 +26,14 @@
 //   is NOT a 64-char hash.
 // Resolution: Case A — the wallet returns a transaction hash; the frontend
 // passes it through unchanged as txHash. No schema change, no endpoint change.
-import { afterEach, describe, expect, it, vi } from 'vitest';
+//
+// Phase 14e P1 (partial deprecation): the intent → SDK → submission block
+// below is deleted with PaymentPanel (direct-payment submission path dead).
+// The SDK passthrough block STAYS: sendBasicTransactionWithData is retained
+// in lib/nimiq.ts for the future NIM listing-fee phase (§12 seam).
+import { describe, expect, it, vi } from 'vitest';
 import type { NimiqProvider } from '@nimiq/mini-app-sdk';
 import { sendBasicTransactionWithData } from '../src/lib/nimiq';
-import {
-  baseUnitsToSafeNumber,
-  createPaymentIntent,
-  submitPayment,
-} from '../src/lib/slots';
 
 const CLAIM_ID = '123e4567-e89b-12d3-a456-426614174000';
 // Shape of a real @nimiq/core Transaction.hash(): 64 lowercase hex chars, no
@@ -44,7 +44,6 @@ const KNOWN_HASH = 'ac2f80450d454af19efec4e5d405d964d0d0690fded17e588f033d749983
 // Canonical server-issued payout wallet (no spaces, uppercase, NQ prefix).
 const CANONICAL_RECIPIENT = 'NQ0700000000000000000000000000000000';
 const EXPECTED_DATA = `TAKEOVER:v1:${CLAIM_ID}`;
-const EXPECTED_AMOUNT_NIM = '150000';
 
 function fakeProvider(returnValue: string | { error: { type: string; message: string } }): {
   provider: NimiqProvider;
@@ -59,18 +58,6 @@ function fakeProvider(returnValue: string | { error: { type: string; message: st
   } as unknown as NimiqProvider;
   return { provider, calls };
 }
-
-function jsonResponse(payload: unknown): Response {
-  return {
-    ok: true,
-    headers: { get: () => 'test-request-id' },
-    json: async () => payload,
-  } as unknown as Response;
-}
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
 
 describe('SDK return value is a transaction hash (Case A passthrough)', () => {
   it('passes the wallet-returned hash through unchanged as txHash', async () => {
@@ -99,73 +86,5 @@ describe('SDK return value is a transaction hash (Case A passthrough)', () => {
         data: EXPECTED_DATA,
       }),
     ).rejects.toThrow('Rejected.');
-  });
-});
-
-describe('frontend payment flow (intent → SDK → submission)', () => {
-  it('submits the exact SDK-returned bytes with byte-for-byte binding, integer value, canonical recipient', async () => {
-    const intent = {
-      id: 'intent-id-1',
-      claimId: CLAIM_ID,
-      expectedAmountNim: EXPECTED_AMOUNT_NIM,
-      expectedRecipient: CANONICAL_RECIPIENT,
-      expectedData: EXPECTED_DATA,
-      status: 'created',
-      txHash: null,
-      submittedAt: null,
-      createdAt: new Date().toISOString(),
-    };
-    const submittedBodies: unknown[] = [];
-    const submittedUrls: string[] = [];
-    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
-      const href = String(url);
-      if (href.endsWith(`/api/v1/claims/${CLAIM_ID}/payment-intent`)) {
-        return jsonResponse({ data: { intent, claim: { id: CLAIM_ID }, slot: { id: 'slot-1' } } });
-      }
-      if (href.endsWith(`/api/v1/claims/${CLAIM_ID}/payment-submission`)) {
-        submittedUrls.push(href);
-        submittedBodies.push(init?.body !== undefined ? JSON.parse(String(init.body)) : undefined);
-        return jsonResponse({ data: { intent: { ...intent, txHash: KNOWN_HASH }, claim: { id: CLAIM_ID } } });
-      }
-      throw new Error(`unexpected fetch: ${href}`);
-    });
-    vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
-
-    // 1. Intent first: the screen states exact terms BEFORE the wallet opens.
-    const fetched = await createPaymentIntent(CLAIM_ID);
-    expect(fetched.intent.expectedData).toBe(EXPECTED_DATA);
-    expect(fetched.intent.expectedRecipient).toBe(CANONICAL_RECIPIENT);
-    expect(fetched.intent.expectedAmountNim).toBe(EXPECTED_AMOUNT_NIM);
-
-    // 2. Exact integer base-unit amount for the SDK: never a float, never a string.
-    const value = baseUnitsToSafeNumber(fetched.intent.expectedAmountNim);
-    expect(typeof value).toBe('number');
-    expect(Number.isInteger(value)).toBe(true);
-    expect(value).toBe(150000);
-
-    // 3. SDK call with the server-issued terms, byte-for-byte.
-    const { provider, calls } = fakeProvider(KNOWN_HASH);
-    const txString = await sendBasicTransactionWithData(provider, {
-      recipient: fetched.intent.expectedRecipient,
-      value,
-      data: fetched.intent.expectedData,
-    });
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.data).toBe(`TAKEOVER:v1:${CLAIM_ID}`);
-    expect(calls[0]?.recipient).toBe(CANONICAL_RECIPIENT);
-    expect(typeof calls[0]?.value).toBe('number');
-    expect(Number.isInteger(calls[0]?.value)).toBe(true);
-    expect(calls[0]?.value).toBe(150000);
-
-    // 4. Record the returned string verbatim: exact bytes submitted.
-    await submitPayment(CLAIM_ID, txString);
-    expect(submittedUrls).toHaveLength(1);
-    expect(submittedBodies).toHaveLength(1);
-    expect(submittedBodies[0]).toEqual({ txHash: KNOWN_HASH });
-  });
-
-  it('refuses to send imprecise amounts instead of mis-sending', () => {
-    expect(() => baseUnitsToSafeNumber('9007199254740993')).toThrow();
-    expect(() => baseUnitsToSafeNumber('0')).toThrow();
   });
 });

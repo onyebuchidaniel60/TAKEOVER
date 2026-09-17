@@ -345,6 +345,14 @@ export function cancelSlot(slotId: string): Promise<{ slot: OwnerSlot }> {
 
 // Phase 7: buyer payment-intent projection. Mirrors the locked backend shape:
 // expectedAmountNim is a STRING; expected_sender is never exposed.
+//
+// Phase 14e P1 (partial deprecation): PaymentPanel is deleted and the USDT
+// escrow loop replaces it as the active_hold writer, so the direct-payment
+// submission path is dead — submitPayment and the NIM-SDK-only
+// baseUnitsToSafeNumber go with it. createPaymentIntent + verifyPayment +
+// the poll helpers STAY: the kept payment_pending branch (VerifyPollBox in
+// ClaimDetailPage) still serves 2 live legacy rows. Full removal in P3 once
+// zero payment_pending rows remain (§5 gates).
 export interface PaymentIntent {
   id: string;
   claimId: string;
@@ -357,18 +365,6 @@ export interface PaymentIntent {
   createdAt: string;
 }
 
-/**
- * Exact base-unit string → SDK number. The SDK types value as number, so
- * amounts above MAX_SAFE_INTEGER are rejected rather than sent imprecisely.
- */
-export function baseUnitsToSafeNumber(baseUnits: string): number {
-  const value = BigInt(baseUnits);
-  if (value <= 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new Error('This amount cannot be sent from the browser wallet.');
-  }
-  return Number(value);
-}
-
 export function createPaymentIntent(claimId: string): Promise<{
   intent: PaymentIntent;
   claim: ClaimView;
@@ -377,16 +373,6 @@ export function createPaymentIntent(claimId: string): Promise<{
   return apiFetch(`/api/v1/claims/${encodeURIComponent(claimId)}/payment-intent`, {
     method: 'POST',
     body: JSON.stringify({}),
-  });
-}
-
-export function submitPayment(
-  claimId: string,
-  txHash: string,
-): Promise<{ intent: PaymentIntent; claim: ClaimView }> {
-  return apiFetch(`/api/v1/claims/${encodeURIComponent(claimId)}/payment-submission`, {
-    method: 'POST',
-    body: JSON.stringify({ txHash }),
   });
 }
 
@@ -551,21 +537,42 @@ export function truncateWalletAddress(address: string): string {
 // Phase 9: buyer claim buckets for /claims, in display order. Pure grouping
 // over an already-fetched list (kept out of the component per the
 // keep-logic-out-of-UI rule).
+// Phase 14e P1: escrow statuses land in exactly one bucket — a dedicated
+// 'escrow' bucket for live escrow claims; terminal released/refunded join
+// 'ended'. Legacy buckets unchanged.
 export interface ClaimBucket {
-  key: 'active' | 'pending' | 'review' | 'paid' | 'ended';
+  key: 'active' | 'escrow' | 'pending' | 'review' | 'paid' | 'ended';
   title: string;
   emptyText: string;
   claims: ClaimView[];
 }
 
+/** Claim-side escrow statuses (live escrow loop). Shared with ClaimDetailPage. */
+export const ESCROW_BUCKET_STATUSES = [
+  'deposit_submitted',
+  'escrow_funded',
+  'delivered',
+  'disputed',
+] as const;
+
 export function groupClaimsForBuckets(claims: ClaimView[]): ClaimBucket[] {
   const active = claims.filter((c) => c.status === 'active_hold');
+  const escrow = claims.filter((c) =>
+    (ESCROW_BUCKET_STATUSES as readonly string[]).includes(c.status),
+  );
   const pending = claims.filter((c) => c.status === 'payment_pending');
   const review = claims.filter((c) => c.status === 'payment_review');
   const paid = claims.filter((c) => c.status === 'paid');
-  const ended = claims.filter((c) => c.status === 'expired' || c.status === 'cancelled');
+  const ended = claims.filter(
+    (c) =>
+      c.status === 'expired' ||
+      c.status === 'cancelled' ||
+      c.status === 'released' ||
+      c.status === 'refunded',
+  );
   return [
     { key: 'active', title: 'Active holds', emptyText: 'No active holds right now.', claims: active },
+    { key: 'escrow', title: 'In escrow', emptyText: 'No claims in escrow right now.', claims: escrow },
     {
       key: 'pending',
       title: 'Awaiting confirmation',

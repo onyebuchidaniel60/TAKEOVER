@@ -46,18 +46,25 @@ describe('groupClaimsForBuckets', () => {
       claim('r1', 'payment_review'),
       claim('w1', 'payment_pending'),
       claim('c1', 'cancelled'),
+      claim('s1', 'deposit_submitted'),
+      claim('f1', 'escrow_funded'),
+      claim('d1', 'delivered'),
+      claim('x1', 'disputed'),
+      claim('y1', 'released'),
+      claim('z1', 'refunded'),
     ]);
-    expect(buckets.map((b) => b.key)).toEqual(['active', 'pending', 'review', 'paid', 'ended']);
+    expect(buckets.map((b) => b.key)).toEqual(['active', 'escrow', 'pending', 'review', 'paid', 'ended']);
     expect(buckets[0]?.claims.map((c) => c.id)).toEqual(['a1']);
-    expect(buckets[1]?.claims.map((c) => c.id)).toEqual(['w1']);
-    expect(buckets[2]?.claims.map((c) => c.id)).toEqual(['r1']);
-    expect(buckets[3]?.claims.map((c) => c.id)).toEqual(['p1']);
-    expect(buckets[4]?.claims.map((c) => c.id)).toEqual(['e1', 'c1']);
+    expect(buckets[1]?.claims.map((c) => c.id)).toEqual(['s1', 'f1', 'd1', 'x1']);
+    expect(buckets[2]?.claims.map((c) => c.id)).toEqual(['w1']);
+    expect(buckets[3]?.claims.map((c) => c.id)).toEqual(['r1']);
+    expect(buckets[4]?.claims.map((c) => c.id)).toEqual(['p1']);
+    expect(buckets[5]?.claims.map((c) => c.id)).toEqual(['e1', 'c1', 'y1', 'z1']);
   });
 
   it('returns empty buckets with helper text when there is nothing to show', () => {
     const buckets = groupClaimsForBuckets([]);
-    expect(buckets).toHaveLength(5);
+    expect(buckets).toHaveLength(6);
     for (const bucket of buckets) {
       expect(bucket.claims).toEqual([]);
       expect(bucket.emptyText.length).toBeGreaterThan(0);

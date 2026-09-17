@@ -3,6 +3,106 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14e P1 — USDT escrow buyer loop live in the frontend (2026-09-17)
+
+Buyer-side USDT escrow flow replaces the deprecated direct-payment UI:
+escrow-intent (hardcoded 'USDT_POLYGON', D8) → exact-amount approve →
+deposit → submission → verify poll → funded → delivered →
+confirm-receipt poll → released, plus the USDT dispute path
+(instruction → wallet send → re-poll → disputed). D7 variant B: intent
+now serves `tokenAddress` (backend reads USDT_TOKEN_ADDRESS, fail-closed;
+Railway var set this phase). D1 hand-encoded calldata (selectors
+viem-pinned: approve 0x095ea7b3, deposit 0x1de26e16, dispute 0xadd98c70).
+
+```text
+CURRENT PHASE: Phase 14e P1 complete — USDT escrow buyer loop live in
+  the frontend. Committed, NOT pushed (P2 lands on top). Do NOT begin
+  P2 automatically.
+COMPLETED: prereqs (clean at 2c40339, Railway /health ok, D6 gate:
+  4 active_hold / 2 payment_pending / 3 paid / 6 review / rest
+  terminal + 15 intents → PARTIAL deletion only: PaymentPanel +
+  submitPayment + baseUnitsToSafeNumber dead (EscrowPanel supersedes
+  the only active_hold writer); VerifyPollBox branch + paid/review
+  display + createPaymentIntent/verifyPayment/poll helpers KEPT for
+  the 2 live payment_pending rows; full removal gated to P3) +
+  backend D7-B (getUsdtTokenAddress + intent tokenAddress, Railway
+  USDT_TOKEN_ADDRESS set this phase — was missing) + lib/escrow.ts +
+  lib/evm.ts (D1, BigInt end-to-end) + EscrowPanel (status dispatch,
+  D8 disclosure) + VerifyDepositBox (6 s/60-cap) + ConfirmReceiptBox
+  (15 s/24-cap + dispute send) + ClaimDetailPage wiring (legacy
+  branches kept, fallback excludes escrow states) + badge (7 new
+  states) + ClaimCard escrow label + 'In escrow' bucket (released/
+  refunded → ended) + payment-flow rewrite (SDK block kept for the
+  fee seam) + route-states escrow update + EscrowPanel malformed-
+  response hardening + this checkpoint
+TESTS RUN: typecheck exit 0 (all + db); lint exit 0; evm-lib 20/20
+  (viem-pinned vectors); escrow-ui 26/26 (status table, fund flow,
+  verify/confirm/dispute, badges, cards); targeted regression
+  (route-states/a11y/dashboards/payment-flow + new suites) 74/74;
+  escrow-service 13/13 (incl. tokenAddress assert); FULL with
+  DATABASE_URL exit 0 — api 41 files/427 pass, web 18/173 pass,
+  shared 1/1; build exit 0 (ClaimDetailPage route chunk 23 kB
+  carries EscrowPanel, out of the index bundle). Delta vs baseline
+  (api 41/427, web 16/129, shared 1): api unchanged file count,
+  web +2 files/+44 tests (26 + 20 − 2 retired payment-flow cases).
+RESULT: single commit (message below), NOT pushed — P2 lands on top,
+  then both push together (buyers could otherwise lock funds with no
+  release UI).
+KNOWN ISSUES:
+- The app is intentionally not deployable at this commit; P2 must
+  land before push. Contact-note display reserved for P2.
+- Partial deprecation (gate evidence above): PaymentPanel.tsx,
+  submitPayment, baseUnitsToSafeNumber deleted; VerifyPollBox +
+  payment_pending branch + paid/review display + deprecated
+  read/poll lib fns retained for live legacy rows. debug-payments.ts
+  orphaned (PaymentPanel was its only importer) — P3 removes it with
+  the rest. Full removal gated on zero payment_pending rows.
+- Backend response-shape divergence from ARCHITECTURE §13 (D7-B,
+  authorized): depositInstruction gains `tokenAddress` (canonical
+  USDT address, served from USDT_TOKEN_ADDRESS, 503 when
+  unconfigured). Backend authoritative; ARCH §13 update deferred to
+  a doc pass (P2 or later).
+- ConfirmReceiptBox polls POST confirm-receipt (idempotent
+  broadcast-or-receipt-check), not GET /escrow: the lazy read does
+  not advance buyer-initiated releases, so the confirm endpoint is
+  the correct poll target.
+- Railway USDT_TOKEN_ADDRESS was missing and is now set (public
+  Amoy USDT address, not a secret). No other Railway changes.
+- Carried USDT residuals (split-RPC deployment requirement,
+  unverified contract, fee quirks, signer rotation → Phase 15,
+  auto-release gap, refund/dispute untested E2E, Railway image bakes
+  secrets as ARG/ENV, format waiver, Mumbai mention, payout
+  immutability, lazy auto-refund, no dispute UI, 14d-4 frontend gap,
+  Foundry PATH prefix, "timestamp" prose, fromBlock-0 fragility,
+  §7 "Pay with NIM" example, §5 deprecation re-count mandate).
+SECURITY NOTES: no secrets printed except one accidental Railway
+  DATABASE_URL value in local tool output during the keys-only env
+  audit (transcript-only exposure; never written to repo, logs, or
+  reports; subsequent queries parsed keys-only); exact-amount
+  approve only (never infinite); no broadcast auto-retry; wallet
+  errors mapped distinctly (4001 vs RPC); all amounts BigInt.
+FILES CHANGED: apps/api/src/escrow/service.ts (D7-B field),
+  apps/api/src/escrow/polygon/client.ts (getUsdtTokenAddress),
+  apps/api/test/escrow-service.test.ts (assert),
+  4 api suites (USDT_TOKEN_ADDRESS conformance line),
+  apps/web/src/lib/escrow.ts + evm.ts (new),
+  apps/web/src/components/EscrowPanel.tsx +
+  VerifyDepositBox.tsx + ConfirmReceiptBox.tsx (new),
+  apps/web/src/routes/ClaimDetailPage.tsx,
+  apps/web/src/components/ClaimStatusBadge.tsx + ClaimCard.tsx,
+  apps/web/src/lib/slots.ts (buckets + partial deprecation),
+  apps/web/src/components/PaymentPanel.tsx (deleted),
+  apps/web/test/escrow-ui.test.tsx + evm-lib.test.ts (new),
+  apps/web/test/payment-flow.test.ts (rewrite),
+  apps/web/test/dashboards.test.ts + route-states.test.ts (extend),
+  AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: feat: phase 14e P1 — USDT escrow buyer loop (single
+  commit with this checkpoint; NOT pushed — hash recorded locally)
+NEXT TASK: Phase 14e P2 — provider loop + contact note. Do NOT
+  start automatically.
+BLOCKED BY: none.
+```
+
 ## Phase 14f-r — NIM custodial escrow retired; USDT-only escrow shipped (2026-09-17)
 
 Owner decision (final): the NIM custodial escrow path is retired.

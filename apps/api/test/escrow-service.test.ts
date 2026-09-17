@@ -33,6 +33,9 @@ import {
 
 const TEST_CONTRACT = '0x3333333333333333333333333333333333333333';
 process.env.USDT_ESCROW_CONTRACT_ADDRESS = TEST_CONTRACT;
+// Phase 14e P1 (D7 variant B): intent serves the token address for approve().
+const TEST_TOKEN = '0x4444444444444444444444444444444444444444';
+process.env.USDT_TOKEN_ADDRESS = TEST_TOKEN;
 
 describe.skipIf(!isDatabaseConfigured())('USDT escrow deposit (live DB, mocked Polygon)', () => {
   const stubVerifier: VerifySignatureFn = () => true;
@@ -298,6 +301,7 @@ describe.skipIf(!isDatabaseConfigured())('USDT escrow deposit (live DB, mocked P
         escrow: { id: string; status: string; amount_base_units: string };
         depositInstruction: {
           contractAddress: string;
+          tokenAddress: string;
           usdtAmount: string;
           onChainEscrowId: string;
           approveTo: string;
@@ -309,6 +313,7 @@ describe.skipIf(!isDatabaseConfigured())('USDT escrow deposit (live DB, mocked P
     expect(intentBody.data.escrow.status).toBe('created');
     expect(intentBody.data.escrow.amount_base_units).toBe(SLOT_PRICE.toString());
     expect(intentBody.data.depositInstruction.contractAddress).toBe(TEST_CONTRACT);
+    expect(intentBody.data.depositInstruction.tokenAddress).toBe(TEST_TOKEN);
     expect(intentBody.data.depositInstruction.approveTo).toBe(TEST_CONTRACT);
     expect(intentBody.data.depositInstruction.usdtAmount).toBe(SLOT_PRICE.toString());
     expect(intentBody.data.depositInstruction.approveAmount).toBe(

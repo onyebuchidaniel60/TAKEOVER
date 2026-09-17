@@ -32,6 +32,8 @@ import {
 
 const TEST_CONTRACT = '0x3333333333333333333333333333333333333333';
 process.env.USDT_ESCROW_CONTRACT_ADDRESS = TEST_CONTRACT;
+// Phase 14e P1 (D7 variant B): intent fail-closes without a token address.
+process.env.USDT_TOKEN_ADDRESS = '0x4444444444444444444444444444444444444444';
 
 const PAYOUT = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const NOTE = 'Meet at the side entrance and ask for Maria.';

@@ -97,6 +97,23 @@ export function getEscrowContractAddress(
   throw new EscrowContractUnavailableError('Escrow contract address is not configured.');
 }
 
+/**
+ * Phase 14e P1 (D7 variant B): USDT token address from USDT_TOKEN_ADDRESS.
+ * Served to the frontend inside the escrow-intent depositInstruction so the
+ * UI approves the exact token without hardcoding anything token-specific.
+ * Unset/malformed → unavailable (fail closed, same as the contract
+ * address — an approval cannot be built without it).
+ */
+export function getUsdtTokenAddress(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): string {
+  const raw = env.USDT_TOKEN_ADDRESS;
+  if (typeof raw === 'string' && isHexAddress(raw.trim())) {
+    return raw.trim();
+  }
+  throw new EscrowContractUnavailableError('USDT token address is not configured.');
+}
+
 function toBlockNumber(value: RawEscrowLog['blockNumber']): number {
   if (typeof value === 'bigint') {
     return Number(value);

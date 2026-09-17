@@ -31,7 +31,6 @@ import SlotDetailPage from '../src/routes/SlotDetailPage';
 import {
   claimFixture,
   err,
-  intentFixture,
   meFixture,
   mockFetch,
   pendingForever,
@@ -425,11 +424,27 @@ describe('admin route states', () => {
 });
 
 describe('claim payment states', () => {
-  it('active hold shows the pay action; review shows the review notice', async () => {
+  it('active hold shows the escrow pay action; review shows the review notice', async () => {
     setBuyer();
     mockFetch((url) => {
-      if (url.includes('/payment-intent')) {
-        return { intent: intentFixture(), claim: claimFixture(), slot: slotFixture() };
+      if (url.includes('/escrow-intent')) {
+        return {
+          escrow: { id: 'escrow-1', claim_id: 'claim-1', status: 'created' },
+          claim: claimFixture(),
+          depositInstruction: {
+            contractAddress: '0x7f8f66e1e07372dc371edf8f21d2d84208a4fc06',
+            tokenAddress: '0xc885e1eed2a2f2215b756fa04b89aad1a27559de',
+            usdtAmount: '1500000',
+            onChainEscrowId: `0x${'ab'.repeat(32)}`,
+            approveTo: '0x7f8f66e1e07372dc371edf8f21d2d84208a4fc06',
+            approveAmount: '1500000',
+            buyerWallet: 'buyer-evm-wallet',
+          },
+          slot: slotFixture(),
+        };
+      }
+      if (url.includes('/claims/claim-1/escrow')) {
+        return err(404, 'ESCROW_NOT_FOUND', 'No escrow for this claim.');
       }
       return { claim: claimFixture('active_hold'), slot: slotFixture() };
     });
@@ -447,7 +462,8 @@ describe('claim payment states', () => {
         </Routes>
       </MemoryRouter>,
     );
-    await screen.findByRole('button', { name: /pay with nimiq pay/i });
+    await screen.findByText('Pay with USDT on Polygon');
+    await screen.findByRole('button', { name: /approve & deposit/i });
     unmount();
     mockFetch(() => ({ claim: claimFixture('payment_review'), slot: slotFixture() }));
     renderAt(
