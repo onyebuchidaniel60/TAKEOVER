@@ -8,6 +8,8 @@ function dayLabel(when: Date, now: Date): string {
   return when.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+import { Clock } from 'lucide-react';
+
 export default function TimeBadge({ startsAt, endsAt }: { startsAt: string; endsAt: string | null }) {
   const when = new Date(startsAt);
   const time = when.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
@@ -15,8 +17,8 @@ export default function TimeBadge({ startsAt, endsAt }: { startsAt: string; ends
     ? new Date(endsAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
     : null;
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-900">
-      <span aria-hidden="true">●</span>
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium tabular-nums text-amber-900">
+      <Clock size={12} aria-hidden="true" />
       {dayLabel(when, new Date())} · {time}
       {end ? ` – ${end}` : ''}
     </span>

@@ -2,6 +2,7 @@
 // filtered view is deep-linkable. Public and read-only.
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -135,8 +136,8 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <h1 className="text-2xl font-bold tracking-tight">Available now</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="text-2xl font-bold tracking-[-0.02em]">Available now</h1>
+      <p className="mt-1 text-sm leading-relaxed text-slate-500">
         Last-minute openings near you. Claim one before it’s gone.
       </p>
       {notice ? (
@@ -159,7 +160,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handleClear}
-                  className="min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                  className="min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-transform duration-press ease-out-strong active:scale-[0.97]"
                 >
                   Clear filters
                 </button>
@@ -168,7 +169,7 @@ export default function Home() {
           />
         ) : (
           <>
-            <p className="mb-3 text-xs text-slate-500">
+            <p className="mb-3 text-xs tabular-nums text-slate-500">
               {total} opening{total === 1 ? '' : 's'} · soonest first
             </p>
             <SlotList slots={slots} />
@@ -177,9 +178,16 @@ export default function Home() {
                 type="button"
                 onClick={handleShowMore}
                 disabled={loadingMore}
-                className="mt-4 min-h-touch w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 disabled:opacity-50"
+                className="mt-4 inline-flex min-h-touch w-full items-center justify-center gap-1.5 rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-card transition-[box-shadow,transform] duration-ui ease-out-strong hover:shadow-card-hover active:scale-[0.99] disabled:opacity-50"
               >
-                {loadingMore ? 'Loading…' : `Show more (${total - slots.length} left)`}
+                {loadingMore ? (
+                  'Loading…'
+                ) : (
+                  <>
+                    Show more ({total - slots.length} left)
+                    <ChevronDown size={16} aria-hidden="true" />
+                  </>
+                )}
               </button>
             ) : null}
           </>

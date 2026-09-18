@@ -3,6 +3,67 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14i-1 — design tokens, chrome, feed polish (direction A)
+
+```text
+CURRENT PHASE: Phase 14i-1 complete — warm-marketplace tokens, sticky
+  translucent chrome, restyled feed with lucide icons and a capped
+  stagger. Do NOT begin 14i-2 automatically.
+COMPLETED: tokens (out-strong/in-out-strong/drawer curves, press/ui/
+  panel durations, card shadows, feed-in keyframes + animation, radius/
+  palette/red/type doctrine in config comments) + chrome (page
+  stone-100, sticky TopBar with px fix, WalletStatus wrap fix +
+  red-800, Wallet/LogOut icons) + feed (2xl cards, stone pills with
+  Tag/MapPin, Clock badge, tabular numerals, search icon, press
+  feedback, 40ms stagger capped at 8, skeleton label prop) +
+  lucide-react 1.47.0 (7 icons: Clock, MapPin, Tag, Wallet, LogOut,
+  Search, ChevronDown) + feed-polish.test.tsx (5) + security-test
+  svg scoping to svg:not(.lucide) + this checkpoint
+TESTS RUN: typecheck exit 0; lint exit 0; web FULL 21 files/214 green
+  (incl. a11y 0 critical/serious, keyboard-focus, new feed-polish
+  5/5); build exit 0; FULL with DATABASE_URL exit 0 — api 43/454,
+  web 21/214, shared 1/1 (delta vs 14j-1 baseline: web +1/+5 only).
+  Contrast measured programmatically, all ≥ 4.5:1 (new stone-100 bg
+  16.36:1; red-800/white 8.31:1; badges 8.1–8.6:1). Tree-shake
+  proven: only the 7 used icon modules bundle; index +6.07 kB raw
+  (+1.75 kB gzip), far under the 30 kB bar.
+MOTION TABLE: press :active scale(0.97) 120ms out-strong (all feed/
+  chrome CTAs); card hover shadow 200ms out-strong + active
+  scale(0.99); feed-in 200ms out-strong, 40ms stagger ×8 cap.
+  Rejected: countdown animation (frequency), hover lift (touch),
+  shimmer upgrade (decorative), admin stagger (operator surface),
+  springs/gestures (no draggable surfaces), celebration (no moment).
+  review-animations checklist applied: no transition:all, no
+  scale(0), no ease-in, transform/opacity only, reduced-motion
+  blanket intact.
+RESULT: single commit (message below), pushed. Vercel auto-deploys.
+KNOWN ISSUES:
+- backdrop-blur-md real-device cost unverified — falls back to
+  solid white if the owner sees jank in Nimiq Pay.
+- text-red-600/red-700 stragglers outside feed+chrome move in
+  14i-2/14i-3 (documented in config comments).
+- LoadingSkeleton label prop added; non-feed callers still use the
+  old default string (their cleanup rides 14i-3 states sweep).
+- Carried residuals (14j-1 + P3 blocks below).
+SECURITY NOTES: no secrets; security.test.tsx svg assertion scoped
+  to svg:not(.lucide) — script/img/iframe bans absolute, hostile
+  text still asserted verbatim, no dangerouslySetInnerHTML (source
+  scan green); icons are first-party elements only.
+FILES CHANGED: apps/web/tailwind.config.js, apps/web/src/App.tsx, apps/web/src/components/
+  TopBar.tsx + WalletStatus.tsx + SlotList.tsx + SlotCard.tsx +
+  SearchFilters.tsx + PriceDisplay.tsx + TimeBadge.tsx +
+  AvailabilityBadge.tsx + EmptyState.tsx + LoadingSkeleton.tsx,
+  apps/web/src/routes/Home.tsx, apps/web/test/feed-polish.test.tsx
+  + security.test.tsx, apps/web/package.json, package-lock.json,
+  AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: feat: phase 14i-1 — design tokens, chrome, and feed
+  polish (direction A) (single commit with this checkpoint; hash
+  recorded at push)
+NEXT TASK: Phase 14i-2 — detail pages, payment surfaces, forms.
+  Do NOT start automatically.
+BLOCKED BY: none.
+```
+
 ## Phase 14j-1 — both payment rails on mainnet (deploy + reconfig)
 
 ```text

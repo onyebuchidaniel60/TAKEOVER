@@ -1,3 +1,4 @@
+import { Search } from 'lucide-react';
 import { SLOT_CATEGORIES } from '../lib/slots';
 
 export interface FilterValues {
@@ -28,7 +29,7 @@ export default function SearchFilters({
 
   return (
     <form
-      className="rounded-xl border border-slate-200 bg-white p-4"
+      className="rounded-2xl border border-stone-200 bg-white p-4 shadow-card"
       role="search"
       aria-label="Search available slots"
       onSubmit={(event) => event.preventDefault()}
@@ -38,15 +39,22 @@ export default function SearchFilters({
           <label htmlFor="slot-search" className="mb-1 block text-xs font-medium text-slate-600">
             Search
           </label>
-          <input
-            id="slot-search"
-            type="search"
-            autoComplete="off"
-            className={inputClass}
-            placeholder="Dinner, yoga, court…"
-            value={values.q}
-            onChange={set('q')}
-          />
+          <div className="relative">
+            <Search
+              size={16}
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              id="slot-search"
+              type="search"
+              autoComplete="off"
+              className={`${inputClass} pl-9`}
+              placeholder="Dinner, yoga, court…"
+              value={values.q}
+              onChange={set('q')}
+            />
+          </div>
         </div>
         <div>
           <label htmlFor="slot-category" className="mb-1 block text-xs font-medium text-slate-600">
@@ -110,7 +118,7 @@ export default function SearchFilters({
       <button
         type="button"
         onClick={onClear}
-        className="mt-3 min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+        className="mt-3 min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-transform duration-press ease-out-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 active:scale-[0.97]"
       >
         Clear filters
       </button>

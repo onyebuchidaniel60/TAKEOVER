@@ -40,7 +40,11 @@ function hostileSlot(): PublicSlot {
 function expectInertHtml(container: HTMLElement): void {
   expect(container.querySelector('script')).toBeNull();
   expect(container.querySelector('img')).toBeNull();
-  expect(container.querySelector('svg')).toBeNull();
+  // Phase 14i-1: lucide-react icons are first-party elements (every one
+  // carries class "lucide"). Hostile field values render as escaped text via
+  // React and can never produce elements at all — so any svg WITHOUT the
+  // lucide class is still a hard failure, exactly as before.
+  expect(container.querySelector('svg:not(.lucide)')).toBeNull();
   expect(container.querySelector('iframe')).toBeNull();
 }
 
