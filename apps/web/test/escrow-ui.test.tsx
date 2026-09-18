@@ -15,6 +15,7 @@ vi.mock('../src/lib/evm', () => ({
   deposit: vi.fn(),
   sendTransaction: vi.fn(),
   waitForReceipt: vi.fn(),
+  DISPUTE_GAS_LIMIT: '0x186a0',
 }));
 
 import * as evm from '../src/lib/evm';
@@ -294,7 +295,7 @@ describe('ConfirmReceiptBox', () => {
     await waitFor(() => expect(evm.sendTransaction).toHaveBeenCalledTimes(1));
     expect(evm.sendTransaction).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ to: CONTRACT, data: '0xadd98c70' }),
+      expect.objectContaining({ to: CONTRACT, data: '0xadd98c70', gas: '0x186a0' }),
     );
     await waitFor(() => expect(onUpdate).toHaveBeenCalled());
   });

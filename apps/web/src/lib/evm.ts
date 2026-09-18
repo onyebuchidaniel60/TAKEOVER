@@ -17,6 +17,19 @@
 export const AMOY_CHAIN_ID = 80002;
 export const AMOY_CHAIN_ID_HEX = '0x13882';
 
+/**
+ * Explicit gas limits (hex strings) for every eth_sendTransaction call.
+ * Pinned, never estimated: Nimiq Pay's window.ethereum does not reliably
+ * serve eth_estimateGas, and the wallet refuses to broadcast without a gas
+ * limit ("transaction must include gas or gas limit, and estimation
+ * failed"). Values carry ~2x headroom over observed usage (approve ~46-50k,
+ * deposit ~150-200k, dispute ~50k); dispute reuses the approve budget.
+ * Never raise approve past ~500k (wasted gas refund territory).
+ */
+export const APPROVE_GAS_LIMIT = '0x186a0'; // 100,000
+export const DEPOSIT_GAS_LIMIT = '0x30d40'; // 200,000
+export const DISPUTE_GAS_LIMIT = '0x186a0'; // 100,000
+
 /** Minimal EIP-1193 surface used by this module (structural, no globals). */
 export interface EthereumProvider {
   request(args: { method: string; params?: unknown }): Promise<unknown>;
@@ -209,13 +222,27 @@ function normalizeTxHash(value: unknown): string {
   return value.toLowerCase();
 }
 
-/** Raw send: { from, to, data }. Returns the wallet-acknowledged tx hash. */
+/** 0x-prefixed hex gas limit. Throws on anything else. */
+export function normalizeGasLimit(value: string): string {
+  const trimmed = value.trim();
+  if (!/^0[xX][0-9a-fA-F]+$/.test(trimmed)) {
+    throw new Error('Invalid gas limit.');
+  }
+  return trimmed.toLowerCase();
+}
+
+/** Raw send: { from, to, data, gas }. Gas is required — never estimate. */
 export async function sendTransaction(
   provider: EthereumProvider,
-  tx: { from: string; to: string; data: string },
+  tx: { from: string; to: string; data: string; gas: string },
 ): Promise<string> {
   const hash = await request<unknown>(provider, 'eth_sendTransaction', [
-    { from: normalizeAddress(tx.from), to: normalizeAddress(tx.to), data: tx.data },
+    {
+      from: normalizeAddress(tx.from),
+      to: normalizeAddress(tx.to),
+      data: tx.data,
+      gas: normalizeGasLimit(tx.gas),
+    },
   ]);
   return normalizeTxHash(hash);
 }
@@ -229,6 +256,7 @@ export async function approve(
     from: args.from,
     to: args.token,
     data: encodeApproveCall(args.spender, args.amount),
+    gas: APPROVE_GAS_LIMIT,
   });
 }
 
@@ -241,6 +269,7 @@ export async function deposit(
     from: args.from,
     to: args.contract,
     data: encodeDepositCall(args.escrowId, args.amount),
+    gas: DEPOSIT_GAS_LIMIT,
   });
 }
 

@@ -16,6 +16,7 @@ import {
   type EscrowView,
 } from '../lib/escrow';
 import {
+  DISPUTE_GAS_LIMIT,
   ensureChain,
   getAccounts,
   getEthereumProvider,
@@ -154,6 +155,7 @@ export default function ConfirmReceiptBox({
           from,
           to: escrow.contract_address as string,
           data: disputeCallData,
+          gas: DISPUTE_GAS_LIMIT,
         });
         // Broadcast done — the Disputed event lands on-chain; re-poll flips state.
         const result = await raiseDispute(claimId);

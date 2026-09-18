@@ -6,6 +6,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   AMOY_CHAIN_ID,
   AMOY_CHAIN_ID_HEX,
+  APPROVE_GAS_LIMIT,
+  DEPOSIT_GAS_LIMIT,
+  DISPUTE_GAS_LIMIT,
   EvmRpcError,
   NoEthereumProviderError,
   ReceiptTimeoutError,
@@ -20,6 +23,7 @@ import {
   getEthereumProvider,
   normalizeAddress,
   normalizeBytes32,
+  normalizeGasLimit,
   normalizeUint256,
   sendTransaction,
   waitForReceipt,
@@ -171,20 +175,50 @@ describe('send + receipt', () => {
     const hash = await approve(provider, { token: TOKEN, spender: ESCROW, amount: AMOUNT, from: TOKEN });
     expect(hash).toBe(TX.toLowerCase());
     const sent = calls.find((c) => c.method === 'eth_sendTransaction');
-    expect(sent?.params).toEqual([{ from: TOKEN.toLowerCase(), to: TOKEN.toLowerCase(), data: APPROVE_VEC }]);
+    expect(sent?.params).toEqual([
+      { from: TOKEN.toLowerCase(), to: TOKEN.toLowerCase(), data: APPROVE_VEC, gas: APPROVE_GAS_LIMIT },
+    ]);
   });
 
   it('deposit sends escrow calldata to the contract', async () => {
     const { provider, calls } = fakeProvider(() => TX);
     await deposit(provider, { contract: ESCROW, escrowId: EID, amount: AMOUNT, from: TOKEN });
     const sent = calls.find((c) => c.method === 'eth_sendTransaction');
-    expect(sent?.params).toEqual([{ from: TOKEN.toLowerCase(), to: ESCROW.toLowerCase(), data: DEPOSIT_VEC }]);
+    expect(sent?.params).toEqual([
+      { from: TOKEN.toLowerCase(), to: ESCROW.toLowerCase(), data: DEPOSIT_VEC, gas: DEPOSIT_GAS_LIMIT },
+    ]);
+  });
+
+  it('gas limits are pinned hex with ~2x headroom (never estimated)', () => {
+    expect(APPROVE_GAS_LIMIT).toBe('0x186a0');
+    expect(BigInt(APPROVE_GAS_LIMIT)).toBe(100_000n);
+    expect(DEPOSIT_GAS_LIMIT).toBe('0x30d40');
+    expect(BigInt(DEPOSIT_GAS_LIMIT)).toBe(200_000n);
+    expect(DISPUTE_GAS_LIMIT).toBe('0x186a0');
+    expect(BigInt(DISPUTE_GAS_LIMIT)).toBe(100_000n);
+  });
+
+  it('gas addition leaves calldata byte-identical (encoder untouched)', async () => {
+    const { provider, calls } = fakeProvider(() => TX);
+    await approve(provider, { token: TOKEN, spender: ESCROW, amount: AMOUNT, from: TOKEN });
+    await deposit(provider, { contract: ESCROW, escrowId: EID, amount: AMOUNT, from: TOKEN });
+    const sends = calls.filter((c) => c.method === 'eth_sendTransaction');
+    expect(sends).toHaveLength(2);
+    expect((sends[0]?.params as Array<{ data: string }>)[0]?.data).toBe(APPROVE_VEC);
+    expect((sends[1]?.params as Array<{ data: string }>)[0]?.data).toBe(DEPOSIT_VEC);
+  });
+
+  it('rejects malformed gas limits', () => {
+    for (const bad of ['', '0x', '100000', '0xZZZ', '0x12 34']) {
+      expect(() => normalizeGasLimit(bad)).toThrow();
+    }
+    expect(normalizeGasLimit('0x186A0')).toBe('0x186a0');
   });
 
   it('malformed wallet hash → EvmRpcError (never recorded)', async () => {
     const { provider } = fakeProvider(() => 'not-a-hash');
     await expect(
-      sendTransaction(provider, { from: TOKEN, to: ESCROW, data: DEPOSIT_VEC }),
+      sendTransaction(provider, { from: TOKEN, to: ESCROW, data: DEPOSIT_VEC, gas: DEPOSIT_GAS_LIMIT }),
     ).rejects.toThrow(EvmRpcError);
   });
 
