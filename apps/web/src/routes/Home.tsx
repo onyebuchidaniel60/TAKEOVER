@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
+import Contact from '../components/home/Contact';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
+import Faq from '../components/home/Faq';
+import HowItWorks from '../components/home/HowItWorks';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import SearchFilters, { type FilterValues } from '../components/SearchFilters';
 import SlotList from '../components/SlotList';
@@ -30,7 +33,7 @@ function inputToIso(value: string): string | undefined {
 
 export default function Home() {
   usePageMeta({
-    title: 'TAKEOVER — Last-minute marketplace',
+    title: 'TAKEOVER — last-minute availability, claimed',
     description:
       'TAKEOVER is the last-minute marketplace for released capacity. Claim an opening before it’s gone.',
   });
@@ -192,6 +195,11 @@ export default function Home() {
             ) : null}
           </>
         )}
+      </div>
+      <div className="mt-12 flex flex-col gap-10">
+        <HowItWorks />
+        <Faq />
+        <Contact />
       </div>
     </main>
   );

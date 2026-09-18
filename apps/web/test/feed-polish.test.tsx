@@ -4,6 +4,7 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
+// @ts-expect-error - tailwind.config.js is untyped JS; values asserted below
 import tailwindConfig from '../tailwind.config.js';
 import AvailabilityBadge from '../src/components/AvailabilityBadge';
 import PriceDisplay from '../src/components/PriceDisplay';
