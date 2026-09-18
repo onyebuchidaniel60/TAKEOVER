@@ -104,19 +104,19 @@ export default function EscrowPanel({
 
   if (load.kind === 'loading') {
     return (
-      <div className="mt-4 rounded-lg bg-slate-50 p-3" aria-live="polite">
-        <p className="text-sm text-slate-600">Loading escrow status…</p>
+      <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-stone-800" aria-live="polite">
+        <p className="text-body text-slate-600 dark:text-stone-400">Loading escrow status…</p>
       </div>
     );
   }
   if (load.kind === 'error') {
     return (
-      <div className="mt-4 rounded-lg bg-slate-50 p-3" aria-live="polite">
-        <p className="text-sm text-red-700">{load.message}</p>
+      <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-stone-800" aria-live="polite">
+        <p className="text-body text-red-700 dark:text-red-400">{load.message}</p>
         <button
           type="button"
           onClick={refresh}
-          className="mt-2 inline-flex min-h-touch items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900"
+          className="mt-2 inline-flex min-h-touch items-center rounded-lg border border-slate-300 px-4 py-2 text-body font-medium text-slate-900 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-100"
         >
           Try again
         </button>
@@ -131,9 +131,9 @@ export default function EscrowPanel({
   // a non-null note renders under the status, null hides. No re-gating here.
   const noteBlock =
     load.contactNote !== null ? (
-      <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
-        <p className="text-sm font-medium text-slate-900">Provider contact</p>
-        <p className="mt-1 text-sm text-slate-600">{load.contactNote}</p>
+      <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-stone-700 dark:bg-stone-900">
+        <p className="text-body font-medium text-slate-900 dark:text-stone-100">Provider contact</p>
+        <p className="mt-1 text-body text-slate-600 dark:text-stone-400">{load.contactNote}</p>
       </div>
     ) : null;
   switch (escrow.status) {
@@ -145,10 +145,10 @@ export default function EscrowPanel({
       );
     case 'funded':
       return (
-        <div className="mt-4 rounded-lg bg-slate-50 p-3" aria-live="polite">
-          <p className="text-sm font-medium text-slate-900">Funds in escrow. Waiting for provider.</p>
+        <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-stone-800" aria-live="polite">
+          <p className="text-body font-medium text-slate-900 dark:text-stone-100">Funds in escrow. Waiting for provider.</p>
           {staticDate(escrow.delivery_deadline) && (
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 font-mono text-body tabular-nums text-slate-600 dark:text-stone-400">
               Delivery expected by {staticDate(escrow.delivery_deadline)}.
             </p>
           )}
@@ -164,41 +164,41 @@ export default function EscrowPanel({
       );
     case 'disputed':
       return (
-        <div className="mt-4 rounded-lg bg-amber-50 p-3" aria-live="polite">
-          <p className="text-sm font-medium text-amber-900">Dispute open. Admin will resolve.</p>
+        <div className="mt-4 rounded-lg bg-amber-50 p-3 dark:bg-amber-950" aria-live="polite">
+          <p className="text-body font-medium text-amber-900 dark:text-amber-300">Dispute open. Admin will resolve.</p>
           {noteBlock}
         </div>
       );
     case 'releasing':
       return (
-        <div className="mt-4 rounded-lg bg-slate-50 p-3" aria-live="polite">
-          <p className="text-sm text-slate-600">Releasing to provider…</p>
+        <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-stone-800" aria-live="polite">
+          <p className="text-body text-slate-600 dark:text-stone-400">Releasing to provider…</p>
           {noteBlock}
         </div>
       );
     case 'released':
       return (
-        <div className="mt-4 rounded-lg bg-slate-50 p-3" aria-live="polite">
-          <p className="text-sm font-medium text-slate-900">Released. Complete.</p>
+        <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-stone-800" aria-live="polite">
+          <p className="text-body font-medium text-slate-900 dark:text-stone-100">Released. Complete.</p>
           {noteBlock}
         </div>
       );
     case 'refunding':
       return (
-        <div className="mt-4 rounded-lg bg-slate-50 p-3" aria-live="polite">
-          <p className="text-sm text-slate-600">Refunding to you…</p>
+        <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-stone-800" aria-live="polite">
+          <p className="text-body text-slate-600 dark:text-stone-400">Refunding to you…</p>
         </div>
       );
     case 'refunded':
       return (
-        <div className="mt-4 rounded-lg bg-slate-50 p-3" aria-live="polite">
-          <p className="text-sm font-medium text-slate-900">Refunded. Complete.</p>
+        <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-stone-800" aria-live="polite">
+          <p className="text-body font-medium text-slate-900 dark:text-stone-100">Refunded. Complete.</p>
         </div>
       );
     default:
       return (
-        <div className="mt-4 rounded-lg bg-slate-50 p-3" aria-live="polite">
-          <p className="text-sm text-slate-600">Escrow status: {escrow.status}.</p>
+        <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-stone-800" aria-live="polite">
+          <p className="text-body text-slate-600 dark:text-stone-400">Escrow status: {escrow.status}.</p>
         </div>
       );
   }
@@ -286,18 +286,18 @@ function InstructionStep({
   };
 
   return (
-    <div className="mt-4 rounded-lg bg-slate-50 p-3" aria-live="polite">
-      <p className="text-sm font-medium text-slate-900">Pay with USDT on Polygon</p>
-      {step === 'loading' && <p className="mt-1 text-sm text-slate-600">Loading payment details…</p>}
+    <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-stone-800" aria-live="polite">
+      <p className="text-body font-medium text-slate-900 dark:text-stone-100">Pay with USDT on Polygon</p>
+      {step === 'loading' && <p className="mt-1 text-body text-slate-600 dark:text-stone-400">Loading payment details…</p>}
       {instruction && (
-        <dl className="mt-2 space-y-1 text-sm text-slate-600">
+        <dl className="mt-2 space-y-1 text-body text-slate-600 dark:text-stone-400">
           <div className="flex justify-between gap-2">
             <dt>Amount</dt>
-            <dd className="font-medium text-slate-900">{formatUsdt(instruction.usdtAmount)}</dd>
+            <dd className="font-mono font-medium tabular-nums text-slate-900 dark:text-stone-100">{formatUsdt(instruction.usdtAmount)}</dd>
           </div>
           <div className="flex justify-between gap-2">
             <dt>Escrow contract</dt>
-            <dd className="break-all">{instruction.contractAddress}</dd>
+            <dd className="break-all font-mono text-small">{instruction.contractAddress}</dd>
           </div>
           <div className="flex justify-between gap-2">
             <dt>Approval</dt>
@@ -305,13 +305,13 @@ function InstructionStep({
           </div>
         </dl>
       )}
-      {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
+      {error && <p className="mt-2 text-body text-red-700 dark:text-red-400">{error}</p>}
       {step !== 'loading' && instruction && (
         <button
           type="button"
           onClick={handlePay}
           disabled={step === 'approving' || step === 'depositing' || step === 'submitting'}
-          className="mt-3 inline-flex min-h-touch items-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="mt-3 inline-flex min-h-touch items-center rounded-lg bg-slate-900 px-4 py-2 text-body font-medium text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
         >
           {step === 'ready' ? 'Approve & Deposit' : busyLabel || 'Working…'}
         </button>

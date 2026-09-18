@@ -58,14 +58,14 @@ export default function Sell() {
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">My openings</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-h1 font-bold text-slate-900 dark:text-stone-100">My openings</h1>
+          <p className="mt-1 font-mono text-body tabular-nums text-slate-500 dark:text-stone-400">
             {total} opening{total === 1 ? '' : 's'} in total.
           </p>
         </div>
         <Link
           to="/sell/new"
-          className="min-h-touch shrink-0 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+          className="min-h-touch shrink-0 rounded-lg bg-slate-900 px-4 py-2 text-body font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 dark:bg-stone-100 dark:text-stone-900 dark:focus-visible:ring-stone-200 dark:focus-visible:ring-offset-stone-900"
         >
           Create slot
         </Link>
@@ -82,8 +82,10 @@ export default function Sell() {
             type="button"
             onClick={() => setStatus(f)}
             aria-pressed={status === f}
-            className={`min-h-touch rounded-full px-4 py-2 text-sm font-medium ${
-              status === f ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'
+            className={`min-h-touch rounded-full px-4 py-2 text-body font-medium ${
+              status === f
+                ? 'bg-slate-900 text-white dark:bg-stone-100 dark:text-stone-900'
+                : 'border border-slate-300 bg-white text-slate-700 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-300'
             }`}
           >
             {f || 'All'}
@@ -102,7 +104,7 @@ export default function Sell() {
             action={
               <Link
                 to="/sell/new"
-                className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-body font-medium text-white dark:bg-stone-100 dark:text-stone-900"
               >
                 Create your first slot
               </Link>
@@ -114,13 +116,13 @@ export default function Sell() {
               <li key={slot.id}>
                 <Link
                   to={`/sell/${slot.id}`}
-                  className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                  className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 dark:border-stone-800 dark:bg-stone-900 dark:shadow-none dark:hover:shadow-none dark:focus-visible:ring-stone-200"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <h2 className="text-base font-semibold leading-snug">{slot.title}</h2>
+                    <h2 className="text-h3 font-semibold text-slate-900 dark:text-stone-100">{slot.title}</h2>
                     <StatusBadge status={slot.status} />
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 font-mono text-small tabular-nums text-slate-500 dark:text-stone-400">
                     {new Date(slot.starts_at).toLocaleString(undefined, {
                       weekday: 'short',
                       month: 'short',
@@ -143,9 +145,9 @@ export default function Sell() {
 
 function Tile({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 text-center">
-      <p className="text-xl font-bold">{value}</p>
-      <p className="mt-1 text-xs text-slate-500">{label}</p>
+    <div className="rounded-xl border border-slate-200 bg-white p-3 text-center dark:border-stone-800 dark:bg-stone-900">
+      <p className="font-mono text-h2 font-bold tabular-nums text-slate-900 dark:text-stone-100">{value}</p>
+      <p className="mt-1 text-small text-slate-500 dark:text-stone-400">{label}</p>
     </div>
   );
 }

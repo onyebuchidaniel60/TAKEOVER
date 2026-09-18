@@ -139,12 +139,12 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <h1 className="text-2xl font-bold tracking-[-0.02em]">Available now</h1>
-      <p className="mt-1 text-sm leading-relaxed text-slate-500">
+      <h1 className="text-h1 font-bold text-slate-900 dark:text-stone-100">Available now</h1>
+      <p className="mt-1 text-body leading-relaxed text-slate-500 dark:text-stone-400">
         Last-minute openings near you. Claim one before it’s gone.
       </p>
       {notice ? (
-        <p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+        <p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-body text-amber-900 dark:bg-amber-950 dark:text-amber-300">
           {notice}
         </p>
       ) : null}
@@ -163,7 +163,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handleClear}
-                  className="min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-transform duration-press ease-out-strong active:scale-[0.97]"
+                  className="min-h-touch rounded-lg border border-slate-300 bg-white px-4 py-2 text-body font-medium text-slate-700 transition-transform duration-press ease-out-strong active:scale-[0.97] dark:border-stone-500 dark:bg-stone-900 dark:text-stone-300"
                 >
                   Clear filters
                 </button>
@@ -172,7 +172,7 @@ export default function Home() {
           />
         ) : (
           <>
-            <p className="mb-3 text-xs tabular-nums text-slate-500">
+            <p className="mb-3 font-mono text-small tabular-nums text-slate-500 dark:text-stone-400">
               {total} opening{total === 1 ? '' : 's'} · soonest first
             </p>
             <SlotList slots={slots} />
@@ -181,7 +181,7 @@ export default function Home() {
                 type="button"
                 onClick={handleShowMore}
                 disabled={loadingMore}
-                className="mt-4 inline-flex min-h-touch w-full items-center justify-center gap-1.5 rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-card transition-[box-shadow,transform] duration-ui ease-out-strong hover:shadow-card-hover active:scale-[0.99] disabled:opacity-50"
+                className="mt-4 inline-flex min-h-touch w-full items-center justify-center gap-1.5 rounded-xl border border-stone-200 bg-white px-4 py-2 text-body font-medium text-slate-800 shadow-card transition-[box-shadow,transform] duration-ui ease-out-strong hover:shadow-card-hover active:scale-[0.99] disabled:opacity-50 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200 dark:shadow-none dark:hover:shadow-none"
               >
                 {loadingMore ? (
                   'Loading…'

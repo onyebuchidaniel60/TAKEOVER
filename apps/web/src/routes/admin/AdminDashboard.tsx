@@ -51,8 +51,8 @@ export default function AdminDashboard() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <h1 className="text-2xl font-bold tracking-tight">Moderation</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="text-h1 font-bold text-slate-900 dark:text-stone-100">Moderation</h1>
+      <p className="mt-1 text-body text-slate-500 dark:text-stone-400">
         Review reports, resolve payments under review, and audit admin actions.
       </p>
       {error ? (
@@ -82,7 +82,7 @@ export default function AdminDashboard() {
           <Link
             key={l.to}
             to={l.to}
-            className="min-h-touch rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 shadow-sm"
+            className="min-h-touch rounded-xl border border-slate-200 bg-white px-4 py-3 text-body font-medium text-slate-800 shadow-sm dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200 dark:shadow-none"
           >
             {l.label}
           </Link>

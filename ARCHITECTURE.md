@@ -1524,6 +1524,17 @@ via a small meta hook. New shared pieces: `ErrorBoundary`,
 - Disabled/unavailable actions must explain why.
 - Avoid crypto jargon unless necessary.
 - Mobile first; desktop receives a centered wider layout, not a completely different app.
+- Typography (14l-3): self-hosted Geist Sans + Geist Mono (no runtime
+  CDN); six-step scale display/h1/h2/h3/body/small with size-specific
+  tracking; figures (prices, countdowns, counts, dates) set in Geist
+  Mono with tabular numerals. No text size outside the scale.
+- Theme (14l-3): class-driven warm dark mode (stone-900/800 surfaces,
+  never an inversion) alongside light; Auto follows the OS with a
+  Light/Dark/Auto override in Profile persisted as the
+  non-credential `takeover-theme` choice (the sole sanctioned
+  localStorage user — session material stays in sessionStorage per
+  the bearer-auth posture test). Switching themes is instant: dark mode
+  adds no motion.
 
 ## 21. Accessibility
 
@@ -1535,6 +1546,11 @@ via a small meta hook. New shared pieces: `ErrorBoundary`,
 - Color cannot be the only indicator.
 - Sufficient text contrast.
 - Reduced-motion support.
+- Contrast is measured programmatically for every palette pair in BOTH
+  themes (14l-3: text ≥ 4.5:1, interactive boundaries ≥ 3:1; decorative
+  container/hairline borders inherit the light-baseline standard).
+  jsdom cannot compute styles, so the axe suites assert structure while
+  the math lives in the phase report.
 
 ## 22. Deployment architecture
 

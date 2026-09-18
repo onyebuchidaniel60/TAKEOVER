@@ -63,7 +63,7 @@ export default function HoldCountdown({ holdExpiresAt }: { holdExpiresAt: string
   if (remaining <= 0) {
     return (
       <>
-        <span className="text-sm font-semibold text-slate-500">Hold expired</span>
+        <span className="text-body font-semibold text-slate-500 dark:text-stone-400">Hold expired</span>
         <span className="sr-only" role="status">
           Hold expired.
         </span>
@@ -73,7 +73,7 @@ export default function HoldCountdown({ holdExpiresAt }: { holdExpiresAt: string
   const text = `Hold expires in ${formatRemaining(remaining)}`;
   return (
     <>
-      <span className="text-sm font-semibold tabular-nums" aria-hidden="true">
+      <span className="font-mono text-body font-semibold tabular-nums text-slate-900 dark:text-stone-100" aria-hidden="true">
         {text}
       </span>
       {/* Static until a threshold is crossed, so screen readers hear the

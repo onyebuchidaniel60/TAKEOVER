@@ -75,15 +75,15 @@ export default function NotificationsSection() {
   const unreadCount = items.filter((n) => !n.read_at).length;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4" aria-label="Notifications">
+    <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900" aria-label="Notifications">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Notifications</p>
+        <p className="text-small font-medium uppercase tracking-wide text-slate-500 dark:text-stone-400">Notifications</p>
         {unreadCount > 0 && !loading && !error ? (
           <button
             type="button"
             onClick={handleMarkAll}
             disabled={markingAll}
-            className="min-h-touch rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-700 disabled:opacity-50"
+            className="min-h-touch rounded-lg border border-slate-300 bg-white px-3 py-1 text-body font-medium text-slate-700 disabled:opacity-50 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-300"
           >
             {markingAll ? 'Marking…' : 'Mark all read'}
           </button>
@@ -91,20 +91,20 @@ export default function NotificationsSection() {
       </div>
       <div className="mt-3" aria-live="polite">
         {loading ? (
-          <p className="text-sm text-slate-500">Loading notifications…</p>
+          <p className="text-body text-slate-500 dark:text-stone-400">Loading notifications…</p>
         ) : error ? (
           <div>
-            <p className="text-sm text-slate-600">{error}</p>
+            <p className="text-body text-slate-600 dark:text-stone-400">{error}</p>
             <button
               type="button"
               onClick={() => setRetryKey((k) => k + 1)}
-              className="mt-2 min-h-touch rounded-lg border border-slate-300 px-3 py-1 text-sm font-medium text-slate-700"
+              className="mt-2 min-h-touch rounded-lg border border-slate-300 px-3 py-1 text-body font-medium text-slate-700 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-300"
             >
               Try again
             </button>
           </div>
         ) : items.length === 0 ? (
-          <p className="text-sm text-slate-500">You’re all caught up — new funding and delivery updates land here.</p>
+          <p className="text-body text-slate-500 dark:text-stone-400">You’re all caught up — new funding and delivery updates land here.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {items.map((item) => (
@@ -112,17 +112,17 @@ export default function NotificationsSection() {
                 <Link
                   to={notificationTarget(item)}
                   onClick={() => handleOpen(item)}
-                  className="flex items-start gap-2 rounded-lg border border-slate-100 bg-white p-3 text-left transition-[box-shadow,transform] duration-ui ease-out-strong hover:shadow-card active:scale-[0.99]"
+                  className="flex items-start gap-2 rounded-lg border border-slate-100 bg-white p-3 text-left transition-[box-shadow,transform] duration-ui ease-out-strong hover:shadow-card active:scale-[0.99] dark:border-stone-800 dark:bg-stone-900 dark:hover:shadow-none"
                   aria-label={`${item.title}${item.read_at ? '' : ', unread'}`}
                 >
                   {!item.read_at ? (
                     <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-red-600" />
                   ) : null}
                   <span>
-                    <span className={`block text-sm ${item.read_at ? 'font-normal text-slate-600' : 'font-semibold text-slate-900'}`}>
+                    <span className={`block text-body ${item.read_at ? 'font-normal text-slate-600 dark:text-stone-400' : 'font-semibold text-slate-900 dark:text-stone-100'}`}>
                       {item.title}
                     </span>
-                    <span className="mt-0.5 block text-sm text-slate-600">{item.body}</span>
+                    <span className="mt-0.5 block text-body text-slate-600 dark:text-stone-400">{item.body}</span>
                   </span>
                 </Link>
               </li>

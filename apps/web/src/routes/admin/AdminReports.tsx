@@ -47,15 +47,15 @@ export default function AdminReports() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/admin" className="inline-block min-h-touch py-2 text-sm font-medium text-slate-600">
+      <Link to="/admin" className="inline-block min-h-touch py-2 text-body font-medium text-slate-600 dark:text-stone-400">
         ← Moderation
       </Link>
-      <h1 className="mt-1 text-2xl font-bold tracking-tight">Reports</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="mt-1 text-h1 font-bold text-slate-900 dark:text-stone-100">Reports</h1>
+      <p className="mt-1 font-mono text-body tabular-nums text-slate-500 dark:text-stone-400">
         {total} report{total === 1 ? '' : 's'} · newest first
       </p>
       {notice ? (
-        <p role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+        <p role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-body text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
           {notice}
         </p>
       ) : null}
@@ -69,8 +69,10 @@ export default function AdminReports() {
               setOffset(0);
             }}
             aria-pressed={status === f}
-            className={`min-h-touch rounded-full px-4 py-2 text-sm font-medium ${
-              status === f ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'
+            className={`min-h-touch rounded-full px-4 py-2 text-body font-medium ${
+              status === f
+                ? 'bg-slate-900 text-white dark:bg-stone-100 dark:text-stone-900'
+                : 'border border-slate-300 bg-white text-slate-700 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-300'
             }`}
           >
             {f || 'All'}
@@ -91,22 +93,22 @@ export default function AdminReports() {
               headers={['Report', 'Target', 'Reason', 'Status', 'Action']}
             >
               {reports.map((r) => (
-                <tr key={r.id} className="border-b border-slate-100 last:border-0">
+                <tr key={r.id} className="border-b border-slate-100 last:border-0 dark:border-stone-800">
                   <td className="px-3 py-2 align-top">
-                    <p className="font-medium">{r.reporter.walletDisplay}</p>
-                    <p className="text-xs text-slate-500">{new Date(r.created_at).toLocaleString()}</p>
-                    {r.details ? <p className="mt-1 text-xs text-slate-600">{r.details}</p> : null}
+                    <p className="font-mono font-medium">{r.reporter.walletDisplay}</p>
+                    <p className="font-mono text-small tabular-nums text-slate-500 dark:text-stone-400">{new Date(r.created_at).toLocaleString()}</p>
+                    {r.details ? <p className="mt-1 text-small text-slate-600 dark:text-stone-400">{r.details}</p> : null}
                     {r.resolution_notes ? (
-                      <p className="mt-1 text-xs text-slate-500">Note: {r.resolution_notes}</p>
+                      <p className="mt-1 text-small text-slate-500 dark:text-stone-400">Note: {r.resolution_notes}</p>
                     ) : null}
                   </td>
-                  <td className="px-3 py-2 align-top text-xs">
+                  <td className="px-3 py-2 align-top text-small">
                     {r.slot ? (
                       <p>
                         Listing: {r.slot.title} ({r.slot.status})
                       </p>
                     ) : null}
-                    {r.targetUser ? <p>User: {r.targetUser.walletDisplay}</p> : null}
+                    {r.targetUser ? <p className="font-mono">User: {r.targetUser.walletDisplay}</p> : null}
                   </td>
                   <td className="px-3 py-2 align-top">{r.reason}</td>
                   <td className="px-3 py-2 align-top">{r.status}</td>
@@ -114,7 +116,7 @@ export default function AdminReports() {
                     <button
                       type="button"
                       onClick={() => setResolving(r)}
-                      className="min-h-touch rounded-lg border border-slate-300 px-3 py-1 text-sm font-medium text-slate-700"
+                      className="min-h-touch rounded-lg border border-slate-300 px-3 py-1 text-body font-medium text-slate-700 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-300"
                     >
                       Resolve
                     </button>
@@ -127,7 +129,7 @@ export default function AdminReports() {
                 type="button"
                 disabled={offset === 0}
                 onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-                className="min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
+                className="min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-body font-medium text-slate-700 disabled:opacity-50 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-300"
               >
                 Previous
               </button>
@@ -135,7 +137,7 @@ export default function AdminReports() {
                 type="button"
                 disabled={offset + PAGE_SIZE >= total}
                 onClick={() => setOffset((o) => o + PAGE_SIZE)}
-                className="min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
+                className="min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-body font-medium text-slate-700 disabled:opacity-50 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-300"
               >
                 Next
               </button>

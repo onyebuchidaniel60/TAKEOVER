@@ -27,11 +27,11 @@ export default function SellNew() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/sell" className="inline-block min-h-touch py-2 text-sm font-medium text-slate-600">
+      <Link to="/sell" className="inline-block min-h-touch py-2 text-body font-medium text-slate-600 dark:text-stone-400">
         ← Back to my openings
       </Link>
-      <h1 className="mt-1 text-2xl font-bold tracking-tight">New opening</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="mt-1 text-h1 font-bold text-slate-900 dark:text-stone-100">New opening</h1>
+      <p className="mt-1 text-body text-slate-500 dark:text-stone-400">
         Saved as a draft first — nothing goes public until you publish it.
       </p>
       <div className="mt-4">

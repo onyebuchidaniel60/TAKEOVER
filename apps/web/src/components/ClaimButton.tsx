@@ -29,12 +29,12 @@ export default function ClaimButton({ slotId }: { slotId: string }) {
         type="button"
         onClick={handleClick}
         disabled={claiming}
-        className="min-h-touch w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+        className="min-h-touch w-full rounded-lg bg-slate-900 px-4 py-2 text-body font-medium text-white disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 dark:bg-stone-100 dark:text-stone-900 dark:focus-visible:ring-stone-200 dark:focus-visible:ring-offset-stone-900"
       >
         {claiming ? 'Holding your spot…' : 'Claim this opening'}
       </button>
       {error ? (
-        <p className="mt-2 text-sm font-medium text-red-800" role="alert">
+        <p className="mt-2 text-body font-medium text-red-800 dark:text-red-300" role="alert">
           {error}
         </p>
       ) : null}

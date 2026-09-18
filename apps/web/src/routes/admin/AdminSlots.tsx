@@ -71,16 +71,16 @@ export default function AdminSlots() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/admin" className="inline-block min-h-touch py-2 text-sm font-medium text-slate-600">
+      <Link to="/admin" className="inline-block min-h-touch py-2 text-body font-medium text-slate-600 dark:text-stone-400">
         ← Moderation
       </Link>
-      <h1 className="mt-1 text-2xl font-bold tracking-tight">Listings</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="mt-1 text-h1 font-bold text-slate-900 dark:text-stone-100">Listings</h1>
+      <p className="mt-1 text-body text-slate-500 dark:text-stone-400">
         Openings seen in reports or payment reviews. Only draft or published listings can be
         disabled; paid claims are never touched.
       </p>
       {notice ? (
-        <p role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+        <p role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-body text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
           {notice}
         </p>
       ) : null}
@@ -91,8 +91,10 @@ export default function AdminSlots() {
             type="button"
             onClick={() => setFilter(f)}
             aria-pressed={filter === f}
-            className={`min-h-touch rounded-full px-4 py-2 text-sm font-medium ${
-              filter === f ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'
+            className={`min-h-touch rounded-full px-4 py-2 text-body font-medium ${
+              filter === f
+                ? 'bg-slate-900 text-white dark:bg-stone-100 dark:text-stone-900'
+                : 'border border-slate-300 bg-white text-slate-700 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-300'
             }`}
           >
             {f || 'All'}
@@ -112,7 +114,7 @@ export default function AdminSlots() {
         ) : (
           <AdminTable label="Listings seen in moderation" headers={['Listing', 'Status', 'Seen in', 'Action']}>
             {visible.map((s) => (
-              <tr key={s.id} className="border-b border-slate-100 last:border-0">
+              <tr key={s.id} className="border-b border-slate-100 last:border-0 dark:border-stone-800">
                 <td className="px-3 py-2 font-medium">{s.title}</td>
                 <td className="px-3 py-2">{s.status}</td>
                 <td className="px-3 py-2">{s.source}</td>
@@ -120,7 +122,7 @@ export default function AdminSlots() {
                   <button
                     type="button"
                     onClick={() => setDisabling(s)}
-                    className="min-h-touch rounded-lg border border-red-300 px-3 py-1 text-sm font-medium text-red-700"
+                    className="min-h-touch rounded-lg border border-red-300 px-3 py-1 text-body font-medium text-red-700 dark:border-red-600 dark:bg-stone-900 dark:text-red-300"
                   >
                     Disable
                   </button>
@@ -131,7 +133,7 @@ export default function AdminSlots() {
         )}
       </div>
       <form
-        className="mt-6 rounded-xl border border-slate-200 bg-white p-4"
+        className="mt-6 rounded-xl border border-slate-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900"
         onSubmit={(e) => {
           e.preventDefault();
           if (manualId.trim()) {
@@ -139,7 +141,7 @@ export default function AdminSlots() {
           }
         }}
       >
-        <label className="block text-sm font-medium text-slate-700" htmlFor="manual-slot-id">
+        <label className="block text-body font-medium text-slate-700 dark:text-stone-300" htmlFor="manual-slot-id">
           Disable a listing by id
         </label>
         <div className="mt-1 flex gap-2">
@@ -150,11 +152,11 @@ export default function AdminSlots() {
             placeholder="Listing id (uuid)"
             autoComplete="off"
             spellCheck={false}
-            className="min-h-touch flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="min-h-touch flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-body text-slate-900 placeholder:text-slate-400 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-100 dark:placeholder:text-stone-500"
           />
           <button
             type="submit"
-            className="min-h-touch shrink-0 rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white"
+            className="min-h-touch shrink-0 rounded-lg bg-red-700 px-4 py-2 text-body font-medium text-white dark:bg-red-600"
           >
             Disable
           </button>

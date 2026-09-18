@@ -148,25 +148,35 @@ describe('bearer fallback client wiring', () => {
     expect((seen[0]?.headers as Record<string, string>)['authorization']).toBe('Bearer caller-choice');
   });
 
-  it('source posture: no localStorage reference anywhere in web src', () => {
-    const offenders: string[] = [];
-    const src = resolve(process.cwd(), 'src');
-    const walk = (dir: string): void => {
-      for (const entry of readdirSync(dir)) {
-        const full = join(dir, entry);
-        if (statSync(full).isDirectory()) {
-          walk(full);
-        } else if (/\.(ts|tsx)$/.test(entry)) {
-          const text = readFileSync(full, 'utf8');
-          text.split('\n').forEach((line, idx) => {
-            if (/localStorage/.test(line)) {
-              offenders.push(`${full}:${idx + 1}`);
-            }
-          });
+    it('source posture: no localStorage reference anywhere in web src except the theme store', () => {
+      const offenders: string[] = [];
+      const src = resolve(process.cwd(), 'src');
+      // Phase 14l-3: store/theme.ts is the single sanctioned localStorage
+      // user (key 'takeover-theme': a non-credential Light/Dark/Auto UI
+      // choice — never a token, never a wallet, never a session). Session
+      // material stays in sessionStorage (asserted above); anything else
+      // touching localStorage fails this posture gate.
+      const SANCTIONED_FILE = join('store', 'theme.ts');
+      const walk = (dir: string): void => {
+        for (const entry of readdirSync(dir)) {
+          const full = join(dir, entry);
+          if (statSync(full).isDirectory()) {
+            walk(full);
+          } else if (/\.(ts|tsx)$/.test(entry)) {
+            const text = readFileSync(full, 'utf8');
+            text.split('\n').forEach((line, idx) => {
+              if (/localStorage/.test(line) && !full.endsWith(SANCTIONED_FILE)) {
+                offenders.push(`${full}:${idx + 1}`);
+              }
+            });
+          }
         }
-      }
-    };
-    walk(src);
-    expect(offenders).toEqual([]);
-  });
+      };
+      walk(src);
+      expect(offenders).toEqual([]);
+      // And the sanctioned file must stay credential-free: no session token,
+      // wallet, or secret may ever pass through the theme preference.
+      const themeSrc = readFileSync(join(src, SANCTIONED_FILE), 'utf8');
+      expect(themeSrc).not.toMatch(/sessionToken|SESSION_TOKEN|walletAddress|secret|privateKey/i);
+    });
 });

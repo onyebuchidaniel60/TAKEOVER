@@ -41,8 +41,8 @@ export default function ClaimsPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <h1 className="text-2xl font-bold tracking-tight">My holds</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="text-h1 font-bold text-slate-900 dark:text-stone-100">My holds</h1>
+      <p className="mt-1 font-mono text-body tabular-nums text-slate-500 dark:text-stone-400">
         {total} hold{total === 1 ? '' : 's'} in total.
       </p>
       <div className="mt-4" aria-live="polite">
@@ -57,7 +57,7 @@ export default function ClaimsPage() {
             action={
               <Link
                 to="/"
-                className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-body font-medium text-white dark:bg-stone-100 dark:text-stone-900"
               >
                 Browse openings
               </Link>
@@ -69,14 +69,14 @@ export default function ClaimsPage() {
               <details
                 key={bucket.key}
                 open={bucket.claims.length > 0}
-                className="rounded-xl border border-slate-200 bg-white"
+                className="rounded-xl border border-slate-200 bg-white dark:border-stone-800 dark:bg-stone-900"
               >
-                <summary className="min-h-touch cursor-pointer list-none px-4 py-3 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 [&::-webkit-details-marker]:hidden">
+                <summary className="min-h-touch cursor-pointer list-none px-4 py-3 text-body font-semibold text-slate-900 dark:text-stone-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 dark:focus-visible:ring-stone-200 [&::-webkit-details-marker]:hidden">
                   {bucket.title} ({bucket.claims.length})
                 </summary>
-                <div className="border-t border-slate-100 p-4">
+                <div className="border-t border-slate-100 p-4 dark:border-stone-800">
                   {bucket.claims.length === 0 ? (
-                    <p className="text-sm text-slate-500">{bucket.emptyText}</p>
+                    <p className="text-body text-slate-500 dark:text-stone-400">{bucket.emptyText}</p>
                   ) : (
                     <ul className="flex flex-col gap-3" aria-label={bucket.title}>
                       {bucket.claims.map((claim) => (

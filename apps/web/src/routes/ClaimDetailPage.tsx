@@ -69,7 +69,7 @@ export default function ClaimDetailPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/claims" className="inline-block min-h-touch py-2 text-sm font-medium text-slate-600">
+      <Link to="/claims" className="inline-block min-h-touch py-2 text-body font-medium text-slate-600 dark:text-stone-400">
         ← Back to my holds
       </Link>
       <div className="mt-2">
@@ -84,7 +84,7 @@ export default function ClaimDetailPage() {
             action={
               <Link
                 to="/claims"
-                className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-body font-medium text-white dark:bg-stone-100 dark:text-stone-900"
               >
                 See my holds
               </Link>
@@ -120,7 +120,7 @@ function ClaimBody({
   onSubmitted: () => void;
 }) {
   return (
-    <article className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <article className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-stone-800 dark:bg-stone-900">
       <div className="p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <ClaimStatusBadge status={claim.status} />
@@ -128,11 +128,11 @@ function ClaimBody({
             <HoldCountdown holdExpiresAt={claim.hold_expires_at} />
           ) : null}
         </div>
-        <h1 className="mt-3 text-2xl font-bold tracking-tight">{slot.title}</h1>
+        <h1 className="mt-3 text-h1 font-bold text-slate-900 dark:text-stone-100">{slot.title}</h1>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <TimeBadge startsAt={slot.starts_at} endsAt={slot.ends_at} />
         </div>
-        <div className="mt-4 border-t border-slate-100 pt-4">
+        <div className="mt-4 border-t border-slate-100 pt-4 dark:border-stone-800">
           <PriceDisplay priceUsdt={slot.price_usdt} large />
         </div>
         {claim.status === 'active_hold' ? (
@@ -149,25 +149,25 @@ function ClaimBody({
           <VerifyPollBox claim={claim} onResolved={onSubmitted} />
         ) : null}
         {claim.status === 'payment_review' ? (
-          <div className="mt-4 rounded-lg bg-amber-50 p-3">
-            <p className="text-sm font-medium text-amber-900">
+          <div className="mt-4 rounded-lg bg-amber-50 p-3 dark:bg-amber-950">
+            <p className="text-body font-medium text-amber-900 dark:text-amber-300">
               Payment under review. We&apos;ll be in touch.
             </p>
           </div>
         ) : null}
         {claim.status === 'expired' ? (
-          <div className="mt-4 rounded-lg bg-slate-50 p-3">
-            <p className="text-sm font-medium text-slate-700">Hold expired</p>
+          <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-stone-800">
+            <p className="text-body font-medium text-slate-700 dark:text-stone-300">Hold expired</p>
             <Link
               to={`/slot/${slot.id}`}
-              className="mt-1 inline-flex min-h-touch items-center text-sm underline"
+              className="mt-1 inline-flex min-h-touch items-center text-body text-slate-900 underline dark:text-stone-100"
             >
               Claim again
             </Link>
           </div>
         ) : null}
         {claim.status === 'paid' ? (
-          <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+          <p className="mt-4 rounded-lg bg-slate-50 p-3 text-body text-slate-600 dark:bg-stone-800 dark:text-stone-400">
             Paid.
           </p>
         ) : null}
@@ -177,7 +177,7 @@ function ClaimBody({
         claim.status !== 'expired' &&
         claim.status !== 'paid' &&
         !ESCROW_CLAIM_STATUSES.includes(claim.status) ? (
-          <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+          <p className="mt-4 rounded-lg bg-slate-50 p-3 text-body text-slate-600 dark:bg-stone-800 dark:text-stone-400">
             This hold is no longer active.
           </p>
         ) : null}
@@ -317,30 +317,30 @@ function VerifyPollBox({ claim, onResolved }: { claim: ClaimView; onResolved: ()
   };
 
   return (
-    <div className="mt-4 rounded-lg bg-amber-50 p-3">
+    <div className="mt-4 rounded-lg bg-amber-50 p-3 dark:bg-amber-950">
       {display === 'review' ? (
-        <p className="text-sm font-medium text-amber-900">
+        <p className="text-body font-medium text-amber-900 dark:text-amber-300">
           Payment under review. We&apos;ll be in touch.
         </p>
       ) : display === 'exhausted' ? (
-        <p className="text-sm font-medium text-amber-900">
+        <p className="text-body font-medium text-amber-900 dark:text-amber-300">
           Still pending. Tap to check again.
         </p>
       ) : display === 'rpc-down' ? (
-        <p className="text-sm font-medium text-amber-900">
+        <p className="text-body font-medium text-amber-900 dark:text-amber-300">
           Verification is temporarily unavailable. Retrying automatically.
         </p>
       ) : confirmations !== null ? (
-        <p className="text-sm font-medium text-amber-900">
+        <p className="font-mono text-body font-medium tabular-nums text-amber-900 dark:text-amber-300">
           Awaiting confirmation ({confirmations}/3)
         </p>
       ) : (
-        <p className="text-sm font-medium text-amber-900">
+        <p className="text-body font-medium text-amber-900 dark:text-amber-300">
           {display === 'checking' ? 'Checking payment status…' : 'Awaiting confirmation.'}
         </p>
       )}
-      {txHash ? <p className="mt-1 break-all text-xs text-amber-800">{txHash}</p> : null}
-      <p className="mt-1 text-xs text-amber-800">
+      {txHash ? <p className="mt-1 break-all font-mono text-small text-amber-800 dark:text-amber-200">{txHash}</p> : null}
+      <p className="mt-1 font-mono text-small tabular-nums text-amber-800 dark:text-amber-200">
         Hold deadline was {new Date(claim.hold_expires_at).toLocaleString()}. Status checks only
         — your payment is never sent twice. {attempts > 0 ? `Checked ${attempts} time(s).` : null}
       </p>
@@ -348,7 +348,7 @@ function VerifyPollBox({ claim, onResolved }: { claim: ClaimView; onResolved: ()
         type="button"
         onClick={handleManualCheck}
         disabled={manualBusy}
-        className="mt-3 min-h-touch rounded-lg border border-amber-400 bg-white px-4 py-2 text-sm font-medium text-amber-900 disabled:opacity-50"
+        className="mt-3 min-h-touch rounded-lg border border-amber-400 bg-white px-4 py-2 text-body font-medium text-amber-900 disabled:opacity-50 dark:border-amber-700 dark:bg-stone-900 dark:text-amber-300"
       >
         {manualBusy ? 'Checking…' : 'Check status'}
       </button>

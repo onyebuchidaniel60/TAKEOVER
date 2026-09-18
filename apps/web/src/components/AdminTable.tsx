@@ -12,12 +12,12 @@ export default function AdminTable({
   label: string;
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-      <table className="w-full min-w-admintable text-left text-sm" aria-label={label}>
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-stone-800 dark:bg-stone-900 dark:shadow-none">
+      <table className="w-full min-w-admintable text-left text-body text-slate-900 dark:text-stone-100" aria-label={label}>
         <thead>
-          <tr className="border-b border-slate-200 bg-slate-50">
+          <tr className="border-b border-slate-200 bg-slate-50 dark:border-stone-800 dark:bg-stone-800">
             {headers.map((h) => (
-              <th key={h} scope="col" className="px-3 py-2 text-xs font-semibold text-slate-500">
+              <th key={h} scope="col" className="px-3 py-2 text-small font-semibold text-slate-500 dark:text-stone-400">
                 {h}
               </th>
             ))}

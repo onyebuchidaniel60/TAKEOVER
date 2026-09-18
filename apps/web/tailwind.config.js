@@ -1,5 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  // Phase 14l-3: class-driven dark mode (warm dark, stone-based — never an
+  // inversion). Components carry light + dark values on the SAME utilities
+  // (e.g. bg-white dark:bg-stone-900) — not a parallel token system.
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
@@ -43,6 +47,44 @@ export default {
         'card-hover':
           '0 2px 4px rgb(28 25 23 / 0.06), 0 16px 32px -12px rgb(28 25 23 / 0.22)',
       },
+      // Phase 14l-3 type scale (direction A + apple skill §15: tracking
+      // is size-specific — negative on display/headings, neutral on body,
+      // slightly positive on small; leading runs inversely to size;
+      // hierarchy comes from weight + size + leading as a set).
+      // Weight defaults (kept explicit at each call site): display/h1/h2
+      // bold, h3 semibold, body regular, small medium. Mono is a family
+      // pairing (Geist Mono + tabular numerals for every price, countdown,
+      // count, and date figure) and composes with the sizes above.
+      fontFamily: {
+        // Geist Sans (self-hosted woff2, font-display: swap) with the
+        // system stack as the instant fallback and the metric-compatible
+        // tail behind it — no layout shift beyond the swap itself.
+        sans: [
+          'Geist Sans',
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          '"Segoe UI"',
+          'Roboto',
+          'sans-serif',
+        ],
+        // Geist Mono for figures. Same self-hosted treatment as sans.
+        mono: ['Geist Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+      },
+      fontSize: {
+        // Hero price / admin stat. 30px, tightest tracking.
+        display: ['1.875rem', { lineHeight: '2.25rem', letterSpacing: '-0.02em' }],
+        // Page titles. 24px.
+        h1: ['1.5rem', { lineHeight: '2rem', letterSpacing: '-0.02em' }],
+        // Section headings. 20px.
+        h2: ['1.25rem', { lineHeight: '1.75rem', letterSpacing: '-0.01em' }],
+        // Card titles. 16px.
+        h3: ['1rem', { lineHeight: '1.5rem', letterSpacing: '-0.01em' }],
+        // Default body copy. 14px.
+        body: ['0.875rem', { lineHeight: '1.25rem', letterSpacing: '0em' }],
+        // Captions, labels, badges, counts. 12px, opened up a touch.
+        small: ['0.75rem', { lineHeight: '1rem', letterSpacing: '0.01em' }],
+      },
       // Phase 14i-1 feed entrance (direction A only, capped + staggered in
       // SlotList). opacity + translateY(8px) only — never scale(0).
       keyframes: {
@@ -72,9 +114,20 @@ export default {
 // panels/buttons/inputs rounded-lg, badges/pills rounded-full. Modals join
 // rounded-2xl in 14i-3; nothing new uses rounded-xl-for-cards.
 //
-// Type scale (stock Tailwind sizes, used consistently):
-// h1 page titles text-2xl font-bold tracking-tight; card titles text-base
-// font-semibold; body text-sm; captions/labels text-xs. Prices use
-// text-2xl (large) / text-base via PriceDisplay. System stack only (no
-// webfont): tracking is size-specific (tight titles, neutral body) and
-// every time/money/count figure sets tabular-nums.
+// Type scale (14l-3, locked): display 30/36/-0.02 bold; h1 24/32/-0.02
+// bold; h2 20/28/-0.01 bold; h3 16/24/-0.01 semibold; body 14/20/0
+// regular; small 12/16/+0.01 medium. No text size outside this scale —
+// a surface needing another size takes the nearest match. Figures
+// (prices, countdowns, counts, dates) pair a scale size with font-mono
+// + tabular-nums. Uppercase micro-labels may add tracking-wide on top
+// of small; relaxed body copy may add leading-relaxed on top of body.
+//
+// Dark palette (14l-3, warm dark — stone, never an inversion):
+// page stone-950, cards stone-900, inner panels stone-800; borders
+// stone-800 (cards) / stone-700→600 (inputs/buttons); text stone-100 /
+// stone-300 / stone-400; primary fills invert to stone-100 with
+// stone-900 text; status hues step to the 300 level on 950 washes
+// (emerald/amber/orange/sky/red); destructive fills stay red-700+ for
+// white-text contrast. Elevation in dark comes from border contrast,
+// not shadows (shadow-card/shadow-sm render dark:shadow-none).
+// Every pair below is contrast-measured (see the phase report).

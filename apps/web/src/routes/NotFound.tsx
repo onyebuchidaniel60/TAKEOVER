@@ -14,7 +14,7 @@ export default function NotFound() {
         action={
           <Link
             to="/"
-            className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+            className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-body font-medium text-white dark:bg-stone-100 dark:text-stone-900"
           >
             See available openings
           </Link>

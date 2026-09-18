@@ -9,7 +9,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import RequireAdmin from '../src/components/RequireAdmin';
 import RequireAuth from '../src/components/RequireAuth';
 import AdminAudit from '../src/routes/admin/AdminAudit';
@@ -432,5 +432,340 @@ describe('axe on error states', () => {
     const reportButton = screen.getByRole('button', { name: /report this opening/i });
     await user.click(reportButton);
     await checkAxe('report dialog', container);
+  });
+});
+
+// Phase 14l-3: the same route coverage with dark mode forced (the `dark`
+// class Tailwind's class strategy reads). Dark variants are class-only, so
+// forcing the class is the full theme switch — no matchMedia stub needed.
+// color-contrast stays palette-math (see the phase report); axe asserts the
+// structural half (names, roles, focus, regions) is identical in the dark.
+describe('axe on routes with dark mode forced', () => {
+  beforeEach(() => {
+    document.documentElement.classList.add('dark');
+  });
+
+  afterEach(() => {
+    document.documentElement.classList.remove('dark');
+  });
+
+  it('/ renders without critical/serious violations (dark)', async () => {
+    setGuest();
+    mockFetch((url) => {
+      if (url.startsWith('/api/v1/slots')) return slotsList();
+      return undefined;
+    });
+    const container = renderAt('/', '/', <Home />);
+    await awaitLoaded();
+    await checkAxe('/ (dark)', container);
+  });
+
+  it('/slot/:id renders without critical/serious violations (dark)', async () => {
+    setBuyer();
+    mockFetch((url) => {
+      if (url.startsWith('/api/v1/slots/')) return { slot: slotFixture() };
+      return undefined;
+    });
+    const container = renderAt('/slot/slot-1', '/slot/:slotId', <SlotDetailPage />);
+    await awaitLoaded();
+    await checkAxe('/slot/:id (dark)', container);
+    expect(container.textContent).toContain('Table for two');
+  });
+
+  it('/claim/:id renders without critical/serious violations (dark)', async () => {
+    setBuyer();
+    mockFetch((url) => {
+      if (url.includes('/payment-intent')) return { intent: intentFixture(), claim: claimFixture(), slot: slotFixture() };
+      if (url.startsWith('/api/v1/claims/')) return { claim: claimFixture(), slot: slotFixture() };
+      return undefined;
+    });
+    const container = renderAt(
+      '/claim/claim-1',
+      '/claim/:claimId',
+      <RequireAuth>
+        <ClaimDetailPage />
+      </RequireAuth>,
+    );
+    await awaitLoaded();
+    await checkAxe('/claim/:id (dark)', container);
+  });
+
+  it('/claims renders without critical/serious violations (dark)', async () => {
+    setBuyer();
+    mockFetch((url) => {
+      if (url.startsWith('/api/v1/me/claims')) {
+        return { claims: [claimFixture(), claimFixture('paid', { id: 'c2' })], total: 2, limit: 50, offset: 0 };
+      }
+      return undefined;
+    });
+    const container = renderAt(
+      '/claims',
+      '/claims',
+      <RequireAuth>
+        <ClaimsPage />
+      </RequireAuth>,
+    );
+    await awaitLoaded();
+    await checkAxe('/claims (dark)', container);
+  });
+
+  it('/sell renders without critical/serious violations (dark)', async () => {
+    setBuyer();
+    mockFetch((url) => {
+      if (url.startsWith('/api/v1/me/slots/')) return { claims: [], counts: emptyCounts() };
+      if (url.startsWith('/api/v1/me/slots')) {
+        return { slots: [{ ...slotFixture(), payout_wallet: 'NQ0700000000000000000000000000000000' }], total: 1, limit: 50, offset: 0 };
+      }
+      return undefined;
+    });
+    const container = renderAt(
+      '/sell',
+      '/sell',
+      <RequireAuth>
+        <Sell />
+      </RequireAuth>,
+    );
+    await awaitLoaded();
+    await checkAxe('/sell (dark)', container);
+  });
+
+  it('/sell/new renders without critical/serious violations (dark)', async () => {
+    setBuyer();
+    mockFetch(() => undefined);
+    const container = renderAt(
+      '/sell/new',
+      '/sell/new',
+      <RequireAuth>
+        <SellNew />
+      </RequireAuth>,
+    );
+    await awaitLoaded();
+    await checkAxe('/sell/new (dark)', container);
+  });
+
+  it('/sell/:id renders without critical/serious violations (dark)', async () => {
+    setBuyer();
+    mockFetch((url) => {
+      if (url.startsWith('/api/v1/slots/')) {
+        return { slot: { ...slotFixture(), payout_wallet: 'NQ0700000000000000000000000000000000', status: 'draft' } };
+      }
+      return undefined;
+    });
+    const container = renderAt(
+      '/sell/slot-1',
+      '/sell/:slotId',
+      <RequireAuth>
+        <SellDetail />
+      </RequireAuth>,
+    );
+    await awaitLoaded();
+    await checkAxe('/sell/:id (dark)', container);
+  });
+
+  it('/profile renders without critical/serious violations (dark)', async () => {
+    setBuyer();
+    mockFetch((url) => {
+      if (url === '/api/v1/me') return { user: meFixture() };
+      if (url.startsWith('/api/v1/me/slots')) return { slots: [], total: 0, limit: 1, offset: 0 };
+      if (url === '/api/v1/me/notifications') {
+        return {
+          notifications: [
+            {
+              id: 'note-1',
+              type: 'slot_delivered',
+              entity_type: 'claim',
+              entity_id: 'claim-1',
+              title: 'Marked delivered',
+              body: 'Your claim was marked delivered.',
+              read_at: null,
+              created_at: new Date().toISOString(),
+            },
+          ],
+          unreadCount: 1,
+        };
+      }
+      return undefined;
+    });
+    const container = renderAt(
+      '/profile',
+      '/profile',
+      <RequireAuth>
+        <Profile />
+      </RequireAuth>,
+    );
+    await awaitLoaded();
+    await checkAxe('/profile (dark)', container);
+  });
+
+  it('unknown path renders the 404 page without critical/serious violations (dark)', async () => {
+    setGuest();
+    mockFetch(() => undefined);
+    const container = renderAt('/nope', '*', <NotFound />);
+    await checkAxe('404 (dark)', container);
+    expect(container.textContent).toContain('doesn’t exist');
+  });
+
+  it('/admin renders without critical/serious violations (dark)', async () => {
+    setAdmin();
+    mockFetch((url) => {
+      if (url.startsWith('/api/v1/admin/reports')) return { reports: [], total: 0, limit: 1, offset: 0 };
+      if (url.startsWith('/api/v1/admin/payment-reviews')) return { reviews: [], total: 0, limit: 1, offset: 0 };
+      if (url.startsWith('/api/v1/admin/audit-events')) return { events: [], total: 0, limit: 1, offset: 0 };
+      return undefined;
+    });
+    const container = renderAt(
+      '/admin',
+      '/admin',
+      <RequireAdmin>
+        <AdminDashboard />
+      </RequireAdmin>,
+    );
+    await awaitLoaded();
+    await checkAxe('/admin (dark)', container);
+  });
+
+  it('/admin/reports renders without critical/serious violations (dark)', async () => {
+    setAdmin();
+    mockFetch((url) => {
+      if (url.startsWith('/api/v1/admin/reports')) {
+        return { reports: [adminReport()], total: 1, limit: 20, offset: 0 };
+      }
+      return undefined;
+    });
+    const container = renderAt(
+      '/admin/reports',
+      '/admin/reports',
+      <RequireAdmin>
+        <AdminReports />
+      </RequireAdmin>,
+    );
+    await awaitLoaded();
+    await checkAxe('/admin/reports (dark)', container);
+  });
+
+  it('/admin/payment-reviews renders without critical/serious violations (dark)', async () => {
+    setAdmin();
+    mockFetch((url) => {
+      if (url.startsWith('/api/v1/admin/payment-reviews')) {
+        return {
+          reviews: [
+            {
+              claim: { id: 'claim-1', status: 'payment_review', buyerWallet: 'NQ0700000000000000000000000000000000', claimed_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+              slot: { id: 'slot-1', title: 'Table for two', price_usdt: '150000', payout_wallet: 'NQ3200000000000000000000000000000000' },
+              intent: { id: 'intent-1', expected_amount_nim: '150000', expected_recipient: 'NQ32', expected_sender: 'NQ07', expected_data: 'TAKEOVER:v1:claim-1', tx_hash: null, submitted_at: null },
+            },
+          ],
+          total: 1,
+          limit: 20,
+          offset: 0,
+        };
+      }
+      return undefined;
+    });
+    const container = renderAt(
+      '/admin/payment-reviews',
+      '/admin/payment-reviews',
+      <RequireAdmin>
+        <AdminPaymentReviews />
+      </RequireAdmin>,
+    );
+    await awaitLoaded();
+    await checkAxe('/admin/payment-reviews (dark)', container);
+  });
+
+  it('/admin/users renders without critical/serious violations (dark)', async () => {
+    setAdmin();
+    mockFetch((url) => {
+      if (url.startsWith('/api/v1/admin/reports')) {
+        return { reports: [adminReport()], total: 1, limit: 50, offset: 0 };
+      }
+      return undefined;
+    });
+    const container = renderAt(
+      '/admin/users',
+      '/admin/users',
+      <RequireAdmin>
+        <AdminUsers />
+      </RequireAdmin>,
+    );
+    await awaitLoaded();
+    await checkAxe('/admin/users (dark)', container);
+  });
+
+  it('/admin/slots renders without critical/serious violations (dark)', async () => {
+    setAdmin();
+    mockFetch((url) => {
+      if (url.startsWith('/api/v1/admin/reports')) {
+        return { reports: [adminReport()], total: 1, limit: 50, offset: 0 };
+      }
+      if (url.startsWith('/api/v1/admin/payment-reviews')) {
+        return { reviews: [], total: 0, limit: 50, offset: 0 };
+      }
+      return undefined;
+    });
+    const container = renderAt(
+      '/admin/slots',
+      '/admin/slots',
+      <RequireAdmin>
+        <AdminSlots />
+      </RequireAdmin>,
+    );
+    await awaitLoaded();
+    await checkAxe('/admin/slots (dark)', container);
+  });
+
+  it('/admin/audit renders without critical/serious violations (dark)', async () => {
+    setAdmin();
+    mockFetch((url) => {
+      if (url.startsWith('/api/v1/admin/audit-events')) {
+        return {
+          events: [
+            { id: 'e1', actor: { id: 'u1', walletDisplay: 'NQ07…0000' }, event_type: 'slot.published', entity_type: 'slot', entity_id: 'slot-1', metadata: { from: 'draft', to: 'published' }, created_at: new Date().toISOString(), request_id: 'r1' },
+          ],
+          total: 1,
+          limit: 20,
+          offset: 0,
+        };
+      }
+      return undefined;
+    });
+    const container = renderAt(
+      '/admin/audit',
+      '/admin/audit',
+      <RequireAdmin>
+        <AdminAudit />
+      </RequireAdmin>,
+    );
+    await awaitLoaded();
+    await checkAxe('/admin/audit (dark)', container);
+  });
+
+  it('/slot/:id error state has no critical/serious violations (dark)', async () => {
+    setGuest();
+    mockFetch(() => err(500, 'INTERNAL_ERROR', 'Something went wrong.'));
+    const container = renderAt('/slot/slot-1', '/slot/:slotId', <SlotDetailPage />);
+    await awaitLoaded();
+    expect(container.textContent).toContain('Couldn’t load this page');
+    await checkAxe('/slot/:id error (dark)', container);
+  });
+
+  it('dialogs have no critical/serious violations (dark)', async () => {
+    setBuyer();
+    mockFetch((url) => {
+      if (url.startsWith('/api/v1/slots/')) return { slot: slotFixture() };
+      return undefined;
+    });
+    const user = userEvent.setup();
+    const { container } = render(
+      <MemoryRouter initialEntries={['/slot/slot-1']}>
+        <Routes>
+          <Route path="/slot/:slotId" element={<SlotDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await awaitLoaded();
+    const reportButton = screen.getByRole('button', { name: /report this opening/i });
+    await user.click(reportButton);
+    await checkAxe('report dialog (dark)', container);
   });
 });

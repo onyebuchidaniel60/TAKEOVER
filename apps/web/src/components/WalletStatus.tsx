@@ -12,7 +12,7 @@ export default function WalletStatus() {
     return (
       <div className="flex min-w-0 items-center gap-2">
         <span
-          className="max-w-44 truncate rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-900"
+          className="max-w-44 truncate rounded-full bg-emerald-100 px-3 py-1 text-body font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
           title={user.walletAddress}
         >
           {truncate(user.walletAddress)}
@@ -20,7 +20,7 @@ export default function WalletStatus() {
         <button
           type="button"
           onClick={() => void logout()}
-          className="inline-flex min-h-touch shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-700 transition-transform duration-press ease-out-strong active:scale-[0.97]"
+          className="inline-flex min-h-touch shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1 text-body font-medium text-slate-700 transition-transform duration-press ease-out-strong active:scale-[0.97] dark:border-stone-500 dark:bg-stone-900 dark:text-stone-300"
         >
           <LogOut size={14} aria-hidden="true" />
           Log out
@@ -35,13 +35,13 @@ export default function WalletStatus() {
         type="button"
         onClick={() => void login()}
         disabled={status === 'authenticating'}
-        className="inline-flex min-h-touch items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-transform duration-press ease-out-strong active:scale-[0.97] disabled:opacity-60"
+        className="inline-flex min-h-touch items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-body font-semibold text-white transition-transform duration-press ease-out-strong active:scale-[0.97] disabled:opacity-60 dark:bg-stone-100 dark:text-stone-900"
       >
         <Wallet size={16} aria-hidden="true" />
         {status === 'authenticating' ? 'Connecting…' : 'Connect Wallet'}
       </button>
       {error ? (
-        <p role="alert" className="max-w-56 text-right text-xs text-red-800">
+        <p role="alert" className="max-w-56 text-right text-small text-red-800 dark:text-red-300">
           {error}
         </p>
       ) : null}
