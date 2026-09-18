@@ -33,3 +33,14 @@ Thumbs.db
 # contracts/broadcast/ is deliberately NOT ignored (14e-2 decides).
 contracts/out/
 contracts/cache/
+
+# Phase 15a demo video — composition source is committed, renders are not.
+# Rendered outputs stay out (root MP4 + renders/), but the two owner-supplied
+# input clips must stay tracked — without them the composition cannot render.
+video/*.mp4
+!video/assets/nimiq-pay-segment.mp4
+!video/assets/nimiq-pay-reference-video.mp4
+video/renders/
+video/.cache/
+video/snapshots/
+video/node_modules/

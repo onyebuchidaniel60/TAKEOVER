@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          background: #1d130c;
+          overflow: hidden;
+          font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+        #f9-ground {
+          position: absolute;
+          inset: 0;
+          background: #1d130c;
+        }
+        #f9-phone {
+          position: absolute;
+          top: 40px;
+          left: 735px;
+          width: 450px;
+          height: 815px;
+          border: 10px solid #4e3a24;
+          border-radius: 48px;
+          overflow: hidden;
+          background: #2b1e12;
+        }
+        #f9-phone img {
+          display: block;
+          width: 430px;
+          height: 795px;
+          object-fit: cover;
+        }
+        #f9-line {
+          position: absolute;
+          top: 380px;
+          left: 150px;
+          width: 480px;
+          font-size: 40px;
+          line-height: 1.45;
+          color: #f1e7d2;
+        }
+        #f9-line strong {
+          color: #ead9bc;
+        }
+        #f9-tag {
+          position: absolute;
+          top: 380px;
+          right: 150px;
+          width: 480px;
+          text-align: right;
+          font-family: ui-monospace, Consolas, monospace;
+          font-size: 28px;
+          line-height: 1.6;
+          letter-spacing: 0.04em;
+          color: #ae9c7e;
+        }
+      </style>
+
+      <div id="root" data-composition-id="09-dark" data-width="1920" data-height="1080">
+        <div id="f9-ground" class="clip" data-start="0" data-duration="8.5"></div>
+        <div id="f9-line">Warm dark.<br />Same calm.</div>
+        <div id="f9-phone"><img src="assets/dark-feed.png" alt="TAKEOVER feed in warm dark mode" /></div>
+        <div id="f9-tag">COCOA · PARCHMENT<br />DESIGNED, NOT DERIVED</div>
+      </div>
+
+      <script>
+        (function () {
+          var tl = gsap.timeline({ paused: true });
+          tl.fromTo("#f9-phone", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.3, ease: "power3.out" }, 0.1);
+          tl.fromTo("#f9-line", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.28, ease: "power3.out" }, 0.9);
+          tl.fromTo("#f9-tag", { opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power3.out" }, 1.6);
+          window.__timelines["09-dark"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

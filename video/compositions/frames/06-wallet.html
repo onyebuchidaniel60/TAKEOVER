@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          background: #faf6ec;
+          overflow: hidden;
+          font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+        #f6-ground {
+          position: absolute;
+          inset: 0;
+          background: #faf6ec;
+        }
+        #f6-phone {
+          position: absolute;
+          top: 40px;
+          left: 735px;
+          width: 450px;
+          height: 815px;
+          border: 10px solid #453727;
+          border-radius: 48px;
+          overflow: hidden;
+          background: #1d130c;
+        }
+        #f6-phone-standin {
+          position: absolute;
+          top: 10px;
+          left: 10px;
+          width: 430px;
+          height: 795px;
+          border-radius: 38px;
+          background: #1d130c;
+        }
+        #f6-label {
+          position: absolute;
+          top: 380px;
+          left: 150px;
+          width: 480px;
+          font-family: ui-monospace, Consolas, monospace;
+          font-size: 28px;
+          line-height: 1.6;
+          letter-spacing: 0.04em;
+          color: #6f5e4a;
+        }
+        #f6-note {
+          position: absolute;
+          top: 380px;
+          right: 150px;
+          width: 480px;
+          text-align: right;
+          font-size: 36px;
+          line-height: 1.45;
+          color: #453727;
+        }
+        #f6-note strong {
+          color: #9d5a30;
+        }
+      </style>
+
+      <div id="root" data-composition-id="06-wallet" data-width="1920" data-height="1080">
+        <div id="f6-ground" class="clip" data-start="0" data-duration="7.5"></div>
+        <div id="f6-label">SHOT ON A<br />REAL PHONE</div>
+        <div id="f6-phone">
+          <!-- approved frame video hoisted by assemble-index -->
+        </div>
+        <div id="f6-note">Connect once.<br /><strong>Claims live here.</strong></div>
+      </div>
+
+      <script>
+        (function () {
+          var tl = gsap.timeline({ paused: true });
+          tl.fromTo("#f6-phone", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.3, ease: "power3.out" }, 0.1);
+          tl.fromTo("#f6-label", { opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power3.out" }, 0.8);
+          tl.fromTo("#f6-note", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.28, ease: "power3.out" }, 2.2);
+          window.__timelines["06-wallet"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

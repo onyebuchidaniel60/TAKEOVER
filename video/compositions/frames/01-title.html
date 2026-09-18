@@ -1,0 +1,89 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          background: #faf6ec;
+          overflow: hidden;
+          font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+        #f1-ground {
+          position: absolute;
+          inset: 0;
+          background: #faf6ec;
+        }
+        #f1-center {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 1920px;
+          height: 895px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+        }
+        #f1-kicker {
+          font-family: ui-monospace, Consolas, monospace;
+          font-size: 26px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: #6f5e4a;
+          margin-bottom: 28px;
+        }
+        #f1-word {
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: 220px;
+          line-height: 1;
+          letter-spacing: -0.03em;
+          font-weight: 700;
+          color: #453727;
+          margin: 0;
+        }
+        #f1-word .terra {
+          color: #9d5a30;
+        }
+        #f1-pitch {
+          margin-top: 36px;
+          font-size: 44px;
+          line-height: 1.25;
+          letter-spacing: -0.01em;
+          color: #5f4f3b;
+        }
+        #f1-rule {
+          width: 120px;
+          height: 3px;
+          background: #9d5a30;
+          margin-top: 40px;
+        }
+      </style>
+
+      <div id="root" data-composition-id="01-title" data-width="1920" data-height="1080">
+        <div id="f1-ground" class="clip" data-start="0" data-duration="8.5"></div>
+        <div id="f1-center">
+          <div id="f1-kicker">A Nimiq Pay mini app</div>
+          <h1 id="f1-word">TAKEOVER<span class="terra">.</span></h1>
+          <div id="f1-pitch">Last-minute availability, claimed.</div>
+          <div id="f1-rule"></div>
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          var tl = gsap.timeline({ paused: true });
+          tl.fromTo("#f1-kicker", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.28, ease: "power3.out" }, 0.15);
+          tl.fromTo("#f1-word", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.3, ease: "power3.out" }, 0.35);
+          tl.fromTo("#f1-pitch", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.28, ease: "power3.out" }, 1.4);
+          tl.fromTo("#f1-rule", { opacity: 0, scaleX: 0 }, { opacity: 1, scaleX: 1, duration: 0.25, ease: "power3.out" }, 1.7);
+          window.__timelines["01-title"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

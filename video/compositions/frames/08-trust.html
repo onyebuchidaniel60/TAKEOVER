@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          background: #faf6ec;
+          overflow: hidden;
+          font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+        #f8-ground {
+          position: absolute;
+          inset: 0;
+          background: #faf6ec;
+        }
+        #f8-stack {
+          position: absolute;
+          top: 170px;
+          left: 0;
+          width: 1920px;
+          height: 725px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+        }
+        #f8-t1, #f8-t2 {
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: 76px;
+          line-height: 1.35;
+          letter-spacing: -0.015em;
+          color: #453727;
+          margin: 0;
+        }
+        #f8-t3 {
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: 76px;
+          line-height: 1.35;
+          letter-spacing: -0.015em;
+          color: #9d5a30;
+          margin: 0;
+        }
+      </style>
+
+      <div id="root" data-composition-id="08-trust" data-width="1920" data-height="1080" data-duration="8.1">
+        <div id="f8-ground" class="clip" data-start="0" data-duration="8.1"></div>
+        <div id="f8-stack">
+          <p id="f8-t1">Held until delivery.</p>
+          <p id="f8-t2">Released when you confirm.</p>
+          <p id="f8-t3">Refunded if it never happens.</p>
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          var tl = gsap.timeline({ paused: true });
+          tl.fromTo("#f8-t1", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.28, ease: "power3.out" }, 0.15);
+          tl.fromTo("#f8-t2", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.28, ease: "power3.out" }, 1.6);
+          tl.fromTo("#f8-t3", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.28, ease: "power3.out" }, 3.2);
+          window.__timelines["08-trust"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

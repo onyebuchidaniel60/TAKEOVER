@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js" integrity="sha384-sG0Hv1tP1lZCk9KQmrIbY/XNwi+OY84GQqhMscbnsoBFqAz8KNCil1kvfL3Hbbk2" crossorigin="anonymous"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #000;
+      }
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #F4EDDD;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="89"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div
+        id="el-01-title"
+        class="scene"
+        data-composition-id="01-title"
+        data-composition-src="compositions/frames/01-title.html"
+        data-start="0"
+        data-duration="8.5"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-02-problem"
+        class="scene"
+        data-composition-id="02-problem"
+        data-composition-src="compositions/frames/02-problem.html"
+        data-start="8.5"
+        data-duration="9.4"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-03-feed"
+        class="scene"
+        data-composition-id="03-feed"
+        data-composition-src="compositions/frames/03-feed.html"
+        data-start="17.5"
+        data-duration="9.5"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-04-slot"
+        class="scene"
+        data-composition-id="04-slot"
+        data-composition-src="compositions/frames/04-slot.html"
+        data-start="27"
+        data-duration="10.5"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-05-escrow"
+        class="scene"
+        data-composition-id="05-escrow"
+        data-composition-src="compositions/frames/05-escrow.html"
+        data-start="37.5"
+        data-duration="9.1"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-06-wallet"
+        class="scene"
+        data-composition-id="06-wallet"
+        data-composition-src="compositions/frames/06-wallet.html"
+        data-start="46"
+        data-duration="7.5"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-07-publish"
+        class="scene"
+        data-composition-id="07-publish"
+        data-composition-src="compositions/frames/07-publish.html"
+        data-start="53.5"
+        data-duration="10.5"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-08-trust"
+        class="scene"
+        data-composition-id="08-trust"
+        data-composition-src="compositions/frames/08-trust.html"
+        data-start="64"
+        data-duration="8.1"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-09-dark"
+        class="scene"
+        data-composition-id="09-dark"
+        data-composition-src="compositions/frames/09-dark.html"
+        data-start="71.5"
+        data-duration="8.5"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-10-endcard"
+        class="scene"
+        data-composition-id="10-endcard"
+        data-composition-src="compositions/frames/10-endcard.html"
+        data-start="80"
+        data-duration="9"
+        data-track-index="1"
+      ></div>
+
+      <video id="f6-video" src="assets/nimiq-pay-segment.mp4" aria-label="Phone recording of the TAKEOVER app" data-media-start="0.5" muted playsinline
+        class="clip"
+        style="position:absolute;left:745px;top:50px;width:430px;height:795px;object-fit:cover"
+        data-start="46"
+        data-duration="7.5"
+        data-track-index="6003"
+      ></video>
+
+      <div
+        id="el-captions"
+        class="scene"
+        data-composition-id="captions"
+        data-composition-src="compositions/captions.html"
+        data-start="0"
+        data-duration="89"
+        data-track-index="2"
+      ></div>
+
+      <audio id="mix" src="mix.wav" data-start="0" data-duration="89" data-track-index="10"></audio>
+
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+      // ── frame transitions (injected by transitions.mjs) ──
+      (function () { var tl = window.__timelines["main"];
+        tl.to("#el-02-problem", { scale: 2.5, opacity: 0, filter: "blur(8px)", duration: 0.4, ease: "power3.in" }, 17.5);
+        tl.fromTo("#el-03-feed", { scale: 0.5, opacity: 0, filter: "blur(8px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.4, ease: "power3.out" }, 17.5);
+        tl.to("#el-05-escrow", { filter: "blur(10px)", scale: 1.03, opacity: 0, duration: 0.6, ease: "power2.inOut" }, 46);
+        tl.fromTo("#el-06-wallet", { filter: "blur(10px)", scale: 0.97, opacity: 0 }, { filter: "blur(0px)", scale: 1, opacity: 1, duration: 0.6, ease: "power2.inOut" }, 46);
+        tl.to("#el-08-trust", { filter: "blur(10px)", scale: 1.03, opacity: 0, duration: 0.6, ease: "power2.inOut" }, 71.5);
+        tl.fromTo("#el-09-dark", { filter: "blur(10px)", scale: 0.97, opacity: 0 }, { filter: "blur(0px)", scale: 1, opacity: 1, duration: 0.6, ease: "power2.inOut" }, 71.5);
+        tl.to({}, { duration: 89 }, 0); // full-span anchor — main.duration() == composition total (Studio master duration)
+      })();
+    </script>
+  </body>
+</html>

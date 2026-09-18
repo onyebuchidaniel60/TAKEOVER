@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "preferences": {
+    "aspect": {
+      "value": "1920x1080",
+      "confirmed_in": [
+        "video"
+      ],
+      "updated_at": "2026-09-18T16:49:45.489Z"
+    },
+    "language": {
+      "value": "en",
+      "confirmed_in": [
+        "video"
+      ],
+      "updated_at": "2026-09-18T16:49:45.676Z"
+    },
+    "voice": {
+      "value": "af_heart",
+      "confirmed_in": [
+        "video"
+      ],
+      "updated_at": "2026-09-18T16:49:45.864Z"
+    },
+    "style_preset.product-launch-video": {
+      "value": "code-editorial",
+      "confirmed_in": [
+        "video"
+      ],
+      "updated_at": "2026-09-18T16:49:46.055Z"
+    }
+  },
+  "sightings": {}
+}

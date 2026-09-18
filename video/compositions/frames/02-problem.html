@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          background: #faf6ec;
+          overflow: hidden;
+          font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+        #f2-ground {
+          position: absolute;
+          inset: 0;
+          background: #faf6ec;
+        }
+        #f2-stack {
+          position: absolute;
+          top: 150px;
+          left: 0;
+          width: 1920px;
+          height: 745px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+        }
+        #f2-l1, #f2-l2 {
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: 84px;
+          line-height: 1.25;
+          letter-spacing: -0.015em;
+          color: #453727;
+          margin: 0;
+        }
+        #f2-l3 {
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: 110px;
+          line-height: 1.2;
+          letter-spacing: -0.02em;
+          color: #9d5a30;
+          margin: 12px 0 0 0;
+        }
+      </style>
+
+      <div id="root" data-composition-id="02-problem" data-width="1920" data-height="1080" data-duration="9.4">
+        <div id="f2-ground" class="clip" data-start="0" data-duration="9.4"></div>
+        <div id="f2-stack">
+          <p id="f2-l1">Someone cancels dinner.</p>
+          <p id="f2-l2">A court sits empty.</p>
+          <p id="f2-l3">You just never knew.</p>
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          var tl = gsap.timeline({ paused: true });
+          tl.fromTo("#f2-l1", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.25, ease: "power3.out" }, 0.1);
+          tl.fromTo("#f2-l2", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.25, ease: "power3.out" }, 0.7);
+          tl.fromTo("#f2-l3", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.28, ease: "power3.out" }, 2.8);
+          window.__timelines["02-problem"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

@@ -1,0 +1,97 @@
+{
+  "summary": {
+    "webAnimations": 2,
+    "cssDeclarations": 6,
+    "scrollTargets": 0,
+    "cdpAnimations": 5,
+    "canvases": 0
+  },
+  "namedAnimations": [
+    "feed-in"
+  ],
+  "scrollTriggeredElements": 0,
+  "representativeAnimations": [
+    {
+      "type": "CSSAnimation",
+      "playState": "finished",
+      "animationName": "feed-in",
+      "targetSelector": "li.animate-feed-in",
+      "targetRect": {
+        "x": 600,
+        "y": 441.75,
+        "width": 720,
+        "height": 201.5,
+        "top": 441.75,
+        "right": 1320,
+        "bottom": 643.25,
+        "left": 600
+      },
+      "keyframes": [
+        {
+          "offset": 0,
+          "easing": "cubic-bezier(0.23, 1, 0.32, 1)",
+          "composite": "auto",
+          "opacity": "0",
+          "transform": "translateY(8px)",
+          "computedOffset": 0
+        },
+        {
+          "offset": 1,
+          "easing": "cubic-bezier(0.23, 1, 0.32, 1)",
+          "composite": "auto",
+          "opacity": "1",
+          "transform": "translateY(0px)",
+          "computedOffset": 1
+        }
+      ],
+      "timing": {
+        "duration": 200,
+        "delay": 0,
+        "iterations": 1,
+        "easing": "linear",
+        "direction": "normal"
+      }
+    },
+    {
+      "type": "CSSAnimation",
+      "playState": "finished",
+      "animationName": "feed-in",
+      "targetSelector": "li.animate-feed-in",
+      "targetRect": {
+        "x": 600,
+        "y": 659.25,
+        "width": 720,
+        "height": 201.5,
+        "top": 659.25,
+        "right": 1320,
+        "bottom": 860.75,
+        "left": 600
+      },
+      "keyframes": [
+        {
+          "offset": 0,
+          "easing": "cubic-bezier(0.23, 1, 0.32, 1)",
+          "composite": "auto",
+          "opacity": "0",
+          "transform": "translateY(8px)",
+          "computedOffset": 0
+        },
+        {
+          "offset": 1,
+          "easing": "cubic-bezier(0.23, 1, 0.32, 1)",
+          "composite": "auto",
+          "opacity": "1",
+          "transform": "translateY(0px)",
+          "computedOffset": 1
+        }
+      ],
+      "timing": {
+        "duration": 200,
+        "delay": 40,
+        "iterations": 1,
+        "easing": "linear",
+        "direction": "normal"
+      }
+    }
+  ]
+}

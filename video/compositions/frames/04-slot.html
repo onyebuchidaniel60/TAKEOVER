@@ -1,0 +1,97 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          background: #faf6ec;
+          overflow: hidden;
+          font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+        #f4-ground {
+          position: absolute;
+          inset: 0;
+          background: #faf6ec;
+        }
+        #f4-kicker {
+          position: absolute;
+          top: 64px;
+          left: 0;
+          width: 1920px;
+          text-align: center;
+          font-family: ui-monospace, Consolas, monospace;
+          font-size: 26px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: #6f5e4a;
+        }
+        #f4-card {
+          position: absolute;
+          top: 150px;
+          left: 200px;
+          width: 1520px;
+          border: 1px solid #d8c8a8;
+          border-radius: 24px;
+          overflow: hidden;
+          background: #f4eddd;
+        }
+        #f4-card img {
+          display: block;
+          width: 1520px;
+          height: 600px;
+        }
+        #f4-facts {
+          position: absolute;
+          top: 780px;
+          left: 0;
+          width: 1920px;
+          display: flex;
+          justify-content: center;
+        }
+        .f4-fact {
+          font-family: ui-monospace, Consolas, monospace;
+          font-size: 30px;
+          color: #453727;
+          background: #f4eddd;
+          border: 1px solid #d8c8a8;
+          border-radius: 999px;
+          padding: 14px 34px;
+          margin: 0 14px;
+        }
+        .f4-fact.hot {
+          color: #faf6ec;
+          background: #9d5a30;
+          border-color: #9d5a30;
+        }
+      </style>
+
+      <div id="root" data-composition-id="04-slot" data-width="1920" data-height="1080">
+        <div id="f4-ground" class="clip" data-start="0" data-duration="10.5"></div>
+        <div id="f4-kicker">One opening</div>
+        <div id="f4-card"><img src="assets/slot-ember.png" alt="Friday Dinner for 4 at The Ember Room" /></div>
+        <div id="f4-facts">
+          <div class="f4-fact" id="f4-fact1">Tomorrow · 10:10 AM</div>
+          <div class="f4-fact" id="f4-fact2">0.0035 USDT</div>
+          <div class="f4-fact hot" id="f4-fact3">4 available</div>
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          var tl = gsap.timeline({ paused: true });
+          tl.fromTo("#f4-kicker", { opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power3.out" }, 0.1);
+          tl.fromTo("#f4-card", { opacity: 0, y: 26, scale: 0.98 }, { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "power3.out" }, 0.25);
+          tl.fromTo("#f4-fact1", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.25, ease: "power3.out" }, 1.8);
+          tl.fromTo("#f4-fact2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.25, ease: "power3.out" }, 3.4);
+          tl.fromTo("#f4-fact3", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.25, ease: "power3.out" }, 5.0);
+          window.__timelines["04-slot"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>
