@@ -1,12 +1,16 @@
 // Phase 14g-1 unit tests — no DB, no chain. Covers the fee predicate matrix,
-// hash normalization, the Luna-exact amount conversion round-trip, and the
-// tolerant fee-state branches (unset / set / misconfigured).
+// hash normalization, the Luna-exact amount conversion round-trip, the
+// tolerant fee-state branches (unset / set / misconfigured), and the
+// [listing-fee-error] diagnostic line shape.
+// Fee fix: the sender is intentionally NOT compared (any wallet may pay;
+// the data binding ties the payment to the slot).
 import { describe, expect, it } from 'vitest';
 import { deriveNimiqAddress } from '../src/auth/nimiq-address';
 import { getListingFeeState } from '../src/env';
 import {
   assessListingFee,
   expectedFeeDataForSlot,
+  listingFeeErrorLine,
   normalizeFeeHash,
   type ExpectedListingFee,
 } from '../src/listing-fee/verify';
@@ -26,7 +30,6 @@ const FEE_WALLET = randomWallet();
 const HASH = 'ac2f80450d454af19efec4e5d405d964d0d0690fded17e588f033d74998317d0';
 
 const EXPECTED: ExpectedListingFee = {
-  sender: OWNER,
   recipient: FEE_WALLET,
   amountLuna: FEE_LUNA,
   data: expectedFeeDataForSlot(SLOT_ID),
@@ -53,11 +56,15 @@ describe('assessListingFee', () => {
     expect(result.reason).toBeUndefined();
   });
 
-  it('rejects each field mismatch with its reason', () => {
-    expect(assessListingFee(txRecord({ sender: randomWallet() }), EXPECTED)).toMatchObject({
-      status: 'review',
-      reason: 'sender_mismatch',
-    });
+  it('accepts a fee paid from ANY wallet (sender is not compared)', () => {
+    // The data binding ties the payment to the slot; who sent it is
+    // irrelevant. A different sender must never mismatch.
+    const result = assessListingFee(txRecord({ sender: randomWallet() }), EXPECTED);
+    expect(result.status).toBe('verified');
+    expect(result.reason).toBeUndefined();
+  });
+
+  it('rejects each checked field mismatch with its reason', () => {
     expect(assessListingFee(txRecord({ recipient: randomWallet() }), EXPECTED)).toMatchObject({
       status: 'review',
       reason: 'recipient_mismatch',
@@ -98,6 +105,56 @@ describe('assessListingFee', () => {
 
   it('binds the data string to the exact slot', () => {
     expect(expectedFeeDataForSlot(SLOT_ID)).toBe(`TAKEOVER:fee:v1:${SLOT_ID}`);
+  });
+});
+
+describe('listingFeeErrorLine (diagnostic shape)', () => {
+  it('emits the marker plus every field verbatim, nulls preserved', () => {
+    const line = listingFeeErrorLine({
+      slotId: SLOT_ID,
+      txHash: HASH,
+      reason: 'amount_mismatch',
+      confirmations: 5,
+      expectedRecipient: FEE_WALLET,
+      actualRecipient: FEE_WALLET,
+      expectedAmount: FEE_LUNA,
+      actualAmount: '39999999',
+      expectedData: expectedFeeDataForSlot(SLOT_ID),
+      actualData: null,
+    });
+    expect(line.startsWith('[listing-fee-error] ')).toBe(true);
+    const parsed = JSON.parse(line.replace('[listing-fee-error] ', '')) as Record<string, unknown>;
+    expect(parsed).toEqual({
+      slotId: SLOT_ID,
+      txHash: HASH,
+      reason: 'amount_mismatch',
+      confirmations: 5,
+      expectedRecipient: FEE_WALLET,
+      actualRecipient: FEE_WALLET,
+      expectedAmount: FEE_LUNA,
+      actualAmount: '39999999',
+      expectedData: expectedFeeDataForSlot(SLOT_ID),
+      actualData: null,
+    });
+  });
+
+  it('carries no senders, secrets, or session material', () => {
+    const line = listingFeeErrorLine({
+      slotId: SLOT_ID,
+      txHash: HASH,
+      reason: 'not-found',
+      confirmations: null,
+      expectedRecipient: FEE_WALLET,
+      actualRecipient: null,
+      expectedAmount: FEE_LUNA,
+      actualAmount: null,
+      expectedData: expectedFeeDataForSlot(SLOT_ID),
+      actualData: null,
+    });
+    const lower = line.toLowerCase();
+    for (const banned of ['sender', 'private', 'secret', 'session', 'bearer', 'cookie', 'password']) {
+      expect(lower.includes(banned)).toBe(false);
+    }
   });
 });
 

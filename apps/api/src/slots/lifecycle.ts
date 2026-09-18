@@ -4,7 +4,7 @@
 // transitions fail closed instead of silently overwriting each other.
 import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
-import { claims, slots, users } from '../../../../db/schema';
+import { claims, slots } from '../../../../db/schema';
 import { writeAuditEvent } from '../audit/events';
 import { isUniqueViolation } from '../claims/service';
 import { getListingFeeState } from '../env';
@@ -12,6 +12,7 @@ import { AppError } from '../http/errors';
 import {
   assessListingFee,
   expectedFeeDataForSlot,
+  listingFeeErrorLine,
   normalizeFeeHash,
 } from '../listing-fee/verify';
 import { nimToBaseUnits } from '../payments/amounts';
@@ -277,11 +278,17 @@ async function publishSlotUnpaid(
  * the slot draft and the client retries with the same hash (D6); the
  * listing_fee_tx_hash UNIQUE constraint is the replay backstop.
  *
+ * A fee payment is valid when recipient, exact Luna amount, slot-bound
+ * data, and confirmations all check out. The sender is intentionally NOT
+ * compared (the data binding ties the payment to the slot and the slot
+ * owner is authenticated at publish time).
+ *
  * Error mapping (ARCH §15 only): missing/malformed hash → 400
  * PAYMENT_INVALID_TX; unknown hash → 409 PAYMENT_NOT_FOUND; under-confirmed
- * → 409 PAYMENT_NOT_CONFIRMED; field mismatches → the matching 409
- * PAYMENT_*_MISMATCH; reused hash → 409 PAYMENT_REPLAY; RPC failure → 503
- * RPC_UNAVAILABLE.
+ * → 409 PAYMENT_NOT_CONFIRMED; recipient/amount/data mismatches → the
+ * matching 409 code; reused hash → 409 PAYMENT_REPLAY; RPC failure → 503
+ * RPC_UNAVAILABLE. Every non-verified outcome also emits one
+ * [listing-fee-error] diagnostic line (public chain data only).
  */
 async function publishSlotWithFee(
   db: Db,
@@ -322,15 +329,6 @@ async function publishSlotWithFee(
   if (failed.length > 0) {
     throw new AppError(400, 'INVALID_INPUT', `Cannot publish: invalid ${failed.join(', ')}.`);
   }
-  const ownerRows = await db
-    .select({ walletAddress: users.walletAddress })
-    .from(users)
-    .where(eq(users.id, ownerId))
-    .limit(1);
-  const ownerWallet = ownerRows[0]?.walletAddress;
-  if (!ownerWallet) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
-  }
   // Replay gate (D4): a fee transfer settles at most one publish. A hash
   // already stored on ANY slot is rejected here — before the data check —
   // so reuse always reports PAYMENT_REPLAY (the UNIQUE constraint below
@@ -360,12 +358,34 @@ async function publishSlotWithFee(
     }
     throw err;
   }
+  const amountLuna = nimToBaseUnits(fee.feeAmountNim);
+  const expectedData = expectedFeeDataForSlot(slotId);
   const assessment = assessListingFee(found, {
-    sender: ownerWallet,
     recipient: fee.feeWallet,
-    amountLuna: nimToBaseUnits(fee.feeAmountNim),
-    data: expectedFeeDataForSlot(slotId),
+    amountLuna,
+    data: expectedData,
   });
+  if (assessment.status !== 'verified') {
+    // Diagnostic telemetry for every failed fee verification (marker is
+    // grep-friendly; all fields are public chain data or public IDs —
+    // never secrets, sessions, or request bodies). The fd-2 error stream
+    // is the sink here (same standing note as the escrow polygon client:
+    // Fastify's logger is unreachable from this layer).
+    console.error(
+      listingFeeErrorLine({
+        slotId,
+        txHash: fee.hash,
+        reason: assessment.reason ?? 'verified',
+        confirmations: assessment.confirmations,
+        expectedRecipient: fee.feeWallet,
+        actualRecipient: found?.recipient ?? null,
+        expectedAmount: amountLuna,
+        actualAmount: found?.value ?? null,
+        expectedData,
+        actualData: found?.data ?? null,
+      }),
+    );
+  }
   if (assessment.status === 'pending') {
     if (assessment.reason === 'not-found') {
       throw new AppError(
@@ -383,12 +403,6 @@ async function publishSlotWithFee(
   }
   if (assessment.status === 'review') {
     switch (assessment.reason) {
-      case 'sender_mismatch':
-        throw new AppError(
-          409,
-          'PAYMENT_SENDER_MISMATCH',
-          'Fee payment came from a different wallet. Pay from the wallet that owns this opening. Fee transfers are final.',
-        );
       case 'recipient_mismatch':
         throw new AppError(
           409,

@@ -71,6 +71,7 @@ describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () =>
   afterEach(() => {
     chain.clear();
     vi.unstubAllEnvs();
+    vi.restoreAllMocks();
   });
 
   type InjectResponse = Awaited<ReturnType<FastifyInstance['inject']>>;
@@ -240,6 +241,59 @@ describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () =>
     expect(rows[0]?.listingFeePaidAt).toBeInstanceOf(Date);
   });
 
+  it('accepts a fee paid from ANY wallet (sender is not compared)', async () => {
+    const wallet = feeWallet();
+    useFee(wallet);
+    const owner = randomWallet();
+    const cookie = await loginAs(owner);
+    const slotId = await createDraft(cookie, `14g-1 ${tag} fee-anysender`);
+    // A stranger's wallet pays a correct fee for the owner's slot.
+    const tx = feeTx(slotId, randomWallet(), wallet);
+    chain.set(tx.hash, tx);
+    const res = await publish(cookie, slotId, { transactionHash: tx.hash });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { data: { slot: { status: string } } }).data.slot.status).toBe('published');
+    const db = getDb();
+    const rows = await db.select().from(slots).where(eq(slots.id, slotId)).limit(1);
+    expect(rows[0]?.listingFeeTxHash).toBe(tx.hash);
+  });
+
+  it('emits the [listing-fee-error] diagnostic on verification failure', async () => {
+    const wallet = feeWallet();
+    useFee(wallet);
+    const owner = randomWallet();
+    const cookie = await loginAs(owner);
+    const slotId = await createDraft(cookie, `14g-1 ${tag} fee-diag`);
+    const tx = feeTx(slotId, owner, wallet, { value: '39999999' });
+    chain.set(tx.hash, tx);
+    const errors: Array<unknown> = [];
+    const spy = vi.spyOn(console, 'error').mockImplementation((...args: Array<unknown>) => {
+      errors.push(args);
+    });
+    try {
+      expect(errorOf(await publish(cookie, slotId, { transactionHash: tx.hash }))).toEqual({
+        status: 409,
+        code: 'PAYMENT_AMOUNT_MISMATCH',
+      });
+    } finally {
+      spy.mockRestore();
+    }
+    const lines = errors
+      .map((args) => (Array.isArray(args) ? args.map(String).join(' ') : String(args)))
+      .filter((line) => line.includes('[listing-fee-error]'));
+    expect(lines).toHaveLength(1);
+    const parsed = JSON.parse(lines[0].replace('[listing-fee-error] ', '')) as Record<string, unknown>;
+    expect(parsed).toMatchObject({
+      slotId,
+      txHash: tx.hash,
+      reason: 'amount_mismatch',
+      expectedRecipient: wallet,
+      actualRecipient: wallet,
+      expectedAmount: FEE_LUNA,
+      actualAmount: '39999999',
+    });
+  });
+
   it('rejects a missing or malformed hash with 400 PAYMENT_INVALID_TX', async () => {
     const wallet = feeWallet();
     useFee(wallet);
@@ -270,13 +324,14 @@ describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () =>
     ).toEqual({ status: 400, code: 'INVALID_INPUT' });
   });
 
-  it('maps each field mismatch to its 409 code with no state change', async () => {
+  it('maps each checked field mismatch to its 409 code with no state change', async () => {
     const wallet = feeWallet();
     useFee(wallet);
     const owner = randomWallet();
     const cookie = await loginAs(owner);
+    // No sender case: the sender is intentionally not compared (see the
+    // any-wallet test above).
     const cases: Array<{ name: string; overrides: Partial<TxRecord>; code: string }> = [
-      { name: 'sender', overrides: { sender: randomWallet() }, code: 'PAYMENT_SENDER_MISMATCH' },
       { name: 'recipient', overrides: { recipient: randomWallet() }, code: 'PAYMENT_RECIPIENT_MISMATCH' },
       { name: 'amount', overrides: { value: '39999999' }, code: 'PAYMENT_AMOUNT_MISMATCH' },
       { name: 'data', overrides: { data: FEE_DATA(randomUUID()) }, code: 'PAYMENT_DATA_MISMATCH' },
