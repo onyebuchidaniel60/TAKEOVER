@@ -1498,6 +1498,10 @@ Environment-specific configuration is separated between development and producti
 
 No production secrets are committed.
 
+### Chain target note (owner-verified 2026-09-18)
+
+Nimiq Pay supports the following EVM chains: Ethereum mainnet, Polygon mainnet, Arbitrum One, Optimism, Base, BNB Smart Chain, and Sepolia (testnet). Polygon Amoy is NOT supported — the Mini App WebView cannot route transactions to it. Confirmed by the owner directly in Nimiq Pay: selecting a network returns "USDT is only available on mainnet." Consequently, both payment rails target mainnet: USDT escrow on Polygon mainnet; NIM listing fee on Nimiq mainnet. Testnet (Amoy / Nimiq testnet) was used during development only.
+
 ## 23. Observability
 
 Every API request gets a request ID.

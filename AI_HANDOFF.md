@@ -3,6 +3,149 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14h PART 1 — slot prices in USDT (migration 0009 landed; no checkpoint at the time)
+
+```text
+CURRENT PHASE: Phase 14h PART 1 complete — slot prices in USDT
+  (column rename price_nim → price_usdt, migration 0009 applied).
+  Checkpoint reconstructed after the fact in the reconciliation pass
+  (2026-09-18); the commit landed with no checkpoint. Do NOT begin
+  PART 2 or the mainnet migration automatically.
+COMPLETED: migration 0009 (ALTER TABLE slots RENAME COLUMN
+  price_nim TO price_usdt) + schema/verify updates (db/verify.ts
+  asserts price_usdt present / price_nim absent) + ARCH §9 +
+  SPEC FR-03 field rename + display/validation/seed updates across
+  api + web + tests (53 files per commit stat; full set: see commit
+  864ae47) + PART 2 note (below) + this checkpoint
+TESTS RUN: details not recorded; see commit 864ae47 (touched suites
+  include slots-unit, slots, slots-lifecycle, escrow-service,
+  payments, moderation, provider-dashboards, form-validation,
+  escrow-ui, request-bodies, a11y-routes). No battery re-run in the
+  reconciliation pass (docs-only task).
+RESULT: pre-existing commit 864ae47 (message below); checkpoint added
+  in the reconciliation commit (recorded at push). Deposit-amount
+  invariant unchanged (integer base units, 6-decimal USDT — rename
+  only, no payment-logic change).
+KNOWN ISSUES:
+- PART 2 (delete all test slots) was attempted and STOPped on the
+  reports→slots FK; the resolution (delete slot-referencing reports
+  first) was never executed. A separate full DB wipe (data-only, no
+  commit) later cleared all tables — reconciliation pass verified 0
+  rows in all 11 domain tables (users, sessions, auth_challenges,
+  provider_profiles, slots, claims, escrows, escrow_ledger,
+  payment_intents, reports, audit_events).
+- Amoy chain-id constants remain in apps/web/src/lib/evm.ts;
+  retarget to Polygon mainnet in the migration phase (see the chain
+  target note after ARCH §22).
+- AGENTS.md Mumbai mention resolved in the reconciliation pass (see
+  the chain target note after ARCH §22).
+- Carried P3/USDT/NIM-fee residuals unchanged (see Phase 14e P3
+  block below).
+SECURITY NOTES: rename-only for price semantics; no secrets printed
+  in the reconciliation pass (DATABASE_URL loaded from gitignored
+  .env.txt into shell memory only; counts printed, never the value);
+  temp count script lived in the repo only during its run and was
+  deleted the same command block.
+FILES CHANGED (864ae47): ARCHITECTURE.md, PROJECT_SPEC.md,
+  db/migrations/0009_* + meta, db/schema/slots.ts, db/seed.ts,
+  db/verify.ts, ~20 apps/api source files, ~15 apps/api test files,
+  ~10 apps/web source/test files (full set: see commit 864ae47).
+  Reconciliation commit adds: AI_HANDOFF.md (these three
+  checkpoints), ARCHITECTURE.md (chain-target note), AGENTS.md
+  (Mumbai fix).
+GIT COMMIT: feat: slot prices in USDT (rename price_nim →
+  price_usdt) (864ae47, pre-existing) + reconciliation commit (hash
+  recorded at push)
+NEXT TASK: Mainnet migration phase. Do NOT start automatically —
+  owner confirms funding + provides Nimiq Pay EVM/NIM addresses
+  first.
+BLOCKED BY: none (migration awaits owner funding confirmation +
+  addresses; owner provides next message).
+```
+
+## Phase 14e hotfix — explicit gas limits on escrow wallet calls
+
+```text
+CURRENT PHASE: Phase 14e hotfix complete — explicit gas limits on
+  escrow wallet calls (estimation path removed). Checkpoint
+  reconstructed after the fact in the reconciliation pass
+  (2026-09-18); the commit landed with no checkpoint. Do NOT begin
+  the next phase automatically.
+COMPLETED: apps/web/src/lib/evm.ts pinned gas (APPROVE_GAS_LIMIT
+  0x186a0 = 100,000; DEPOSIT_GAS_LIMIT 0x30d40 = 200,000;
+  DISPUTE_GAS_LIMIT 0x186a0) + normalizeGasLimit +
+  sendTransaction requires gas (never estimates) + approve/deposit
+  pass pinned gas + ConfirmReceiptBox dispute send passes
+  DISPUTE_GAS_LIMIT + evm-lib/escrow-ui test updates (pinned values,
+  calldata byte-identical, dispute gas assert) + this checkpoint
+TESTS RUN: details not recorded; see commit 772266e (touched:
+  evm-lib, escrow-ui). No battery re-run in the reconciliation pass
+  (docs-only task).
+RESULT: pre-existing commit 772266e (message below); checkpoint added
+  in the reconciliation commit (recorded at push).
+KNOWN ISSUES:
+- Gas values carry ~2x headroom over observed Amoy usage;
+  re-validate against Polygon mainnet conditions in the migration
+  phase (do not raise approve past ~500k per the in-code note).
+- Carried P3 residuals unchanged (see Phase 14e P3 block below).
+SECURITY NOTES: no payment-logic change beyond the gas field
+  (calldata encoders untouched, asserted byte-identical in tests);
+  no secrets involved.
+FILES CHANGED (772266e): apps/web/src/lib/evm.ts,
+  apps/web/src/components/ConfirmReceiptBox.tsx,
+  apps/web/test/evm-lib.test.ts, apps/web/test/escrow-ui.test.tsx.
+GIT COMMIT: fix: explicit gas limits on escrow wallet calls (skip
+  estimation) (772266e, pre-existing) + reconciliation commit (hash
+  recorded at push)
+NEXT TASK: Phase 14h PART 1 — slot prices in USDT (864ae47; next
+  block up).
+BLOCKED BY: none.
+```
+
+## Phase 14g hotfix — remove sender check from NIM listing fee
+
+```text
+CURRENT PHASE: Phase 14g hotfix complete — sender check removed from
+  the NIM listing-fee predicate (supersedes the 14g-1 sender rule).
+  Checkpoint reconstructed after the fact in the reconciliation pass
+  (2026-09-18); the commit landed with no checkpoint. Do NOT begin
+  the next phase automatically.
+COMPLETED: ExpectedListingFee drops sender (verify.ts header
+  documents why) + assessListingFee feeds the record's own sender
+  back (self-consistent; recipient + amount + data binding +
+  confirmations + replay remain the checks) +
+  ListingFeeErrorDetails/listingFeeErrorLine ([listing-fee-error]
+  fd-2 diagnostic, public chain data only) wired into
+  slots/lifecycle.ts + listing-fee unit/publish suites updated
+  (sender-mismatch case replaced with any-wallet-accepted;
+  diagnostic-line coverage added) + this checkpoint
+TESTS RUN: details not recorded; see commit 1eab300 (touched:
+  listing-fee-unit, listing-fee-publish). No battery re-run in the
+  reconciliation pass (docs-only task).
+RESULT: pre-existing commit 1eab300 (message below); checkpoint added
+  in the reconciliation commit (recorded at push).
+KNOWN ISSUES:
+- Rationale: the sender check was over-engineered and produced
+  false positives on the Mini App flow; the data binding uniquely
+  ties the fee to the slot, the owner is authenticated at publish
+  time, and the hash UNIQUE constraint stops reuse.
+- Carried P3 residuals unchanged (see Phase 14e P3 block below).
+SECURITY NOTES: any-wallet-may-pay is intentional (data binding +
+  auth + UNIQUE backstop); the diagnostic line carries public chain
+  data/identifiers only (no secrets, session, or request bodies);
+  no key material involved.
+FILES CHANGED (1eab300): apps/api/src/listing-fee/verify.ts,
+  apps/api/src/slots/lifecycle.ts,
+  apps/api/test/listing-fee-publish.test.ts,
+  apps/api/test/listing-fee-unit.test.ts.
+GIT COMMIT: fix: remove sender check from NIM listing fee
+  (over-engineered, causes false positives) (1eab300, pre-existing)
+  + reconciliation commit (hash recorded at push)
+NEXT TASK: Phase 14e hotfix — explicit gas limits on escrow wallet
+  calls (772266e; next block up).
+BLOCKED BY: none.
+```
+
 ## Phase 14e P3 complete — deprecated direct-payment UI retired (as far as live rows allow), ARCH §13 synced, test suite stability checked, a11y extended to escrow + fee components. Do NOT begin Phase 15 automatically.
 
 Deprecation gate decided by live DB (5 payment_pending, 4 paid,

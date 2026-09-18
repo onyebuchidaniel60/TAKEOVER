@@ -125,7 +125,7 @@ Do not add features because they sound impressive.
 
 ## Polygon and USDT rules
 
-- Use window.ethereum with chainId '0x89' (Polygon mainnet) or '0x13881' (Mumbai testnet).
+- Use window.ethereum with chainId '0x89' (Polygon mainnet). Polygon Amoy testnet ('0x13882') is NOT supported by Nimiq Pay — see the chain target note after ARCHITECTURE.md §22; testnet was development-only.
 - The escrow contract address is read from USDT_ESCROW_CONTRACT_ADDRESS env; never hardcoded.
 - Contract events are verified against the configured contract address only. Never trust client-supplied escrow IDs or contract addresses.
 - USDT amount is always the exact base units (6 decimals on Polygon). Never float.
