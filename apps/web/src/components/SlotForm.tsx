@@ -27,9 +27,9 @@ export interface SlotFormValues {
 }
 
 const inputClass =
-  'min-h-touch w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-body text-slate-900 placeholder:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus-visible:ring-stone-200';
+  'min-h-touch w-full rounded-lg border border-borderwarm bg-cream px-3 py-2 text-body text-bark placeholder:text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-terra dark:border-rootedge dark:bg-cocoa dark:text-parchment dark:placeholder:text-drift dark:focus-visible:ring-terralight';
 
-const labelClass = 'mb-1 block text-small font-medium text-slate-600 dark:text-stone-400';
+const labelClass = 'mb-1 block text-small font-medium text-taupe dark:text-drift';
 
 function isoToInput(value: string | null): string {
   if (!value) return '';
@@ -68,7 +68,7 @@ export function initialValues(slot?: OwnerSlot): SlotFormValues {
 
 function FieldMessage({ message }: { message: string }): React.JSX.Element {
   return (
-    <p className="mt-1 text-body font-medium text-red-800 dark:text-red-300" role="alert">
+    <p className="mt-1 text-body font-medium text-clay dark:text-clayd" role="alert">
       {message}
     </p>
   );
@@ -147,7 +147,7 @@ export default function SlotForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa">
       <div>
         <label htmlFor="slot-title" className={labelClass}>
           Title *
@@ -279,14 +279,14 @@ export default function SlotForm({
         </div>
       </div>
       {serverError ? (
-        <p className="text-body font-medium text-red-800 dark:text-red-300" role="alert">
+        <p className="text-body font-medium text-clay dark:text-clayd" role="alert">
           {serverError}
         </p>
       ) : null}
       <button
         type="submit"
         disabled={submitting}
-        className="min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-body font-medium text-white disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 dark:bg-stone-100 dark:text-stone-900 dark:focus-visible:ring-stone-200 dark:focus-visible:ring-offset-stone-900"
+        className="min-h-touch rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-terra focus-visible:ring-offset-2 ring-offset-cream dark:bg-sandlight dark:text-coal dark:focus-visible:ring-terralight dark:focus-visible:ring-offset-cocoa"
       >
         {submitting ? 'Saving…' : submitLabel}
       </button>

@@ -47,15 +47,15 @@ export default function AdminPaymentReviews() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/admin" className="inline-block min-h-touch py-2 text-body font-medium text-slate-600 dark:text-stone-400">
+      <Link to="/admin" className="inline-block min-h-touch py-2 text-body font-medium text-taupe dark:text-drift">
         ← Moderation
       </Link>
-      <h1 className="mt-1 text-h1 font-bold text-slate-900 dark:text-stone-100">Payment reviews</h1>
-      <p className="mt-1 font-mono text-body tabular-nums text-slate-500 dark:text-stone-400">
+      <h1 className="mt-1 text-h1 font-bold text-bark dark:text-parchment">Payment reviews</h1>
+      <p className="mt-1 font-mono text-body tabular-nums text-muted dark:text-drift">
         {total} claim{total === 1 ? '' : 's'} awaiting a decision
       </p>
       {notice ? (
-        <p role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-body text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
+        <p role="status" className="mt-3 rounded-lg bg-sagewash p-3 text-body text-sage dark:bg-sagewashd dark:text-saged">
           {notice}
         </p>
       ) : null}
@@ -73,29 +73,29 @@ export default function AdminPaymentReviews() {
               headers={['Claim', 'Terms', 'Transaction', 'Action']}
             >
               {reviews.map((r) => (
-                <tr key={r.claim.id} className="border-b border-slate-100 last:border-0 dark:border-stone-800">
+                <tr key={r.claim.id} className="border-b border-hairline last:border-0 dark:border-rootline">
                   <td className="px-3 py-2 align-top">
                     <p className="font-medium">{r.slot.title}</p>
-                    <p className="break-all font-mono text-small text-slate-500 dark:text-stone-400">Buyer: {r.claim.buyerWallet}</p>
-                    <p className="font-mono text-small tabular-nums text-slate-500 dark:text-stone-400">
+                    <p className="break-all font-mono text-small text-muted dark:text-drift">Buyer: {r.claim.buyerWallet}</p>
+                    <p className="font-mono text-small tabular-nums text-muted dark:text-drift">
                       Claimed {new Date(r.claim.claimed_at).toLocaleString()}
                     </p>
                   </td>
                   <td className="px-3 py-2 align-top text-small">
                     <p className="font-mono tabular-nums">{formatUsdt(r.slot.price_usdt)}</p>
-                    <p className="break-all font-mono text-slate-500 dark:text-stone-400">To: {r.slot.payout_wallet}</p>
+                    <p className="break-all font-mono text-muted dark:text-drift">To: {r.slot.payout_wallet}</p>
                     {r.intent ? (
-                      <p className="break-all font-mono text-slate-500 dark:text-stone-400">Data: {r.intent.expected_data}</p>
+                      <p className="break-all font-mono text-muted dark:text-drift">Data: {r.intent.expected_data}</p>
                     ) : null}
                   </td>
                   <td className="px-3 py-2 align-top text-small">
                     {r.intent?.tx_hash ? (
                       <p className="break-all font-mono">{r.intent.tx_hash}</p>
                     ) : (
-                      <p className="text-slate-500 dark:text-stone-400">No transaction recorded</p>
+                      <p className="text-muted dark:text-drift">No transaction recorded</p>
                     )}
                     {r.intent?.submitted_at ? (
-                      <p className="font-mono tabular-nums text-slate-500 dark:text-stone-400">
+                      <p className="font-mono tabular-nums text-muted dark:text-drift">
                         Sent {new Date(r.intent.submitted_at).toLocaleString()}
                       </p>
                     ) : null}
@@ -104,7 +104,7 @@ export default function AdminPaymentReviews() {
                     <button
                       type="button"
                       onClick={() => setResolving(r)}
-                      className="min-h-touch rounded-lg border border-slate-300 px-3 py-1 text-body font-medium text-slate-700 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-300"
+                      className="min-h-touch rounded-lg border border-borderwarm px-3 py-1 text-body font-medium text-taupe dark:border-rootedge dark:bg-cocoa dark:text-khaki"
                     >
                       Resolve
                     </button>
@@ -117,7 +117,7 @@ export default function AdminPaymentReviews() {
                 type="button"
                 disabled={offset === 0}
                 onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-                className="min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-body font-medium text-slate-700 disabled:opacity-50 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-300"
+                className="min-h-touch rounded-lg border border-borderwarm px-4 py-2 text-body font-medium text-taupe disabled:opacity-50 dark:border-rootedge dark:bg-cocoa dark:text-khaki"
               >
                 Previous
               </button>
@@ -125,7 +125,7 @@ export default function AdminPaymentReviews() {
                 type="button"
                 disabled={offset + PAGE_SIZE >= total}
                 onClick={() => setOffset((o) => o + PAGE_SIZE)}
-                className="min-h-touch rounded-lg border border-slate-300 px-4 py-2 text-body font-medium text-slate-700 disabled:opacity-50 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-300"
+                className="min-h-touch rounded-lg border border-borderwarm px-4 py-2 text-body font-medium text-taupe disabled:opacity-50 dark:border-rootedge dark:bg-cocoa dark:text-khaki"
               >
                 Next
               </button>

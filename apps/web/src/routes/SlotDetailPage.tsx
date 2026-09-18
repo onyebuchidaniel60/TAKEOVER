@@ -82,7 +82,7 @@ export default function SlotDetailPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/" className="inline-block min-h-touch py-2 text-body font-medium text-slate-600 dark:text-stone-400">
+      <Link to="/" className="inline-block min-h-touch py-2 text-body font-medium text-taupe dark:text-drift">
         ← Back to openings
       </Link>
       <div className="mt-2">
@@ -97,7 +97,7 @@ export default function SlotDetailPage() {
             action={
               <Link
                 to="/"
-                className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-body font-medium text-white dark:bg-stone-100 dark:text-stone-900"
+                className="inline-block min-h-touch rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory dark:bg-sandlight dark:text-coal"
               >
                 See available openings
               </Link>
@@ -111,7 +111,7 @@ export default function SlotDetailPage() {
                 <ClaimButton slotId={state.slot.id} />
               ) : null}
               {!authenticated ? (
-                <p className="rounded-lg border border-slate-200 bg-white p-3 text-body text-slate-600 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-400">
+                <p className="rounded-lg border border-hairline bg-cream p-3 text-body text-taupe dark:border-rootline dark:bg-cocoa dark:text-drift">
                   Connect your wallet to claim this opening.
                 </p>
               ) : null}
@@ -121,14 +121,14 @@ export default function SlotDetailPage() {
             {authenticated && !isAdminUser(user) ? (
               <div className="mt-2">
                 {reported ? (
-                  <p role="status" className="text-body text-slate-600 dark:text-stone-400">
+                  <p role="status" className="text-body text-taupe dark:text-drift">
                     Thanks — an admin will review this opening.
                   </p>
                 ) : (
                   <button
                     type="button"
                     onClick={() => setReporting(true)}
-                    className="min-h-touch text-body font-medium text-slate-500 underline dark:text-stone-400"
+                    className="min-h-touch text-body font-medium text-muted underline dark:text-drift"
                   >
                     Report this opening
                   </button>

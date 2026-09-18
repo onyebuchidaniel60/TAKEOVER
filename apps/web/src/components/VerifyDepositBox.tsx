@@ -126,17 +126,17 @@ export default function VerifyDepositBox({
   };
 
   return (
-    <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-stone-800" aria-live="polite">
-      {display === 'checking' && <p className="text-body text-slate-600 dark:text-stone-400">Checking deposit status…</p>}
+    <div className="mt-4 rounded-lg bg-sand p-3 dark:bg-umber" aria-live="polite">
+      {display === 'checking' && <p className="text-body text-taupe dark:text-drift">Checking deposit status…</p>}
       {display === 'pending' && (
-        <p className="font-mono text-body tabular-nums text-slate-600 dark:text-stone-400">
+        <p className="font-mono text-body tabular-nums text-taupe dark:text-drift">
           Deposit seen, waiting for confirmation… (check {attempts} of {VERIFY_DEPOSIT_MAX_ATTEMPTS})
         </p>
       )}
       {display === 'mismatch' && (
         <div>
-          <p className="text-body font-medium text-slate-900 dark:text-stone-100">Deposit doesn&apos;t match.</p>
-          <p className="mt-1 text-body text-slate-600 dark:text-stone-400">
+          <p className="text-body font-medium text-bark dark:text-parchment">Deposit doesn&apos;t match.</p>
+          <p className="mt-1 text-body text-taupe dark:text-drift">
             {reason === 'amount' || reason === 'escrow_id'
               ? 'The transaction details differ from this claim. If you already paid, contact support — do not pay again.'
               : 'We could not match a deposit for this claim yet. If you already paid, contact support — do not pay again.'}
@@ -144,17 +144,17 @@ export default function VerifyDepositBox({
         </div>
       )}
       {display === 'review' && (
-        <p className="text-body font-medium text-amber-900 dark:text-amber-300">
+        <p className="text-body font-medium text-ochre dark:text-ochred">
           Verification timed out. The claim is under review — we&apos;ll be in touch.
         </p>
       )}
       {display === 'rpc-down' && (
-        <p className="text-body text-slate-600 dark:text-stone-400">
+        <p className="text-body text-taupe dark:text-drift">
           Network status is temporarily unavailable. We&apos;ll keep checking.
         </p>
       )}
       {display === 'exhausted' && (
-        <p className="text-body text-slate-600 dark:text-stone-400">
+        <p className="text-body text-taupe dark:text-drift">
           Still pending. The deposit may need more time — check again.
         </p>
       )}
@@ -162,7 +162,7 @@ export default function VerifyDepositBox({
         type="button"
         onClick={manualCheck}
         disabled={manualBusy}
-        className="mt-2 inline-flex min-h-touch items-center rounded-lg border border-slate-300 px-4 py-2 text-body font-medium text-slate-900 disabled:opacity-50 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-100"
+        className="mt-2 inline-flex min-h-touch items-center rounded-lg border border-borderwarm px-4 py-2 text-body font-medium text-bark disabled:opacity-50 dark:border-rootedge dark:bg-cocoa dark:text-parchment"
       >
         {manualBusy ? 'Checking…' : 'Check again'}
       </button>

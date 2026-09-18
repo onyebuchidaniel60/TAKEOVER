@@ -72,11 +72,11 @@ export default function ContactNoteForm({
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-      <label htmlFor={`contact-note-${slot.id}`} className="block text-body font-medium text-slate-900 dark:text-stone-100">
+    <div className="rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa">
+      <label htmlFor={`contact-note-${slot.id}`} className="block text-body font-medium text-bark dark:text-parchment">
         Buyer contact note
       </label>
-      <p className="mt-1 text-small text-slate-500 dark:text-stone-400">
+      <p className="mt-1 text-small text-muted dark:text-drift">
         Shown to the buyer only once their claim is funded. No links or URLs.
       </p>
       <textarea
@@ -86,18 +86,18 @@ export default function ContactNoteForm({
         rows={3}
         maxLength={CONTACT_NOTE_MAX_LENGTH + 50}
         aria-describedby={`contact-note-count-${slot.id}`}
-        className="mt-2 min-h-touch w-full rounded-lg border border-slate-300 px-3 py-2 text-body text-slate-900 placeholder:text-slate-400 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-100 dark:placeholder:text-stone-500"
+        className="mt-2 min-h-touch w-full rounded-lg border border-borderwarm px-3 py-2 text-body text-bark placeholder:text-muted dark:border-rootedge dark:bg-cocoa dark:text-parchment dark:placeholder:text-drift"
       />
-      <p id={`contact-note-count-${slot.id}`} className="mt-1 font-mono text-small tabular-nums text-slate-500 dark:text-stone-400">
+      <p id={`contact-note-count-${slot.id}`} className="mt-1 font-mono text-small tabular-nums text-muted dark:text-drift">
         {text.trim().length}/{CONTACT_NOTE_MAX_LENGTH} characters
       </p>
       {error && (
-        <p className="mt-1 text-body text-red-700 dark:text-red-400" role="alert">
+        <p className="mt-1 text-body text-clay dark:text-clayd" role="alert">
           {error}
         </p>
       )}
       {saved && (
-        <p className="mt-1 text-body font-medium text-slate-900 dark:text-stone-100" aria-live="polite">
+        <p className="mt-1 text-body font-medium text-bark dark:text-parchment" aria-live="polite">
           Saved.
         </p>
       )}
@@ -106,7 +106,7 @@ export default function ContactNoteForm({
           type="button"
           onClick={() => save(text)}
           disabled={busy || clearing}
-          className="inline-flex min-h-touch items-center rounded-lg bg-slate-900 px-4 py-2 text-body font-medium text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
+          className="inline-flex min-h-touch items-center rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory disabled:opacity-50 dark:bg-sandlight dark:text-coal"
         >
           {busy ? 'Saving…' : 'Save note'}
         </button>
@@ -114,7 +114,7 @@ export default function ContactNoteForm({
           type="button"
           onClick={() => save(null)}
           disabled={busy || clearing || (slot.provider_contact_note ?? null) === null}
-          className="inline-flex min-h-touch items-center rounded-lg border border-slate-300 px-4 py-2 text-body font-medium text-slate-900 disabled:opacity-50 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-100"
+          className="inline-flex min-h-touch items-center rounded-lg border border-borderwarm px-4 py-2 text-body font-medium text-bark disabled:opacity-50 dark:border-rootedge dark:bg-cocoa dark:text-parchment"
         >
           {clearing ? 'Clearing…' : 'Clear'}
         </button>

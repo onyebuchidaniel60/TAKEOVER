@@ -10,19 +10,19 @@ export const SUPPORT_EMAIL = 'hello@takeover.app';
 export default function Contact() {
   return (
     <section aria-labelledby="contact-heading">
-      <h2 id="contact-heading" className="text-h2 font-bold text-slate-900 dark:text-stone-100">
+      <h2 id="contact-heading" className="text-h2 font-bold text-bark dark:text-parchment">
         Talk to us
       </h2>
-      <div className="mt-4 rounded-2xl border border-stone-200 bg-white p-5 shadow-card dark:border-stone-800 dark:bg-stone-900 dark:shadow-none">
-        <p className="text-body leading-relaxed text-slate-600 dark:text-stone-400">
+      <div className="mt-4 rounded-2xl border border-hairline bg-cream p-5 shadow-card dark:border-rootline dark:bg-cocoa dark:shadow-none">
+        <p className="text-body leading-relaxed text-taupe dark:text-drift">
           Something wrong with an opening? Use the Report button on its page — it reaches our team
           with the full context attached.
         </p>
-        <p className="mt-2 text-body leading-relaxed text-slate-600 dark:text-stone-400">
+        <p className="mt-2 text-body leading-relaxed text-taupe dark:text-drift">
           For anything else — payments, holds, account questions — write to{' '}
           <a
             href={`mailto:${SUPPORT_EMAIL}`}
-            className="font-medium text-slate-900 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 dark:text-stone-100 dark:focus-visible:ring-stone-200"
+            className="font-medium text-bark underline focus:outline-none focus-visible:ring-2 focus-visible:ring-terra dark:text-parchment dark:focus-visible:ring-terralight"
           >
             {SUPPORT_EMAIL}
           </a>{' '}

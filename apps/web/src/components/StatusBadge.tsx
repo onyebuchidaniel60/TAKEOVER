@@ -1,10 +1,10 @@
 // Status is always text, never color alone.
 const STYLES: Record<string, string> = {
-  draft: 'bg-slate-200 text-slate-700 dark:bg-stone-700 dark:text-stone-200',
-  published: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
-  sold_out: 'bg-slate-200 text-slate-700 dark:bg-stone-700 dark:text-stone-200',
-  cancelled: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300',
-  expired: 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300',
+  draft: 'bg-sand text-taupe dark:bg-umber dark:text-parchment',
+  published: 'bg-sagewash text-sage dark:bg-sagewashd dark:text-saged',
+  sold_out: 'bg-sand text-taupe dark:bg-umber dark:text-parchment',
+  cancelled: 'bg-claywash text-clay dark:bg-claywashd dark:text-clayd',
+  expired: 'bg-ochrewash text-ochre dark:bg-ochrewashd dark:text-ochred',
 };
 
 const LABELS: Record<string, string> = {
@@ -16,7 +16,7 @@ const LABELS: Record<string, string> = {
 };
 
 export default function StatusBadge({ status }: { status: string }) {
-  const style = STYLES[status] ?? 'bg-slate-200 text-slate-700 dark:bg-stone-700 dark:text-stone-200';
+  const style = STYLES[status] ?? 'bg-sand text-taupe dark:bg-umber dark:text-parchment';
   const label = LABELS[status] ?? status;
   return (
     <span

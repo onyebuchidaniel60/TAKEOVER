@@ -64,7 +64,7 @@ export default function Profile() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <h1 className="text-h1 font-bold text-slate-900 dark:text-stone-100">Profile</h1>
+      <h1 className="text-h1 font-bold text-bark dark:text-parchment">Profile</h1>
       {loading ? (
         <div className="mt-4">
           <LoadingSkeleton rows={2} />
@@ -75,18 +75,18 @@ export default function Profile() {
         </div>
       ) : (
         <div className="mt-4 flex flex-col gap-4">
-          <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900" aria-label="Wallet">
-            <p className="text-small font-medium uppercase tracking-wide text-slate-500 dark:text-stone-400">Wallet</p>
+          <section className="rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa" aria-label="Wallet">
+            <p className="text-small font-medium uppercase tracking-wide text-muted dark:text-drift">Wallet</p>
             <button
               type="button"
               onClick={handleCopy}
               title={user.walletAddress}
-              className="mt-1 min-h-touch rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-body text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus-visible:ring-stone-200"
+              className="mt-1 min-h-touch rounded-lg border border-hairline bg-sand px-3 py-2 font-mono text-body text-bark focus:outline-none focus-visible:ring-2 focus-visible:ring-terra dark:border-rootline dark:bg-umber dark:text-parchment dark:focus-visible:ring-terralight"
             >
               {truncateWalletAddress(user.walletAddress)}
-              <span className="ml-2 font-sans text-small text-slate-500 dark:text-stone-400">{copied ? 'Copied' : 'Copy'}</span>
+              <span className="ml-2 font-sans text-small text-muted dark:text-drift">{copied ? 'Copied' : 'Copy'}</span>
             </button>
-            <p className="mt-2 text-body text-slate-600 dark:text-stone-400">
+            <p className="mt-2 text-body text-taupe dark:text-drift">
               Role: <span className="font-medium capitalize">{user.role}</span>
             </p>
           </section>
@@ -106,20 +106,20 @@ export default function Profile() {
           <section className="flex flex-wrap gap-2" aria-label="Shortcuts">
             <Link
               to="/sell"
-              className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-body font-medium text-white dark:bg-stone-100 dark:text-stone-900"
+              className="inline-block min-h-touch rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory dark:bg-sandlight dark:text-coal"
             >
               My openings
             </Link>
             <Link
               to="/claims"
-              className="inline-block min-h-touch rounded-lg border border-slate-300 bg-white px-4 py-2 text-body font-medium text-slate-700 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-300"
+              className="inline-block min-h-touch rounded-lg border border-borderwarm bg-cream px-4 py-2 text-body font-medium text-taupe dark:border-rootedge dark:bg-cocoa dark:text-khaki"
             >
               My holds
             </Link>
             <button
               type="button"
               onClick={() => void logout()}
-              className="min-h-touch rounded-lg border border-slate-300 bg-white px-4 py-2 text-body font-medium text-slate-700 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-300"
+              className="min-h-touch rounded-lg border border-borderwarm bg-cream px-4 py-2 text-body font-medium text-taupe dark:border-rootedge dark:bg-cocoa dark:text-khaki"
             >
               Log out
             </button>
@@ -144,10 +144,10 @@ function ThemeSection() {
   const setMode = useTheme((s) => s.setMode);
   return (
     <section
-      className="rounded-xl border border-slate-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900"
+      className="rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa"
       aria-label="Appearance"
     >
-      <p className="text-small font-medium uppercase tracking-wide text-slate-500 dark:text-stone-400">
+      <p className="text-small font-medium uppercase tracking-wide text-muted dark:text-drift">
         Appearance
       </p>
       <div className="mt-2 flex gap-2" role="group" aria-label="Color theme">
@@ -159,15 +159,15 @@ function ThemeSection() {
             aria-pressed={mode === option.value}
             className={`min-h-touch rounded-full px-4 py-2 text-body font-medium ${
               mode === option.value
-                ? 'bg-slate-900 text-white dark:bg-stone-100 dark:text-stone-900'
-                : 'border border-slate-300 bg-white text-slate-700 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-300'
+                ? 'bg-terra text-ivory dark:bg-sandlight dark:text-coal'
+                : 'border border-borderwarm bg-cream text-taupe dark:border-rootedge dark:bg-cocoa dark:text-khaki'
             }`}
           >
             {option.label}
           </button>
         ))}
       </div>
-      <p className="mt-2 text-small text-slate-500 dark:text-stone-400">
+      <p className="mt-2 text-small text-muted dark:text-drift">
         Auto follows your device setting.
       </p>
     </section>
@@ -186,9 +186,9 @@ function ProviderSection({
   const existing = user.providerProfile?.displayName ?? null;
   if (existing) {
     return (
-      <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900" aria-label="Provider">
-        <p className="text-small font-medium uppercase tracking-wide text-slate-500 dark:text-stone-400">Provider</p>
-        <p className="mt-1 text-h3 font-semibold text-slate-900 dark:text-stone-100">{existing}</p>
+      <section className="rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa" aria-label="Provider">
+        <p className="text-small font-medium uppercase tracking-wide text-muted dark:text-drift">Provider</p>
+        <p className="mt-1 text-h3 font-semibold text-bark dark:text-parchment">{existing}</p>
         <DisplayNameForm initial="" submitLabel="Change display name" onSaved={onSaved} />
       </section>
     );
@@ -201,7 +201,7 @@ function ProviderSection({
         action={
           <Link
             to="/sell/new"
-                className="inline-block min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-body font-medium text-white dark:bg-stone-100 dark:text-stone-900"
+                className="inline-block min-h-touch rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory dark:bg-sandlight dark:text-coal"
           >
             Create your first slot
           </Link>
@@ -210,9 +210,9 @@ function ProviderSection({
     );
   }
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900" aria-label="Provider">
-      <p className="text-small font-medium uppercase tracking-wide text-slate-500 dark:text-stone-400">Provider</p>
-      <p className="mt-1 text-body text-slate-600 dark:text-stone-400">
+    <section className="rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa" aria-label="Provider">
+      <p className="text-small font-medium uppercase tracking-wide text-muted dark:text-drift">Provider</p>
+      <p className="mt-1 text-body text-taupe dark:text-drift">
         Name your openings — buyers see this instead of your wallet.
       </p>
       <DisplayNameForm initial="" submitLabel="Set display name" onSaved={onSaved} />
@@ -259,7 +259,7 @@ export function DisplayNameForm({
 
   return (
     <form onSubmit={handleSubmit} className="mt-3">
-      <label htmlFor="provider-display-name" className="text-body font-medium text-slate-700 dark:text-stone-300">
+      <label htmlFor="provider-display-name" className="text-body font-medium text-taupe dark:text-khaki">
         Display name
       </label>
       <input
@@ -270,17 +270,17 @@ export function DisplayNameForm({
         onChange={(event) => setValue(event.target.value)}
         maxLength={60}
         placeholder="e.g. Sunrise Yoga"
-        className="mt-1 block min-h-touch w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-body text-slate-900 placeholder:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus-visible:ring-stone-200"
+        className="mt-1 block min-h-touch w-full rounded-lg border border-borderwarm bg-cream px-3 py-2 text-body text-bark placeholder:text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-terra dark:border-rootedge dark:bg-cocoa dark:text-parchment dark:placeholder:text-drift dark:focus-visible:ring-terralight"
       />
       {error ? (
-        <p className="mt-2 text-body font-medium text-red-800 dark:text-red-300" role="alert">
+        <p className="mt-2 text-body font-medium text-clay dark:text-clayd" role="alert">
           {error}
         </p>
       ) : null}
       <button
         type="submit"
         disabled={saving}
-        className="mt-2 min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-body font-medium text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
+        className="mt-2 min-h-touch rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory disabled:opacity-50 dark:bg-sandlight dark:text-coal"
       >
         {saving ? 'Saving…' : submitLabel}
       </button>

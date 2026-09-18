@@ -41,18 +41,18 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
       return (
         <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
           <div
-            className="rounded-xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-900 dark:bg-red-950"
+            className="rounded-xl border border-clayline bg-claywash p-6 text-center dark:border-clayd dark:bg-claywashd"
             role="alert"
           >
-            <p className="text-h3 font-semibold text-red-900 dark:text-red-300">Something went wrong.</p>
-            <p className="mx-auto mt-1 max-w-sm text-body text-red-800 dark:text-red-300">
+            <p className="text-h3 font-semibold text-clay dark:text-clayd">Something went wrong.</p>
+            <p className="mx-auto mt-1 max-w-sm text-body text-clay dark:text-clayd">
               {this.props.section} hit a problem loading. Reload to try again — your holds
               and openings are safe.
             </p>
             <button
               type="button"
               onClick={this.handleReload}
-              className="mt-4 min-h-touch rounded-lg bg-red-900 px-4 py-2 text-body font-medium text-white dark:bg-red-800"
+              className="mt-4 min-h-touch rounded-lg bg-claydeep px-4 py-2 text-body font-medium text-ivory dark:bg-clayfilld"
             >
               Reload
             </button>

@@ -18,9 +18,17 @@ describe('type scale (tailwind.config.js)', () => {
     expect(CONFIG_TEXT).toContain("darkMode: 'class'");
   });
 
-  it('pairs Geist Sans with the system fallback and Geist Mono for figures', () => {
-    expect(CONFIG_TEXT).toContain("'Geist Sans'");
-    expect(CONFIG_TEXT).toContain("'Geist Mono'");
+  it('pairs a system sans stack with a system mono stack for figures', () => {
+    expect(CONFIG_TEXT).toContain("'ui-sans-serif'");
+    expect(CONFIG_TEXT).toContain("'ui-monospace'");
+    // No webfont wired: the fontFamily declaration must not name one
+    // (prose comments elsewhere in the file may mention history).
+    const familyBlock = CONFIG_TEXT.slice(
+      CONFIG_TEXT.indexOf('fontFamily: {'),
+      CONFIG_TEXT.indexOf('fontSize: {'),
+    );
+    expect(familyBlock).not.toContain('Geist');
+    expect(familyBlock).not.toContain('@font-face');
   });
 
   it('locks the six-step scale verbatim', () => {

@@ -2,68 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Phase 14l-3: Geist Sans + Geist Mono, self-hosted (SIL OFL, official
-   Vercel release v1.7.2 woff2 under public/fonts/). font-display: swap
-   so the system-stack fallback paints instantly on cold WebView opens.
-   Full-charset files (~280 KB total, cached after first load) — no
-   latin-only subset ships upstream and subsetting locally would add a
-   font toolchain for ~10 KB/file savings (see phase report). */
-@font-face {
-  font-family: 'Geist Sans';
-  src: url('/fonts/Geist-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Geist Sans';
-  src: url('/fonts/Geist-Medium.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Geist Sans';
-  src: url('/fonts/Geist-SemiBold.woff2') format('woff2');
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Geist Sans';
-  src: url('/fonts/Geist-Bold.woff2') format('woff2');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Geist Mono';
-  src: url('/fonts/GeistMono-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Geist Mono';
-  src: url('/fonts/GeistMono-Medium.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
 /* Phase 11: one visible keyboard focus ring for every focusable element.
    Components may layer their own focus-visible ring on top; nothing here
    removes an outline without replacing it. */
-/* Phase 14l-3: the ring inverts with the theme — near-white on warm dark
-   (stone-200 on stone-900 ≈ 13:1, measured). */
+/* Retheme: terracotta ring on light (4.57:1 on cream), light terracotta
+   on warm dark (6.90:1 on coal). Both measured. */
 @layer base {
   :focus-visible {
-    outline: 3px solid #0f172a;
+    outline: 3px solid #9d5a30;
     outline-offset: 2px;
     border-radius: 4px;
   }
   .dark :focus-visible {
-    outline-color: #e7e5e4;
+    outline-color: #d2906a;
   }
 }
 

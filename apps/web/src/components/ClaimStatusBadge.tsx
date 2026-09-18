@@ -2,20 +2,20 @@
 // Phase 11: labels follow the locked status copy.
 // Phase 14e P1: escrow states added (same text+color discipline).
 const STYLES: Record<string, string> = {
-  active_hold: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
-  expired: 'bg-slate-200 text-slate-700 dark:bg-stone-700 dark:text-stone-200',
-  cancelled: 'bg-slate-200 text-slate-700 dark:bg-stone-700 dark:text-stone-200',
-  payment_pending: 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300',
-  paid: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
-  payment_review: 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300',
-  deposit_submitted: 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300',
-  escrow_funded: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
-  delivered: 'bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-300',
-  disputed: 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300',
-  releasing: 'bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-300',
-  released: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
-  refunding: 'bg-slate-200 text-slate-700 dark:bg-stone-700 dark:text-stone-200',
-  refunded: 'bg-slate-200 text-slate-700 dark:bg-stone-700 dark:text-stone-200',
+  active_hold: 'bg-sagewash text-sage dark:bg-sagewashd dark:text-saged',
+  expired: 'bg-sand text-taupe dark:bg-umber dark:text-parchment',
+  cancelled: 'bg-sand text-taupe dark:bg-umber dark:text-parchment',
+  payment_pending: 'bg-ochrewash text-ochre dark:bg-ochrewashd dark:text-ochred',
+  paid: 'bg-sagewash text-sage dark:bg-sagewashd dark:text-saged',
+  payment_review: 'bg-ochrewash text-ochre dark:bg-ochrewashd dark:text-ochred',
+  deposit_submitted: 'bg-ochrewash text-ochre dark:bg-ochrewashd dark:text-ochred',
+  escrow_funded: 'bg-sagewash text-sage dark:bg-sagewashd dark:text-saged',
+  delivered: 'bg-sand text-taupe dark:bg-umber dark:text-khaki',
+  disputed: 'bg-ochrewash text-ochre dark:bg-ochrewashd dark:text-ochred',
+  releasing: 'bg-sand text-taupe dark:bg-umber dark:text-khaki',
+  released: 'bg-sagewash text-sage dark:bg-sagewashd dark:text-saged',
+  refunding: 'bg-sand text-taupe dark:bg-umber dark:text-parchment',
+  refunded: 'bg-sand text-taupe dark:bg-umber dark:text-parchment',
 };
 
 const LABELS: Record<string, string> = {
@@ -36,7 +36,7 @@ const LABELS: Record<string, string> = {
 };
 
 export default function ClaimStatusBadge({ status }: { status: string }) {
-  const style = STYLES[status] ?? 'bg-slate-200 text-slate-700 dark:bg-stone-700 dark:text-stone-200';
+  const style = STYLES[status] ?? 'bg-sand text-taupe dark:bg-umber dark:text-parchment';
   const label = LABELS[status] ?? status;
   return (
     <span

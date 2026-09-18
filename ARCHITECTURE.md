@@ -1524,17 +1524,20 @@ via a small meta hook. New shared pieces: `ErrorBoundary`,
 - Disabled/unavailable actions must explain why.
 - Avoid crypto jargon unless necessary.
 - Mobile first; desktop receives a centered wider layout, not a completely different app.
-- Typography (14l-3): self-hosted Geist Sans + Geist Mono (no runtime
-  CDN); six-step scale display/h1/h2/h3/body/small with size-specific
-  tracking; figures (prices, countdowns, counts, dates) set in Geist
-  Mono with tabular numerals. No text size outside the scale.
-- Theme (14l-3): class-driven warm dark mode (stone-900/800 surfaces,
-  never an inversion) alongside light; Auto follows the OS with a
-  Light/Dark/Auto override in Profile persisted as the
-  non-credential `takeover-theme` choice (the sole sanctioned
-  localStorage user — session material stays in sessionStorage per
-  the bearer-auth posture test). Switching themes is instant: dark mode
-  adds no motion.
+- Typography (retheme): system stacks only (Geist removed by owner
+  call — no webfont files, no @font-face, no preload); the six-step
+  scale (display/h1/h2/h3/body/small) keeps its proportions. Figures
+  (prices, countdowns, counts, dates) set in system mono with tabular
+  numerals.
+- Theme (retheme — warm earthy): ivory pages, cream cards, sand
+  insets, taupe/brown text, terracotta actions/links/rings,
+  sage/ochre/clay status hues; no pure white, no pure black, no cool
+  grays. Dark mode is warm deep brown (coal/cocoa/umber), never an
+  inversion. Auto follows the OS with a Light/Dark/Auto override in
+  Profile persisted as the non-credential `takeover-theme` choice
+  (the sole sanctioned localStorage user — session material stays in
+  sessionStorage per the bearer-auth posture test). Switching themes
+  is instant: dark mode adds no motion.
 
 ## 21. Accessibility
 

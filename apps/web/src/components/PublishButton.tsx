@@ -18,7 +18,7 @@ export default function PublishButton({
       type="button"
       onClick={onPublish}
       disabled={publishing || disabled}
-      className="min-h-touch rounded-lg bg-slate-900 px-4 py-2 text-body font-medium text-white disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 dark:bg-stone-100 dark:text-stone-900 dark:focus-visible:ring-stone-200 dark:focus-visible:ring-offset-stone-900"
+      className="min-h-touch rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-terra focus-visible:ring-offset-2 ring-offset-cream dark:bg-sandlight dark:text-coal dark:focus-visible:ring-terralight dark:focus-visible:ring-offset-cocoa"
     >
       {publishing ? (busyLabel ?? 'Publishing…') : (label ?? 'Publish')}
     </button>

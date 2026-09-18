@@ -56,20 +56,12 @@ export default {
       // pairing (Geist Mono + tabular numerals for every price, countdown,
       // count, and date figure) and composes with the sizes above.
       fontFamily: {
-        // Geist Sans (self-hosted woff2, font-display: swap) with the
-        // system stack as the instant fallback and the metric-compatible
-        // tail behind it — no layout shift beyond the swap itself.
-        sans: [
-          'Geist Sans',
-          'ui-sans-serif',
-          'system-ui',
-          '-apple-system',
-          '"Segoe UI"',
-          'Roboto',
-          'sans-serif',
-        ],
-        // Geist Mono for figures. Same self-hosted treatment as sans.
-        mono: ['Geist Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+        // Retheme: system stacks (owner call — the bundled webfont is
+        // gone). The metric fallback chain keeps rendering quiet on
+        // every platform.
+        sans: ['ui-sans-serif', 'system-ui', '-apple-system', '"Segoe UI"', 'Roboto', 'sans-serif'],
+        // System mono for figures (prices, countdowns, counts, dates).
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
       fontSize: {
         // Hero price / admin stat. 30px, tightest tracking.
@@ -84,6 +76,66 @@ export default {
         body: ['0.875rem', { lineHeight: '1.25rem', letterSpacing: '0em' }],
         // Captions, labels, badges, counts. 12px, opened up a touch.
         small: ['0.75rem', { lineHeight: '1rem', letterSpacing: '0.01em' }],
+      },
+      // Retheme: warm earthy palette (owner call). No pure white, no pure
+      // black, no cool grays (slate/gray/zinc/neutral are banned — grep
+      // enforces it). Every text pair below measures ≥ 4.5:1 and every
+      // interactive boundary ≥ 3:1 in BOTH modes (see the retheme report);
+      // container/hairline borders stay decorative, as in the baseline.
+      colors: {
+        // Light surfaces: ivory page, cream cards, sand inset panels/chips.
+        ivory: '#FAF6EC',
+        cream: '#F4EDDD',
+        sand: '#E8DCC3',
+        // Light borders: hairline (decorative card edges), clayline +
+        // ochreline (decorative tinted edges), borderwarm (interactive
+        // input/button edges, 3.07:1 on cream).
+        hairline: '#D8C8A8',
+        clayline: '#D8A88F',
+        ochreline: '#C9A94E',
+        borderwarm: '#9C845A',
+        // Light text: bark primary, taupe secondary, muted tertiary,
+        // faint icons/placeholders only (3.45:1, never body copy).
+        bark: '#453727',
+        taupe: '#5F4F3B',
+        muted: '#6F5E4A',
+        faint: '#8E7C64',
+        // Terracotta: primary fills + badge (ivory text 4.94:1),
+        // links (terradeep 5.83:1 on cream), focus rings.
+        terra: '#9D5A30',
+        terradeep: '#8A4A24',
+        // Softened status hues: sage success, ochre warning, clay danger.
+        sage: '#556B4C',
+        sagewash: '#E3E8D8',
+        ochre: '#77601C',
+        ochrewash: '#EEE3C0',
+        clay: '#98452C',
+        claywash: '#F1DCD0',
+        // Destructive fills (ivory text 7.73:1 on claydeep).
+        claydeep: '#7E3A24',
+        // Warm dark: coal page, cocoa cards, umber inset panels.
+        coal: '#1D130C',
+        cocoa: '#2B1E12',
+        umber: '#3B2B1A',
+        // Dark text: parchment primary, khaki secondary, drift muted.
+        parchment: '#F1E7D2',
+        khaki: '#CFBE9F',
+        drift: '#AE9C7E',
+        // Dark borders: rootline decorative, rootedge interactive (3.38:1).
+        rootline: '#4E3A24',
+        rootedge: '#83704B',
+        // Dark accents: sandlight primary fills (coal text 13.17:1),
+        // terralight links/rings, clayfilld destructive fills
+        // (ivory text 4.71:1, cocoa boundary 3.18:1).
+        sandlight: '#EAD9BC',
+        terralight: '#D2906A',
+        saged: '#A9BE9C',
+        sagewashd: '#22301F',
+        ochred: '#D3B95C',
+        ochrewashd: '#2C2410',
+        clayd: '#D8957A',
+        claywashd: '#332016',
+        clayfilld: '#A65A32',
       },
       // Phase 14i-1 feed entrance (direction A only, capped + staggered in
       // SlotList). opacity + translateY(8px) only — never scale(0).
@@ -101,33 +153,25 @@ export default {
   plugins: [],
 };
 
-// Palette (direction A "Warm marketplace", 14i-1): slate-900 ink text is
-// unchanged (contrast-safe everywhere); page surfaces move slate-50 →
-// stone-100 and card borders slate-200 → stone-200 for warmth. Status hues
-// are unchanged (emerald available/paid, amber pending/review, orange
-// low-stock urgency). Status is always text + color, never color alone.
-// Red scale, unified 14i-1: text red-800, fills bg-red-900, borders
-// red-200, washes bg-red-50. (text-red-600/red-700 stragglers outside the
-// feed + chrome scope move in 14i-2/14i-3.)
+// Palette (retheme — warm earthy, owner call; supersedes the direction A
+// slate/stone system): bark ink text on ivory pages and cream cards;
+// sand inset panels/chips; hairline card edges; status hues softened to
+// sage (success), ochre (warning), clay (danger). Status is always text
+// + color, never color alone. Cool grays are banned (slate/gray/zinc/
+// neutral must not appear in src). Dark mode is warm deep brown.
 //
 // Radius language (direction A, locked 14i-1): cards rounded-2xl, inner
 // panels/buttons/inputs rounded-lg, badges/pills rounded-full. Modals join
 // rounded-2xl in 14i-3; nothing new uses rounded-xl-for-cards.
 //
-// Type scale (14l-3, locked): display 30/36/-0.02 bold; h1 24/32/-0.02
-// bold; h2 20/28/-0.01 bold; h3 16/24/-0.01 semibold; body 14/20/0
-// regular; small 12/16/+0.01 medium. No text size outside this scale —
-// a surface needing another size takes the nearest match. Figures
-// (prices, countdowns, counts, dates) pair a scale size with font-mono
-// + tabular-nums. Uppercase micro-labels may add tracking-wide on top
-// of small; relaxed body copy may add leading-relaxed on top of body.
+// Type scale (14l-3, locked; proportions unchanged by the retheme):
+// display 30/36/-0.02 bold; h1 24/32/-0.02 bold; h2 20/28/-0.01 bold;
+// h3 16/24/-0.01 semibold; body 14/20/0 regular; small 12/16/+0.01
+// medium. System stacks only (Geist removed by owner call). Figures
+// pair a scale size with font-mono + tabular-nums.
 //
-// Dark palette (14l-3, warm dark — stone, never an inversion):
-// page stone-950, cards stone-900, inner panels stone-800; borders
-// stone-800 (cards) / stone-700→600 (inputs/buttons); text stone-100 /
-// stone-300 / stone-400; primary fills invert to stone-100 with
-// stone-900 text; status hues step to the 300 level on 950 washes
-// (emerald/amber/orange/sky/red); destructive fills stay red-700+ for
-// white-text contrast. Elevation in dark comes from border contrast,
-// not shadows (shadow-card/shadow-sm render dark:shadow-none).
-// Every pair below is contrast-measured (see the phase report).
+// Earthy palette (retheme, warm organic calm): ivory pages, cream
+// cards, sand insets, taupe/brown text, terracotta actions/links/
+// rings, sage/ochre/clay status hues. Dark mode is warm deep brown
+// (coal/cocoa/umber), never cool gray. Full hex table + measured
+// pairs live in the retheme report.

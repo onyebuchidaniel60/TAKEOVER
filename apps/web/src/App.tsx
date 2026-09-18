@@ -82,7 +82,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-stone-100 font-sans text-slate-900 dark:bg-stone-950 dark:text-stone-100">
+      <div className="min-h-screen bg-ivory font-sans text-bark dark:bg-coal dark:text-parchment">
         <ErrorBoundary section="TAKEOVER">
           <TopBar />
           <ReturnToHandler />

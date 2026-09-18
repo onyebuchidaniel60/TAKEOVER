@@ -6,8 +6,8 @@ export default function PriceDisplay({ priceUsdt, large = false }: { priceUsdt: 
     <span
       className={
         large
-          ? 'text-display font-bold font-mono tabular-nums text-slate-900 dark:text-stone-100'
-          : 'text-h3 font-semibold font-mono tabular-nums text-slate-900 dark:text-stone-100'
+          ? 'text-display font-bold font-mono tabular-nums text-bark dark:text-parchment'
+          : 'text-h3 font-semibold font-mono tabular-nums text-bark dark:text-parchment'
       }
       aria-label={`Price ${formatUsdt(priceUsdt)}`}
     >

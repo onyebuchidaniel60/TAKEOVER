@@ -15,12 +15,12 @@ export default function CancelConfirmDialog({
   return (
     <div
       ref={panelRef}
-      className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950"
+      className="rounded-xl border border-clayline bg-claywash p-4 dark:border-clayd dark:bg-claywashd"
       role="alertdialog"
       aria-label="Confirm cancellation"
     >
-      <p className="text-body font-semibold text-red-900 dark:text-red-300">Cancel this opening?</p>
-      <p className="mt-1 text-body text-red-800 dark:text-red-300">
+      <p className="text-body font-semibold text-clay dark:text-clayd">Cancel this opening?</p>
+      <p className="mt-1 text-body text-clay dark:text-clayd">
         It will disappear from the marketplace. This cannot be undone.
       </p>
       <div className="mt-3 flex gap-2">
@@ -28,7 +28,7 @@ export default function CancelConfirmDialog({
           type="button"
           onClick={onConfirm}
           disabled={cancelling}
-          className="min-h-touch rounded-lg bg-red-900 px-4 py-2 text-body font-medium text-white disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-900 focus-visible:ring-offset-2 dark:bg-red-800 dark:focus-visible:ring-red-400 dark:focus-visible:ring-offset-stone-900"
+          className="min-h-touch rounded-lg bg-claydeep px-4 py-2 text-body font-medium text-ivory disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2 ring-offset-cream dark:bg-clayfilld dark:focus-visible:ring-clayd dark:focus-visible:ring-offset-cocoa"
         >
           {cancelling ? 'Cancelling…' : 'Yes, cancel it'}
         </button>
@@ -36,7 +36,7 @@ export default function CancelConfirmDialog({
           type="button"
           onClick={onDismiss}
           disabled={cancelling}
-          className="min-h-touch rounded-lg border border-red-300 bg-white px-4 py-2 text-body font-medium text-red-900 disabled:opacity-50 dark:border-red-600 dark:bg-stone-900 dark:text-red-300"
+          className="min-h-touch rounded-lg border border-clay bg-cream px-4 py-2 text-body font-medium text-clay disabled:opacity-50 dark:border-clayd dark:bg-cocoa dark:text-clayd"
         >
           Keep it
         </button>

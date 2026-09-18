@@ -173,10 +173,10 @@ export default function ConfirmReceiptBox({
   };
 
   return (
-    <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-stone-800" aria-live="polite">
-      <p className="text-body font-medium text-slate-900 dark:text-stone-100">Service delivered?</p>
+    <div className="mt-4 rounded-lg bg-sand p-3 dark:bg-umber" aria-live="polite">
+      <p className="text-body font-medium text-bark dark:text-parchment">Service delivered?</p>
       {escrow.dispute_window_ends && (
-        <p className="mt-1 font-mono text-body tabular-nums text-slate-600 dark:text-stone-400">
+        <p className="mt-1 font-mono text-body tabular-nums text-taupe dark:text-drift">
           Dispute window closes{' '}
           {new Date(escrow.dispute_window_ends).toLocaleString(undefined, {
             month: 'short',
@@ -188,63 +188,63 @@ export default function ConfirmReceiptBox({
         </p>
       )}
       {display === 'pending' && (
-        <p className="mt-1 font-mono text-body tabular-nums text-slate-600 dark:text-stone-400">
+        <p className="mt-1 font-mono text-body tabular-nums text-taupe dark:text-drift">
           Release in progress
           {confirmations !== null ? ` (${confirmations}/3 confirmations)` : ''}…
         </p>
       )}
       {display === 'released' && (
-        <p className="mt-1 text-body font-medium text-slate-900 dark:text-stone-100">Released. Complete.</p>
+        <p className="mt-1 text-body font-medium text-bark dark:text-parchment">Released. Complete.</p>
       )}
       {display === 'rpc-down' && (
-        <p className="mt-1 text-body text-slate-600 dark:text-stone-400">
+        <p className="mt-1 text-body text-taupe dark:text-drift">
           Release status is temporarily unavailable. We&apos;ll keep checking.
         </p>
       )}
       {display === 'exhausted' && (
-        <p className="mt-1 text-body text-slate-600 dark:text-stone-400">
+        <p className="mt-1 text-body text-taupe dark:text-drift">
           Still pending. The release may need more time — confirm again.
         </p>
       )}
-      {error && <p className="mt-1 text-body text-red-700 dark:text-red-400">{error}</p>}
+      {error && <p className="mt-1 text-body text-clay dark:text-clayd">{error}</p>}
       {(display === 'idle' || display === 'exhausted') && (
         <button
           type="button"
           onClick={handleConfirm}
-          className="mt-2 inline-flex min-h-touch items-center rounded-lg bg-slate-900 px-4 py-2 text-body font-medium text-white dark:bg-stone-100 dark:text-stone-900"
+          className="mt-2 inline-flex min-h-touch items-center rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory dark:bg-sandlight dark:text-coal"
         >
           Confirm receipt
         </button>
       )}
       {display === 'confirming' && (
-        <p className="mt-2 text-body text-slate-600 dark:text-stone-400">Confirming…</p>
+        <p className="mt-2 text-body text-taupe dark:text-drift">Confirming…</p>
       )}
-      <div className="mt-3 border-t border-slate-200 pt-3 dark:border-stone-700">
+      <div className="mt-3 border-t border-hairline pt-3 dark:border-rootline">
         {!disputing ? (
           <button
             type="button"
             onClick={handleDispute}
             disabled={disputeBusy}
-            className="inline-flex min-h-touch items-center rounded-lg border border-slate-300 px-4 py-2 text-body font-medium text-slate-900 disabled:opacity-50 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-100"
+            className="inline-flex min-h-touch items-center rounded-lg border border-borderwarm px-4 py-2 text-body font-medium text-bark disabled:opacity-50 dark:border-rootedge dark:bg-cocoa dark:text-parchment"
           >
             {disputeBusy ? 'Opening dispute…' : 'Dispute'}
           </button>
         ) : (
           <div>
-            <p className="text-body text-slate-600 dark:text-stone-400">
+            <p className="text-body text-taupe dark:text-drift">
               To open the dispute, send the dispute transaction from your wallet, then come back.
             </p>
             <button
               type="button"
               onClick={handleDisputeSend}
               disabled={disputeBusy}
-              className="mt-2 inline-flex min-h-touch items-center rounded-lg border border-slate-300 px-4 py-2 text-body font-medium text-slate-900 disabled:opacity-50 dark:border-stone-500 dark:bg-stone-900 dark:text-stone-100"
+              className="mt-2 inline-flex min-h-touch items-center rounded-lg border border-borderwarm px-4 py-2 text-body font-medium text-bark disabled:opacity-50 dark:border-rootedge dark:bg-cocoa dark:text-parchment"
             >
               {disputeBusy ? 'Waiting for wallet…' : 'Send dispute transaction'}
             </button>
           </div>
         )}
-        {disputeError && <p className="mt-1 text-body text-red-700 dark:text-red-400">{disputeError}</p>}
+        {disputeError && <p className="mt-1 text-body text-clay dark:text-clayd">{disputeError}</p>}
       </div>
     </div>
   );
