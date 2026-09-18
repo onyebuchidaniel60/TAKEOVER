@@ -280,7 +280,6 @@ describe.skipIf(!isDatabaseConfigured())('phase 13 concurrency sweep (live, no m
         ends_at: new Date(now + 4 * HOUR).toISOString(),
         price_usdt: '150000',
         total_quantity: 4,
-        payout_wallet: validPayout(),
       },
     });
     expect(create.statusCode).toBe(201);

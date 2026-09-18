@@ -14,8 +14,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const VALID_PAYOUT = 'NQ69CMHG0RUFYBQ8VD8K0HPMBNG58N0S6KR1';
-
 function stubFetchJson(data: unknown, ok = true, status = 200): void {
   vi.stubGlobal(
     'fetch',
@@ -39,7 +37,6 @@ describe('SlotForm client validation', () => {
     ends_at: '',
     price: '',
     total_quantity: '',
-    payout_wallet: '',
   };
 
   it('labels the price input in USDT (Phase 14h)', async () => {
@@ -70,7 +67,7 @@ describe('SlotForm client validation', () => {
     }
   });
 
-  it('flags a bad payout, past start, end-before-start, zero price, zero spots', async () => {
+  it('flags a past start, end-before-start, zero price, zero spots', async () => {
     const onSubmit = vi.fn();
     const { container, unmount } = render(
       <SlotForm
@@ -81,7 +78,6 @@ describe('SlotForm client validation', () => {
           ends_at: '2020-01-01T09:00',
           price: '0',
           total_quantity: '0',
-          payout_wallet: 'NQ00 SEEDPAYOUT000000000001',
         }}
         submitLabel="Save draft"
         submitting={false}
@@ -100,7 +96,6 @@ describe('SlotForm client validation', () => {
       expect(onSubmit).not.toHaveBeenCalled();
       expect(await screen.findByText('Start must be in the future.')).toBeTruthy();
       expect(await screen.findByText('End must be after the start.')).toBeTruthy();
-      expect(await screen.findByText('Enter a valid Nimiq wallet address (starts with NQ).')).toBeTruthy();
     } finally {
       unmount();
     }
@@ -118,7 +113,6 @@ describe('SlotForm client validation', () => {
           ends_at: '2030-01-01T11:00',
           price: '1',
           total_quantity: '2',
-          payout_wallet: VALID_PAYOUT,
         }}
         submitLabel="Save draft"
         submitting={false}
@@ -133,7 +127,7 @@ describe('SlotForm client validation', () => {
       expect(body.title).toBe('Table for two');
       expect(body.price_usdt).toBe('1000000');
       expect(body.total_quantity).toBe(2);
-      expect(body.payout_wallet).toBe(VALID_PAYOUT);
+      expect('payout_wallet' in body).toBe(false);
       expect(body.ends_at).toBeDefined();
     } finally {
       unmount();
@@ -156,7 +150,6 @@ describe('SlotForm client validation', () => {
           ends_at: '',
           price: '1',
           total_quantity: '2',
-          payout_wallet: VALID_PAYOUT,
         }}
         submitLabel="Save draft"
         submitting={false}
@@ -181,12 +174,12 @@ describe('SlotForm client validation', () => {
         initial={emptyInitial}
         submitLabel="Save draft"
         submitting={false}
-        serverError="Invalid payout wallet address."
+        serverError="Something went wrong."
         onSubmit={() => {}}
       />,
     );
     try {
-      expect(await screen.findByText('Invalid payout wallet address.')).toBeTruthy();
+      expect(await screen.findByText('Something went wrong.')).toBeTruthy();
     } finally {
       unmount();
     }

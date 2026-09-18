@@ -28,8 +28,6 @@ const EXPECTED = [
   'Other',
 ];
 
-const VALID_PAYOUT = 'NQ69CMHG0RUFYBQ8VD8K0HPMBNG58N0S6KR1';
-
 const emptyFilters = { q: '', category: '', location: '', from: '', to: '' };
 
 const emptyForm: SlotFormValues = {
@@ -41,7 +39,6 @@ const emptyForm: SlotFormValues = {
   ends_at: '',
   price: '',
   total_quantity: '',
-  payout_wallet: '',
 };
 
 const validForm: SlotFormValues = {
@@ -51,7 +48,6 @@ const validForm: SlotFormValues = {
   ends_at: '2030-01-01T11:00',
   price: '1',
   total_quantity: '2',
-  payout_wallet: VALID_PAYOUT,
 };
 
 function categoryOptions(): { label: string; value: string }[] {

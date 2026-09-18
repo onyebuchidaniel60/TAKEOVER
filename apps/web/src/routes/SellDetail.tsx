@@ -396,9 +396,6 @@ function ManageSlot({
       ) : (
         <>
           <SlotDetail slot={slot} />
-          <p className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-500">
-            Pays to: <span className="font-mono break-all">{slot.payout_wallet}</span>
-          </p>
           {slot.status === 'published' ? (
             <p className="text-xs text-slate-500">
               Published openings can’t be edited — cancel it if something needs to change.

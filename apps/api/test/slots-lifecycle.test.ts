@@ -45,10 +45,6 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     return wallet;
   }
 
-  function validPayout(): string {
-    return deriveNimiqAddress(new Uint8Array(32).map(() => Math.floor(Math.random() * 256)));
-  }
-
   type InjectResponse = Awaited<ReturnType<FastifyInstance['inject']>>;
 
   function sessionCookieFrom(res: InjectResponse): string {
@@ -88,7 +84,6 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
       ends_at: new Date(now + 4 * HOUR).toISOString(),
       price_usdt: '150000',
       total_quantity: 4,
-      payout_wallet: validPayout(),
     };
   }
 
@@ -158,7 +153,9 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     expect(body.data.slot['available_quantity']).toBe(4);
     expect(body.data.slot['total_quantity']).toBe(4);
     expect(body.data.slot['published_at']).toBeNull();
-    expect(typeof body.data.slot['payout_wallet']).toBe('string');
+    // No payout wallet: creation succeeds without one and the owner
+    // projection no longer carries the NIM-era field.
+    expect(body.data.slot).not.toHaveProperty('payout_wallet');
     slotIds.push(body.data.slot['id'] as string);
   });
 
@@ -170,7 +167,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     expect((me.json() as { data: { user: { role: string } } }).data.user.role).toBe('buyer');
   });
 
-  it('rejects a fixture payout wallet with 400 (bad checksum)', async () => {
+  it('rejects a payout_wallet field with 400 (unknown strict field)', async () => {
     const cookie = await loginAs(randomWallet());
     const res = await app.inject({
       method: 'POST',
@@ -384,14 +381,14 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     const res = await app.inject({ method: 'GET', url: '/api/v1/me/slots', headers: { cookie: cookieA, ...CSRF } });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
-      data: { slots: { id: string; payout_wallet: unknown }[]; total: number };
+      data: { slots: { id: string }[]; total: number };
       requestId: string;
     };
     const found = body.data.slots.map((s) => s.id);
     expect(found).toContain(idA);
     expect(found).not.toContain(idB);
     for (const slot of body.data.slots) {
-      expect(typeof slot.payout_wallet).toBe('string');
+      expect(slot).not.toHaveProperty('payout_wallet');
     }
   });
 
@@ -402,7 +399,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: { slot: Record<string, unknown> } };
     expect(body.data.slot['id']).toBe(id);
-    expect(typeof body.data.slot['payout_wallet']).toBe('string');
+    expect(body.data.slot).not.toHaveProperty('payout_wallet');
   });
 
   it('GET /slots/:id as anonymous on a draft stays 404', async () => {

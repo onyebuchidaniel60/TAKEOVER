@@ -26,7 +26,6 @@ import { toOwnerSlot, type OwnerSlot } from './owner-slot';
 import { loadProviderDisplay, loadProviderDisplayMap } from './provider-display';
 import { serializePriceUsdt } from './price';
 import {
-  canonicalizePayoutWallet,
   requireCancellableStatus,
   requireDraftForEdit,
   requireDraftForPublish,
@@ -74,7 +73,6 @@ export async function createSlot(
       priceUsdt: BigInt(serializePriceUsdt(input.price_usdt)),
       totalQuantity: input.total_quantity,
       availableQuantity: input.total_quantity,
-      payoutWallet: canonicalizePayoutWallet(input.payout_wallet),
       status: 'draft',
     })
     .returning();
@@ -105,9 +103,6 @@ export async function updateDraftSlot(
     // Drafts hold no demand, so the full quantity stays available.
     values.totalQuantity = patch.total_quantity;
     values.availableQuantity = patch.total_quantity;
-  }
-  if (patch.payout_wallet !== undefined) {
-    values.payoutWallet = canonicalizePayoutWallet(patch.payout_wallet);
   }
   // Conditional write: a concurrent publish/cancel wins instead of being clobbered.
   const rows = await db
@@ -242,7 +237,6 @@ async function publishSlotUnpaid(
         endsAt: current.endsAt,
         priceUsdt: current.priceUsdt,
         totalQuantity: current.totalQuantity,
-        payoutWallet: current.payoutWallet,
       },
       now,
     );
@@ -322,7 +316,6 @@ async function publishSlotWithFee(
       endsAt: pre.endsAt,
       priceUsdt: pre.priceUsdt,
       totalQuantity: pre.totalQuantity,
-      payoutWallet: pre.payoutWallet,
     },
     now,
   );

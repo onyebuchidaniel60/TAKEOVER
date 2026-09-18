@@ -205,7 +205,6 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
       ends_at: new Date(now + 4 * HOUR).toISOString(),
       price_usdt: '150000',
       total_quantity: 4,
-      payout_wallet: validPayout(),
     };
   }
 
@@ -1112,12 +1111,10 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     }
   });
 
-  it('recipient manipulation: payout wallet is immutable after publish', async () => {
+  it('published slot rejects edits with 409 SLOT_NOT_EDITABLE', async () => {
     const wallet = randomWallet();
     const cookie = await loginAs(wallet);
-    const payout = validPayout();
-    const body = { ...validDraftBody(`S12 ${tag} immutable`), payout_wallet: payout };
-    const create = await app.inject({ method: 'POST', url: '/api/v1/slots', headers: { cookie, ...CSRF }, payload: body });
+    const create = await app.inject({ method: 'POST', url: '/api/v1/slots', headers: { cookie, ...CSRF }, payload: validDraftBody(`S12 ${tag} immutable`) });
     expect(create.statusCode).toBe(201);
     const slotId = (create.json() as { data: { slot: { id: string } } }).data.slot.id;
     slotIds.push(slotId);
@@ -1126,20 +1123,10 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
       method: 'PATCH',
       url: `/api/v1/slots/${slotId}`,
       headers: { cookie, ...CSRF },
-      payload: { payout_wallet: validPayout() },
+      payload: { title: 'too late' },
     });
     expect(patch.statusCode).toBe(409);
     expect((patch.json() as { error: { code: string } }).error.code).toBe('SLOT_NOT_EDITABLE');
-    const db = getDb();
-    const stored = (await db.select().from(slots).where(eq(slots.id, slotId)).limit(1))[0];
-    expect(stored?.payoutWallet).toBe(payout);
-    const buyerCookie = await loginAs(randomWallet());
-    const claimRes = await claimAs(buyerCookie, slotId);
-    expect(claimRes.statusCode).toBe(200);
-    const claimId = (claimRes.json() as { data: { claim: { id: string } } }).data.claim.id;
-    const intent = await intentAs(buyerCookie, claimId);
-    expect(intent.statusCode).toBe(200);
-    expect((intent.json() as { data: { intent: { expectedRecipient: string } } }).data.intent.expectedRecipient).toBe(payout);
   });
 
   it('sender spoofing: tx from a different sender goes to review', async () => {

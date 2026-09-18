@@ -116,7 +116,9 @@ export default function SlotDetailPage() {
                 </p>
               ) : null}
             </div>
-            {authenticated && !isAdminUser(user) && !('payout_wallet' in state.slot) ? (
+            {/* Public view: the owner projection is never served here, so every
+                authenticated non-admin viewer may report. */}
+            {authenticated && !isAdminUser(user) ? (
               <div className="mt-2">
                 {reported ? (
                   <p role="status" className="text-sm text-slate-600">

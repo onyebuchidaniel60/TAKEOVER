@@ -81,7 +81,10 @@ export async function createPaymentIntent(
     const values = {
       claimId: claim.id,
       expectedAmountNim: slot.priceUsdt,
-      expectedRecipient: canonicalizeOr500(slot.payoutWallet),
+      // Deprecated direct-payment path only (kept for historical rows): new
+      // slots carry no payout wallet, so this fails closed (500) there —
+      // the live escrow flow never reads slots.payout_wallet.
+      expectedRecipient: canonicalizeOr500(slot.payoutWallet ?? ''),
       expectedSender: canonicalizeOr500(buyer.walletAddress),
       expectedData: expectedDataForClaim(claim.id),
       status: 'created' as const,

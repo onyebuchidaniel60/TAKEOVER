@@ -26,7 +26,10 @@ export const slots = pgTable(
     priceUsdt: bigint('price_usdt', { mode: 'bigint' }).notNull(),
     totalQuantity: integer('total_quantity').notNull(),
     availableQuantity: integer('available_quantity').notNull(),
-    payoutWallet: text('payout_wallet').notNull(),
+    // Legacy NIM-era field, unused by the current USDT escrow flow (the
+    // provider payout address is collected at mark-delivered time and stored
+    // on escrows.provider_payout_address). Nullable; new slots leave it NULL.
+    payoutWallet: text('payout_wallet'),
     status: slotStatus('status').notNull().default('draft'),
     // Phase 14g-1: NIM listing-fee receipt. NULL = unpaid (pre-fee slot or
     // fee-not-configured publish). UNIQUE when present: the same on-chain fee

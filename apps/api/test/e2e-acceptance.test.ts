@@ -173,7 +173,6 @@ describe.skipIf(!isDatabaseConfigured())('phase 13 acceptance journey (live, rea
         ends_at: new Date(now + 4 * HOUR).toISOString(),
         price_usdt: '150000',
         total_quantity: 1,
-        payout_wallet: provider.wallet,
       },
     });
     expect(create.statusCode).toBe(201);
@@ -181,9 +180,16 @@ describe.skipIf(!isDatabaseConfigured())('phase 13 acceptance journey (live, rea
     expect(created['status']).toBe('draft');
     expect(created['available_quantity']).toBe(1);
     expect(created['total_quantity']).toBe(1);
-    expect(created['payout_wallet']).toBe(provider.wallet);
+    // Created without a payout wallet: the NIM-era field is gone from
+    // creation and from the owner projection.
+    expect(created).not.toHaveProperty('payout_wallet');
     const slotId = created['id'] as string;
     slotIds.push(slotId);
+    // Legacy-row backfill: creation no longer collects a payout wallet, but
+    // this journey exercises the deprecated direct-payment flow, which reads
+    // slots.payout_wallet. New slots carry NULL; historical rows carry the
+    // provider wallet — backfill it so the deprecated leg stays covered.
+    await getDb().update(slots).set({ payoutWallet: provider.wallet }).where(eq(slots.id, slotId));
 
     // 3. Provider publishes it.
     const publish = await app.inject({

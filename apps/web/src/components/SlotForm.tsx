@@ -6,7 +6,6 @@ import {
   parseUsdtToBaseUnits,
   SLOT_CATEGORIES,
   validateSlotEndsAt,
-  validateSlotPayout,
   validateSlotPrice,
   validateSlotQuantity,
   validateSlotStartsAt,
@@ -25,7 +24,6 @@ export interface SlotFormValues {
   ends_at: string;
   price: string;
   total_quantity: string;
-  payout_wallet: string;
 }
 
 const inputClass =
@@ -65,7 +63,6 @@ export function initialValues(slot?: OwnerSlot): SlotFormValues {
     ends_at: isoToInput(slot?.ends_at ?? null),
     price: slot ? baseUnitsToUsdt(slot.price_usdt) : '',
     total_quantity: slot ? String(slot.total_quantity) : '',
-    payout_wallet: slot?.payout_wallet ?? '',
   };
 }
 
@@ -116,8 +113,6 @@ export default function SlotForm({
     if (priceError) errors.price = priceError;
     const quantityError = validateSlotQuantity(values.total_quantity);
     if (quantityError) errors.total_quantity = quantityError;
-    const payoutError = validateSlotPayout(values.payout_wallet);
-    if (payoutError) errors.payout_wallet = payoutError;
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       return;
@@ -148,7 +143,6 @@ export default function SlotForm({
       ...(endsAt ? { ends_at: endsAt } : {}),
       price_usdt: priceUsdt,
       total_quantity: totalQuantity,
-      payout_wallet: values.payout_wallet.trim(),
     });
   };
 
@@ -283,24 +277,6 @@ export default function SlotForm({
           />
           {fieldErrors.total_quantity ? <FieldMessage message={fieldErrors.total_quantity} /> : null}
         </div>
-      </div>
-      <div>
-        <label htmlFor="slot-payout" className={labelClass}>
-          Payout wallet *
-        </label>
-        <input
-          id="slot-payout"
-          type="text"
-          className={inputClass}
-          placeholder="NQ…"
-          value={values.payout_wallet}
-          onChange={set('payout_wallet')}
-          maxLength={64}
-          autoComplete="off"
-          spellCheck={false}
-        />
-        <p className="mt-1 text-xs text-slate-500">Buyers pay this address directly.</p>
-        {fieldErrors.payout_wallet ? <FieldMessage message={fieldErrors.payout_wallet} /> : null}
       </div>
       {serverError ? (
         <p className="text-sm font-medium text-red-800" role="alert">

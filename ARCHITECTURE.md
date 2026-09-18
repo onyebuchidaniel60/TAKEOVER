@@ -474,7 +474,9 @@ Publicly expose only safe profile fields.
 - price_usdt BIGINT NOT NULL (integer USDT base units, 6 decimals, no floats)
 - total_quantity INTEGER NOT NULL
 - available_quantity INTEGER NOT NULL
-- payout_wallet TEXT NOT NULL
+- payout_wallet TEXT NULL (legacy NIM-era field, unused by the USDT escrow
+  flow — the provider payout address is collected at mark-delivered time on
+  escrows.provider_payout_address; new slots leave this column NULL)
 - status ENUM(slot_status: draft, published, sold_out, cancelled, expired) NOT NULL DEFAULT draft
 - published_at TIMESTAMPTZ NULL
 - cancelled_at TIMESTAMPTZ NULL
@@ -751,8 +753,9 @@ Auth: optional.
 
 Returns public slot detail, including `providerDisplay` (profile
 display_name when set, else the truncated provider wallet — public-safe in
-both forms). The owner projection carries the same field plus
-`payout_wallet`.
+both forms). The owner projection carries the same fields (the NIM-era
+`payout_wallet` was removed from it — the escrow flow collects the payout
+address at mark-delivered time).
 
 ### POST /api/v1/slots
 

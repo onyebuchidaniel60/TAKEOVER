@@ -1,10 +1,8 @@
 // Phase 5 unit tests — no database. Covers publish validation (each field
-// failing on its own), payout-wallet checksums, and the lifecycle state guards.
+// failing on its own) and the lifecycle state guards.
 import { describe, expect, it } from 'vitest';
-import { deriveNimiqAddress } from '../src/auth/nimiq-address';
 import { AppError } from '../src/http/errors';
 import {
-  canonicalizePayoutWallet,
   requireCancellableStatus,
   requireDraftForEdit,
   requireDraftForPublish,
@@ -12,7 +10,6 @@ import {
   type PublishableInput,
 } from '../src/slots/validation';
 
-const VALID_PAYOUT = deriveNimiqAddress(new Uint8Array(32).fill(7));
 const NOW = new Date('2026-09-11T12:00:00.000Z');
 
 function validDraft(): PublishableInput {
@@ -22,7 +19,6 @@ function validDraft(): PublishableInput {
     endsAt: new Date(NOW.getTime() + 2 * 3_600_000),
     priceUsdt: 150000n,
     totalQuantity: 2,
-    payoutWallet: VALID_PAYOUT,
   };
 }
 
@@ -50,31 +46,10 @@ describe('validatePublishable', () => {
     expect(validatePublishable({ ...validDraft(), totalQuantity: 0 }, NOW)).toEqual([
       'total_quantity',
     ]);
-    expect(validatePublishable({ ...validDraft(), payoutWallet: 'NQ00 SEEDPAYOUT00000001' }, NOW)).toEqual([
-      'payout_wallet',
-    ]);
   });
 
   it('accepts a missing ends_at', () => {
     expect(validatePublishable({ ...validDraft(), endsAt: null }, NOW)).toEqual([]);
-  });
-});
-
-describe('payout_wallet validation', () => {
-  it("rejects the Phase 4 seed fixture pattern (bad checksum)", () => {
-    expect(() => canonicalizePayoutWallet('NQ00 SEEDPAYOUT000000000001')).toThrowError(AppError);
-    try {
-      canonicalizePayoutWallet('NQ00 SEEDPAYOUT000000000001');
-      expect.unreachable();
-    } catch (err) {
-      expect(err).toBeInstanceOf(AppError);
-      expect((err as AppError).statusCode).toBe(400);
-      expect((err as AppError).code).toBe('INVALID_INPUT');
-    }
-  });
-
-  it('accepts a valid Nimiq address and canonicalizes it', () => {
-    expect(canonicalizePayoutWallet(VALID_PAYOUT.toLowerCase())).toBe(VALID_PAYOUT);
   });
 });
 

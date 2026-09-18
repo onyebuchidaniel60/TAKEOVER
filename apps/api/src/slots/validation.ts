@@ -3,7 +3,6 @@
 // tested without a database.
 import { z } from 'zod';
 import { AppError } from '../http/errors';
-import { canonicalizeNimiqAddress, InvalidAddressError } from '../auth/nimiq-address';
 import { serializePriceUsdt } from './price';
 
 export const slotStatusValues = ['draft', 'published', 'sold_out', 'cancelled', 'expired'] as const;
@@ -29,9 +28,6 @@ const slotFields = {
   ),
   // Upper bound is the Postgres INT4 ceiling, not a business rule.
   total_quantity: z.number().int().min(1).max(2147483647),
-  // Shape only here; checksum/canonical form is enforced in the service so the
-  // same rule covers create, patch, and publish.
-  payout_wallet: z.string().min(1).max(64),
 };
 
 // POST /slots: drafts are a scratchpad, so only shapes are validated here.
@@ -46,7 +42,6 @@ export const slotCreateSchema = z
     ends_at: slotFields.ends_at,
     price_usdt: slotFields.price_usdt,
     total_quantity: slotFields.total_quantity,
-    payout_wallet: slotFields.payout_wallet,
   })
   .strict();
 
@@ -121,7 +116,6 @@ export interface PublishableInput {
   endsAt: Date | null;
   priceUsdt: bigint;
   totalQuantity: number;
-  payoutWallet: string;
 }
 
 /**
@@ -145,24 +139,7 @@ export function validatePublishable(input: PublishableInput, now: Date): string[
   if (!(Number.isInteger(input.totalQuantity) && input.totalQuantity > 0)) {
     failed.push('total_quantity');
   }
-  try {
-    canonicalizeNimiqAddress(input.payoutWallet);
-  } catch {
-    failed.push('payout_wallet');
-  }
   return failed;
-}
-
-/** Canonicalize a payout wallet or throw 400 (bad checksum included). */
-export function canonicalizePayoutWallet(value: string): string {
-  try {
-    return canonicalizeNimiqAddress(value);
-  } catch (err) {
-    if (err instanceof InvalidAddressError) {
-      throw new AppError(400, 'INVALID_INPUT', 'Invalid payout wallet address.');
-    }
-    throw err;
-  }
 }
 
 type SlotStatus = SlotStatusValue;

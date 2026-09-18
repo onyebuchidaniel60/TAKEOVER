@@ -91,11 +91,12 @@ export function fetchSlot(slotId: string): Promise<{ slot: PublicSlot }> {
   return apiFetch<{ slot: PublicSlot }>(`/api/v1/slots/${encodeURIComponent(slotId)}`);
 }
 
-// Phase 5: owner projection — everything public plus the payout wallet.
+// Phase 5: owner projection — everything public plus the provider contact
+// note. (The NIM-era payout_wallet field was removed: the USDT escrow flow
+// collects the provider payout address at mark-delivered time instead.)
 // Phase 14e P2: plus the provider contact note (14d-4 owner projection;
 // may be absent on stale mocks — callers treat undefined as null).
 export interface OwnerSlot extends PublicSlot {
-  payout_wallet: string;
   provider_contact_note?: string | null;
 }
 
@@ -115,7 +116,6 @@ export interface SlotWrite {
   ends_at?: string;
   price_usdt: string;
   total_quantity: number;
-  payout_wallet: string;
 }
 
 // Phase 14c round 3 (Fix C): client-side mirrors of the server validation
@@ -125,59 +125,6 @@ export interface SlotWrite {
 // server's reason via ApiError. Each validator returns an inline message or
 // null when the value passes. Do NOT add rules here the server does not
 // enforce.
-
-const NIMIQ_ADDRESS_LENGTH = 36;
-const NIMIQ_ALPHABET = '0123456789ABCDEFGHJKLMNPQRSTUVXY';
-
-function nimiqIbanMod97(body: string, check: string): number {
-  const rearranged = `${body}NQ${check}`;
-  let remainder = 0;
-  for (const char of rearranged) {
-    const code = char.charCodeAt(0);
-    let digits: string;
-    if (code >= 48 && code <= 57) {
-      digits = char;
-    } else if (code >= 65 && code <= 90) {
-      digits = String(code - 55);
-    } else {
-      return -1;
-    }
-    for (const digit of digits) {
-      remainder = (remainder * 10 + (digit.charCodeAt(0) - 48)) % 97;
-    }
-  }
-  return remainder;
-}
-
-/**
- * Exact client mirror of the server's canonicalizeNimiqAddress VALIDATION
- * (apps/api/src/auth/nimiq-address.ts): strip spaces, uppercase, 36 chars,
- * NQ prefix, numeric check digits, custom-base32 body, IBAN mod-97 == 1.
- * No dependencies; no derivation (only validation).
- */
-export function isValidNimiqAddress(input: string): boolean {
-  if (typeof input !== 'string') {
-    return false;
-  }
-  const compact = input.replace(/ /g, '').toUpperCase();
-  if (compact.length !== NIMIQ_ADDRESS_LENGTH) {
-    return false;
-  }
-  if (!compact.startsWith('NQ')) {
-    return false;
-  }
-  const check = compact.slice(2, 4);
-  const body = compact.slice(4);
-  if (!/^[0-9]{2}$/.test(check)) {
-    return false;
-  }
-  for (const char of body) {
-    if (!NIMIQ_ALPHABET.includes(char)) {
-      return false;
-    }
-  }
-  return nimiqIbanMod97(body, check) === 1;
-}
 
 /**
  * Mirrors providerProfileBodySchema exactly: trim, 2–60 chars, no links
@@ -263,20 +210,6 @@ export function validateSlotQuantity(quantityInput: string): string | null {
   const totalQuantity = Number(quantityInput);
   if (!Number.isInteger(totalQuantity) || totalQuantity < 1) {
     return 'Spots must be a whole number of 1 or more.';
-  }
-  return null;
-}
-
-/**
- * Payout must be a canonical Nimiq address — publish rejects anything else,
- * so the form says so upfront instead of failing at publish time.
- */
-export function validateSlotPayout(payoutInput: string): string | null {
-  if (!payoutInput.trim()) {
-    return 'Enter the wallet address that should receive payment.';
-  }
-  if (!isValidNimiqAddress(payoutInput)) {
-    return 'Enter a valid Nimiq wallet address (starts with NQ).';
   }
   return null;
 }

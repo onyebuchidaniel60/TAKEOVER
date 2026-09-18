@@ -70,7 +70,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 14c round 3 bodyless mutations (
     return { cookie: sessionCookieFrom(verify), token: body.data.sessionToken };
   }
 
-  function draftBody(payout: string): Record<string, unknown> {
+  function draftBody(): Record<string, unknown> {
     const now = Date.now();
     return {
       title: 'Round3 no-body probe',
@@ -81,7 +81,6 @@ describe.skipIf(!isDatabaseConfigured())('phase 14c round 3 bodyless mutations (
       ends_at: new Date(now + 25 * 3_600_000).toISOString(),
       price_usdt: '100000',
       total_quantity: 1,
-      payout_wallet: payout,
     };
   }
 
@@ -110,7 +109,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 14c round 3 bodyless mutations (
       method: 'POST',
       url: '/api/v1/slots',
       headers: { cookie, ...CSRF },
-      payload: draftBody(wallet),
+      payload: draftBody(),
     });
     expect(created.statusCode).toBe(201);
     const slotId = (created.json() as { data: { slot: { id: string } } }).data.slot.id;
@@ -134,7 +133,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 14c round 3 bodyless mutations (
       method: 'POST',
       url: '/api/v1/slots',
       headers: { cookie, ...CSRF },
-      payload: draftBody(wallet),
+      payload: draftBody(),
     });
     expect(created.statusCode).toBe(201);
     const slotId = (created.json() as { data: { slot: { id: string } } }).data.slot.id;
@@ -197,7 +196,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 14c round 3 bodyless mutations (
       method: 'POST',
       url: '/api/v1/slots',
       headers: { cookie, ...CSRF },
-      payload: draftBody(wallet),
+      payload: draftBody(),
     });
     const slotId = (created.json() as { data: { slot: { id: string } } }).data.slot.id;
     slotIds.push(slotId);

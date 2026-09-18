@@ -113,7 +113,6 @@ describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () =>
       ends_at: new Date(now + 4 * HOUR).toISOString(),
       price_usdt: '150000',
       total_quantity: 4,
-      payout_wallet: randomWallet(),
     };
   }
 

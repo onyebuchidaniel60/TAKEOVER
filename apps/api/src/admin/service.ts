@@ -364,7 +364,7 @@ export interface PaymentReviewView {
     claimed_at: string;
     updated_at: string;
   };
-  slot: { id: string; title: string; price_usdt: string; payout_wallet: string };
+  slot: { id: string; title: string; price_usdt: string; payout_wallet: string | null };
   intent: {
     id: string;
     expected_amount_nim: string;

@@ -1,0 +1,1 @@
+ALTER TABLE "slots" ALTER COLUMN "payout_wallet" DROP NOT NULL;

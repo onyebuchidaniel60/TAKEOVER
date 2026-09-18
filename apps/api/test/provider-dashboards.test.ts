@@ -598,6 +598,6 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: { slot: Record<string, unknown> } };
     expect(body.data.slot['providerDisplay']).toBe('Owner Name');
-    expect(typeof body.data.slot['payout_wallet']).toBe('string');
+    expect(body.data.slot).not.toHaveProperty('payout_wallet');
   });
 });
