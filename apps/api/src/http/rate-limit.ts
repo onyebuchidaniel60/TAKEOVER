@@ -27,6 +27,7 @@ export const DEFAULT_PROVIDER_CLAIMS_READ_RATE_LIMIT: RateLimitOptions = {
   max: 120,
 };
 export const DEFAULT_ADMIN_RATE_LIMIT: RateLimitOptions = { windowMs: 60_000, max: 120 };
+export const DEFAULT_NOTIFICATIONS_RATE_LIMIT: RateLimitOptions = { windowMs: 60_000, max: 60 };
 
 /** Fixed-window per-IP limiter. Throws 429 RATE_LIMITED when the budget is spent. */
 export function createRateLimiter(options: RateLimitOptions) {

@@ -3,6 +3,98 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14l-2 complete — in-app notifications (slot funded → provider; marked delivered → buyer). Do NOT begin 14l-3 automatically.
+
+```text
+CURRENT PHASE: Phase 14l-2 complete — in-app notifications
+  (slot funded → provider; marked delivered → buyer). Do NOT
+  begin 14l-3 automatically.
+COMPLETED: finished the interrupted prior-session implementation
+  (tree was dirty with coherent in-progress work — continued, not
+  discarded) + migration 0012 (notifications table + 2 indexes,
+  applied to live DB) + schema/verify/barrel + writer helper
+  (apps/api/src/notifications/service.ts, mirrors audit/events.ts)
+  + same-tx writes (verify-deposit→escrow_funded notifies provider;
+  mark-delivered→delivered notifies buyer) + 3 endpoints
+  (GET /me/notifications, POST :id/read idempotent,
+  POST read-all; owner-scoped, foreign→404, anon→401) + frontend
+  (Profile NotificationsSection with Mark-all-read + unread dots,
+  TopBar red badge hidden at 0, refresh-on-route-change only, tap
+  → mark-read + navigate /sell/:slotId or /claim/:claimId) + tests
+  (api notifications 11, web notifications 6, a11y Profile case)
+  + ARCH §9/§13 docs + orphan-test-row cleanup (below) + this
+  checkpoint (same commit as the feature)
+TESTS RUN: db:migrate exit 0; db:verify exit 0 (12 tables, incl.
+  notifications); typecheck exit 0; lint exit 0; api notifications
+  11/11 (3 unit + 8 live-DB: same-tx write, no-double-write,
+  concurrent single-write, rollback proof, owner scoping,
+  idempotent read, read-all, foreign-404, anon-401); web
+  notifications 6/6 + a11y-routes 17/17; FULL with DATABASE_URL
+  exit 0 — api 44/465, web 23/225, shared 1/1 (delta vs baseline
+  43/454, 22/219, 1: api +1/+11, web +1/+6, shared +0/+0; zero
+  flakes this run); build exit 0 (section route-splits into the
+  Profile chunk 7.57 kB; index 211.33 kB); a11y zero
+  critical/serious (Profile notifications section covered).
+RESULT: single commit (message below), pushed.
+KNOWN ISSUES:
+- No notifications for release / refund / dispute (out of scope
+  this phase — only slot_funded + slot_delivered exist).
+- No real-time channel — badge refreshes on route change only
+  (TopBar effect) + after read mutations (section refresh).
+- Body copy deviates cosmetically from the brief template
+  ("Your slot … was funded — … is waiting for delivery." /
+  "Your claim for … was marked delivered — confirm receipt to
+  release funds."): same titles, same truncated-display rule, no
+  full wallets, no escrow/on-chain wording. Tests assert
+  contains-semantics, not verbatim copy.
+- Prior session left 59 orphan NOTIF/USDT/NOTE-tagged notification
+  rows on the live DB (interrupted run died before afterAll
+  cleanup); this session deleted all 59 with tag-scoped predicates
+  (notifications table only — parent test users/slots/claims left
+  to the owner test-slot cleanup process). Table at 0 after this
+  session's green full suite (its own rows self-cleaned).
+- No 14k-1 checkpoint block exists in this file (the 14k-1 commit
+  landed without one); this checkpoint sits above the topmost
+  block (14i-1) instead of "above the 14k-1 block" per the brief.
+- Carried residuals (14k-1 / 14i-1): icon budget 10/10 (this phase
+  adds zero icons — badge + unread dot are styled spans);
+  backdrop-blur-md real-device cost unverified; text-red-600/700
+  stragglers outside feed+chrome; LoadingSkeleton non-feed callers
+  on the old default string; contract unverified on Polygonscan;
+  fee-wallet key rotation tracked Phase 15.
+SECURITY NOTES: writers run inside the state-change transaction
+  (rollback-proof); endpoints owner-scoped (foreign→404, never an
+  existence leak); bodies carry truncated display only (server-side
+  truncateWalletAddress — the existing pattern); no new error code
+  (NOT_FOUND/AUTH_REQUIRED via requireAuth/404s, INVALID_INPUT on
+  bad UUID, INTERNAL_ERROR for programmer-error validation —
+  all pre-existing ARCH §15 codes); no new dependency (zustand
+  already used); rate limit 60/min on the new routes.
+FILES CHANGED: db/migrations/0012_* + meta, db/schema/
+  notifications.ts + index.ts, db/verify.ts,
+  apps/api/src/notifications/service.ts + validation.ts (new),
+  apps/api/src/routes/notifications.ts (new),
+  apps/api/src/escrow/service.ts (2 same-tx writes),
+  apps/api/src/app.ts + http/rate-limit.ts,
+  5 api test cleanups (notifications delete in afterAll),
+  apps/api/test/notifications.test.ts (new, 11),
+  apps/web/src/components/NotificationsSection.tsx (new),
+  apps/web/src/store/notifications.ts (new),
+  apps/web/src/components/TopBar.tsx (badge),
+  apps/web/src/lib/slots.ts (fetch/mark fns + view type),
+  apps/web/src/routes/Profile.tsx (section mount),
+  apps/web/test/notifications.test.tsx (new, 6) +
+  a11y-routes.test.tsx (Profile notifications mock),
+  ARCHITECTURE.md (§9 table + §13 endpoints),
+  AI_HANDOFF.md (this checkpoint)
+GIT COMMIT: feat: phase 14l-2 — in-app notifications for slot
+  funding and delivery (single commit with this checkpoint; hash
+  recorded at push)
+NEXT TASK: 14l-3 — dark mode + typography. Do NOT start
+  automatically.
+BLOCKED BY: none.
+```
+
 ## Phase 14i-1 — design tokens, chrome, feed polish (direction A)
 
 ```text

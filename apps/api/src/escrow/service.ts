@@ -24,6 +24,8 @@ import { randomBytes } from 'node:crypto';
 import { getDb } from '../../../../db/client';
 import { claims, escrows, slots, users } from '../../../../db/schema';
 import { writeAuditEvent } from '../audit/events';
+import { truncateWalletAddress } from '../auth/nimiq-address';
+import { writeNotification } from '../notifications/service';
 import { getEscrowContractAddress, getUsdtTokenAddress } from './polygon/client';
 import type { EscrowContractClient } from '../../../../packages/shared/src/escrow/contract';
 import {
@@ -586,6 +588,31 @@ export async function verifyDeposit(
         requestId: options.requestId ?? null,
         metadata: { escrowId: freshEscrow.id, from: 'deposit_submitted', to: 'escrow_funded' },
       });
+      // Phase 14l-2: provider notification in the same transaction. The
+      // conditional UPDATE above admits exactly one winner, so exactly one
+      // notification is written; concurrent losers take the funded no-op
+      // branch above and write nothing.
+      const slotTitleRows = await tx
+        .select({ title: slots.title })
+        .from(slots)
+        .where(eq(slots.id, fresh.slotId))
+        .limit(1);
+      const buyerRows = await tx
+        .select({ walletAddress: users.walletAddress })
+        .from(users)
+        .where(eq(users.id, fresh.buyerId))
+        .limit(1);
+      const buyerDisplay = buyerRows[0]
+        ? truncateWalletAddress(buyerRows[0].walletAddress)
+        : 'a buyer';
+      await writeNotification(tx, {
+        userId: freshEscrow.providerId,
+        type: 'slot_funded',
+        entityType: 'slot',
+        entityId: fresh.slotId,
+        title: 'Slot funded',
+        body: `Your slot "${slotTitleRows[0]?.title ?? 'your slot'}" was funded — ${buyerDisplay} is waiting for delivery.`,
+      });
     }
     return { status: 'funded' as const, escrow: toEscrowView(finalEscrow), claim: toClaimView(finalClaim) };
   });
@@ -811,6 +838,17 @@ export async function markDelivered(
       entityId: claim.id,
       requestId: options.requestId ?? null,
       metadata: { escrowId: escrow.id, claimId: claim.id, from: 'escrow_funded', to: 'delivered' },
+    });
+    // Phase 14l-2: buyer notification in the same transaction. This is the
+    // winner path only (losers return the delivered no-op or throw above),
+    // so exactly one notification is written per delivery.
+    await writeNotification(tx, {
+      userId: claim.buyerId,
+      type: 'slot_delivered',
+      entityType: 'claim',
+      entityId: claim.id,
+      title: 'Marked delivered',
+      body: `Your claim for "${slot.title}" was marked delivered — confirm receipt to release funds.`,
     });
     return { escrow: toEscrowView(finalEscrow), claim: toClaimView(finalClaim) };
   });

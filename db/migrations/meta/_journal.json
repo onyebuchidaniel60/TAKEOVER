@@ -85,6 +85,13 @@
       "when": 1789720093245,
       "tag": "0011_fancy_jasper_sitwell",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789729998067,
+      "tag": "0012_lively_goblin_queen",
+      "breakpoints": true
     }
   ]
 }

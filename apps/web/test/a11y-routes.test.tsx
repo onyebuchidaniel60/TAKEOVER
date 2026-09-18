@@ -212,6 +212,23 @@ describe('axe on consumer routes', () => {
     mockFetch((url) => {
       if (url === '/api/v1/me') return { user: meFixture() };
       if (url.startsWith('/api/v1/me/slots')) return { slots: [], total: 0, limit: 1, offset: 0 };
+      if (url === '/api/v1/me/notifications') {
+        return {
+          notifications: [
+            {
+              id: 'note-1',
+              type: 'slot_delivered',
+              entity_type: 'claim',
+              entity_id: 'claim-1',
+              title: 'Marked delivered',
+              body: 'Your claim was marked delivered.',
+              read_at: null,
+              created_at: new Date().toISOString(),
+            },
+          ],
+          unreadCount: 1,
+        };
+      }
       return undefined;
     });
     const container = renderAt(

@@ -501,6 +501,36 @@ export function truncateWalletAddress(address: string): string {
   return `${compact.slice(0, 4)}…${compact.slice(-4)}`;
 }
 
+// Phase 14l-2: in-app notifications (provider demand, buyer delivery).
+export interface NotificationView {
+  id: string;
+  type: string;
+  entity_type: string;
+  entity_id: string;
+  title: string;
+  body: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+export function fetchNotifications(): Promise<{ notifications: NotificationView[]; unreadCount: number }> {
+  return apiFetch('/api/v1/me/notifications');
+}
+
+export function markNotificationRead(id: string): Promise<{ notification: NotificationView }> {
+  return apiFetch(`/api/v1/me/notifications/${encodeURIComponent(id)}/read`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export function markAllNotificationsRead(): Promise<{ marked: number }> {
+  return apiFetch('/api/v1/me/notifications/read-all', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 // Phase 9: buyer claim buckets for /claims, in display order. Pure grouping
 // over an already-fetched list (kept out of the component per the
 // keep-logic-out-of-UI rule).

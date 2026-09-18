@@ -73,6 +73,12 @@ async function main(): Promise<void> {
   }
   console.log('escrow tables ok (escrows, escrow_ledger present)');
 
+  // Phase 14l-2: notifications table for in-app funding/delivery notices.
+  if (!names.includes('notifications')) {
+    throw new Error('missing table: notifications');
+  }
+  console.log('notifications table ok (notifications present)');
+
   const enumValues = await db.execute<{ enumlabel: string; typname: string }>(sql`
     SELECT e.enumlabel, t.typname
     FROM pg_enum e

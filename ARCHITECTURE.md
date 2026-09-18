@@ -600,6 +600,26 @@ reference (schema is authoritative):
 - metadata JSONB NULL
 - created_at TIMESTAMPTZ NOT NULL
 
+### notifications (Phase 14l-2)
+
+In-app funding/delivery notices. Rows are written INSIDE the same DB
+transaction as the state change they describe. Bodies carry display
+text only (truncated identifiers, never full wallets or secrets).
+
+- id UUID PK
+- user_id UUID FK users.id NOT NULL
+- type TEXT NOT NULL ('slot_funded' | 'slot_delivered', validated server-side)
+- entity_type TEXT NOT NULL ('claim' | 'slot' | 'escrow')
+- entity_id TEXT NOT NULL
+- title TEXT NOT NULL
+- body TEXT NOT NULL
+- read_at TIMESTAMPTZ NULL (NULL = unread)
+- created_at TIMESTAMPTZ NOT NULL
+
+Indexes:
+- (user_id, created_at)
+- (user_id) WHERE read_at IS NULL
+
 Audit metadata must never contain secrets, authentication signatures, session cookies, or full sensitive request bodies.
 
 ## 10. Relationships
@@ -1057,6 +1077,28 @@ call, so reads keep working when the RPC is down. NOT triggered from
 Auth: session.
 
 Buyer history.
+
+### GET /api/v1/me/notifications (Phase 14l-2)
+
+Auth: session.
+
+Returns `{ notifications, unreadCount }` for the caller, newest first
+(limit 50). `read_at` null means unread.
+
+### POST /api/v1/me/notifications/:id/read (Phase 14l-2)
+
+Auth: session + owner (foreign or missing → 404 `NOT_FOUND`, never
+403; anonymous → 401).
+
+Marks one notification read. Idempotent: an already-read owned row
+returns its view with no second write.
+
+### POST /api/v1/me/notifications/read-all (Phase 14l-2)
+
+Auth: session.
+
+Sets `read_at` on all of the caller's unread rows. Returns
+`{ marked }` with the marked count.
 
 ### POST /api/v1/reports
 

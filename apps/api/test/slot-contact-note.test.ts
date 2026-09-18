@@ -25,6 +25,7 @@ import {
   authChallenges,
   claims,
   escrows,
+  notifications,
   sessions,
   slots,
   users,
@@ -306,6 +307,7 @@ describe.skipIf(!isDatabaseConfigured())('provider contact note (live DB, mocked
         .where(inArray(users.walletAddress, wallets));
       const userIds = found.map((u) => u.id);
       if (userIds.length > 0) {
+        await db.delete(notifications).where(inArray(notifications.userId, userIds));
         await db.delete(auditEvents).where(inArray(auditEvents.actorUserId, userIds));
         await db.delete(sessions).where(inArray(sessions.userId, userIds));
         await db.delete(users).where(inArray(users.id, userIds));
