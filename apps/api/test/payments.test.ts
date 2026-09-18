@@ -115,7 +115,7 @@ describe.skipIf(!isDatabaseConfigured())('payment intents and submission (live)'
       locationLabel: 'Mitte',
       startsAt: overrides.startsAt ?? new Date(now + 2 * HOUR),
       endsAt: new Date(now + 4 * HOUR),
-      priceNim: 150000n,
+      priceUsdt: 150000n,
       totalQuantity: overrides.total ?? 4,
       availableQuantity: overrides.available ?? overrides.total ?? 4,
       payoutWallet: payout,

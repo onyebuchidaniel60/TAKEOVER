@@ -1,0 +1,1 @@
+ALTER TABLE "slots" RENAME COLUMN "price_nim" TO "price_usdt";--> statement-breakpoint

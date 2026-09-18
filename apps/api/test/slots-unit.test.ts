@@ -1,35 +1,35 @@
 // Phase 4 unit tests — no database. Covers price serialization, the filter
 // builder, and the future-start boundary rule.
 import { describe, expect, it } from 'vitest';
-import { serializePriceNim } from '../src/slots/price';
+import { serializePriceUsdt } from '../src/slots/price';
 import {
   buildPublicSlotConditions,
   escapeLikePattern,
   isStartInFuture,
 } from '../src/slots/service';
 
-describe('serializePriceNim', () => {
+describe('serializePriceUsdt', () => {
   it('serializes a bigint to its exact decimal string', () => {
-    expect(serializePriceNim(150000n)).toBe('150000');
+    expect(serializePriceUsdt(150000n)).toBe('150000');
   });
 
   it('keeps full precision for values above 2^53', () => {
-    expect(serializePriceNim(9007199254740993n)).toBe('9007199254740993');
+    expect(serializePriceUsdt(9007199254740993n)).toBe('9007199254740993');
   });
 
   it('accepts a valid integer string', () => {
-    expect(serializePriceNim('2500000')).toBe('2500000');
+    expect(serializePriceUsdt('2500000')).toBe('2500000');
   });
 
   it('rejects zero, negative, decimal, and garbage input', () => {
-    expect(() => serializePriceNim(0n)).toThrow();
-    expect(() => serializePriceNim(-5n)).toThrow();
-    expect(() => serializePriceNim('0')).toThrow();
-    expect(() => serializePriceNim('-10')).toThrow();
-    expect(() => serializePriceNim('1.5')).toThrow();
-    expect(() => serializePriceNim('abc')).toThrow();
-    expect(() => serializePriceNim('')).toThrow();
-    expect(() => serializePriceNim(Number.MAX_SAFE_INTEGER + 1)).toThrow();
+    expect(() => serializePriceUsdt(0n)).toThrow();
+    expect(() => serializePriceUsdt(-5n)).toThrow();
+    expect(() => serializePriceUsdt('0')).toThrow();
+    expect(() => serializePriceUsdt('-10')).toThrow();
+    expect(() => serializePriceUsdt('1.5')).toThrow();
+    expect(() => serializePriceUsdt('abc')).toThrow();
+    expect(() => serializePriceUsdt('')).toThrow();
+    expect(() => serializePriceUsdt(Number.MAX_SAFE_INTEGER + 1)).toThrow();
   });
 });
 

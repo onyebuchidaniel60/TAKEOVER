@@ -168,7 +168,8 @@ describe('client-side validation mirrors (fix C)', () => {
     expect(validateSlotPrice('1')).toBeNull();
     expect(validateSlotPrice('0')).not.toBeNull();
     expect(validateSlotPrice('abc')).not.toBeNull();
-    expect(validateSlotPrice('1.123456')).not.toBeNull();
+    expect(validateSlotPrice('1.123456')).toBeNull();
+    expect(validateSlotPrice('1.1234567')).not.toBeNull();
     expect(validateSlotQuantity('2')).toBeNull();
     expect(validateSlotQuantity('0')).not.toBeNull();
     expect(validateSlotQuantity('1.5')).not.toBeNull();

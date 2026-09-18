@@ -227,7 +227,7 @@ Required fields:
 - start_at
 - end_at
 - capacity
-- price_nim
+- price_usdt
 - optional image URL
 - provider contact/display name
 

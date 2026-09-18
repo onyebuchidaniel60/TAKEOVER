@@ -4,7 +4,7 @@
 import { z } from 'zod';
 import { AppError } from '../http/errors';
 import { canonicalizeNimiqAddress, InvalidAddressError } from '../auth/nimiq-address';
-import { serializePriceNim } from './price';
+import { serializePriceUsdt } from './price';
 
 export const slotStatusValues = ['draft', 'published', 'sold_out', 'cancelled', 'expired'] as const;
 
@@ -16,16 +16,16 @@ const slotFields = {
   location_label: z.string().max(200).optional(),
   starts_at: z.string().datetime({ offset: true }),
   ends_at: z.string().datetime({ offset: true }).optional(),
-  price_nim: z.string().refine(
+  price_usdt: z.string().refine(
     (v) => {
       try {
-        serializePriceNim(v);
+        serializePriceUsdt(v);
         return true;
       } catch {
         return false;
       }
     },
-    { message: 'price_nim must be a positive integer string' },
+    { message: 'price_usdt must be a positive integer string' },
   ),
   // Upper bound is the Postgres INT4 ceiling, not a business rule.
   total_quantity: z.number().int().min(1).max(2147483647),
@@ -44,7 +44,7 @@ export const slotCreateSchema = z
     location_label: slotFields.location_label,
     starts_at: slotFields.starts_at,
     ends_at: slotFields.ends_at,
-    price_nim: slotFields.price_nim,
+    price_usdt: slotFields.price_usdt,
     total_quantity: slotFields.total_quantity,
     payout_wallet: slotFields.payout_wallet,
   })
@@ -119,7 +119,7 @@ export interface PublishableInput {
   title: string;
   startsAt: Date;
   endsAt: Date | null;
-  priceNim: bigint;
+  priceUsdt: bigint;
   totalQuantity: number;
   payoutWallet: string;
 }
@@ -139,8 +139,8 @@ export function validatePublishable(input: PublishableInput, now: Date): string[
   if (input.endsAt !== null && !(input.endsAt.getTime() > input.startsAt.getTime())) {
     failed.push('ends_at');
   }
-  if (!(input.priceNim > 0n)) {
-    failed.push('price_nim');
+  if (!(input.priceUsdt > 0n)) {
+    failed.push('price_usdt');
   }
   if (!(Number.isInteger(input.totalQuantity) && input.totalQuantity > 0)) {
     failed.push('total_quantity');

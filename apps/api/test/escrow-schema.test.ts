@@ -58,7 +58,7 @@ describe.skipIf(!isDatabaseConfigured())('escrow schema constraints (live)', () 
         title: `escrow schema ${tag}`,
         startsAt: new Date(Date.now() + 3_600_000),
         endsAt: new Date(Date.now() + 7_200_000),
-        priceNim: 150000n,
+        priceUsdt: 150000n,
         totalQuantity: 4,
         availableQuantity: 4,
         payoutWallet: wallet(),

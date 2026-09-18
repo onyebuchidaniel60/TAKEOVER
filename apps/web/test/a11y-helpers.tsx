@@ -117,7 +117,7 @@ export function slotFixture(overrides: Record<string, unknown> = {}): Record<str
     location_label: 'Mitte',
     starts_at: FUTURE,
     ends_at: LATER,
-    price_nim: '150000',
+    price_usdt: '150000',
     total_quantity: 4,
     available_quantity: 3,
     status: 'published',

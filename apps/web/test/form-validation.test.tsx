@@ -42,6 +42,19 @@ describe('SlotForm client validation', () => {
     payout_wallet: '',
   };
 
+  it('labels the price input in USDT (Phase 14h)', async () => {
+    const onSubmit = vi.fn();
+    const { unmount } = render(
+      <SlotForm initial={emptyInitial} submitLabel="Save draft" submitting={false} serverError={null} onSubmit={onSubmit} />,
+    );
+    try {
+      expect(await screen.findByText('Price (USDT) *')).toBeTruthy();
+      expect(screen.queryByText('Price (NIM) *')).toBeNull();
+    } finally {
+      unmount();
+    }
+  });
+
   it('blocks submit with per-field inline errors and never calls onSubmit', async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
@@ -118,7 +131,7 @@ describe('SlotForm client validation', () => {
       await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
       const body = onSubmit.mock.calls[0]?.[0] as Record<string, unknown>;
       expect(body.title).toBe('Table for two');
-      expect(body.price_nim).toBe('100000');
+      expect(body.price_usdt).toBe('1000000');
       expect(body.total_quantity).toBe(2);
       expect(body.payout_wallet).toBe(VALID_PAYOUT);
       expect(body.ends_at).toBeDefined();

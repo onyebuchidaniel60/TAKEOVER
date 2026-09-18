@@ -133,7 +133,7 @@ function ClaimBody({
           <TimeBadge startsAt={slot.starts_at} endsAt={slot.ends_at} />
         </div>
         <div className="mt-4 border-t border-slate-100 pt-4">
-          <PriceDisplay priceNim={slot.price_nim} large />
+          <PriceDisplay priceUsdt={slot.price_usdt} large />
         </div>
         {claim.status === 'active_hold' ? (
           <div className="mt-4">

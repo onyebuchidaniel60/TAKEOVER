@@ -2,8 +2,8 @@
 // Phase 14d-3a: delivery + release slice (markDelivered, confirmReceipt).
 // No dispute/admin/refund logic — those are 14d-3b. No NIM path.
 //
-// Pricing note: amount_base_units is snapshotted from the slot's price_nim
-// (the NIM-denominated price is used as the USDT base-unit amount). This is
+// Pricing note: amount_base_units is snapshotted from the slot's price_usdt
+// (the USDT-denominated price is used as the USDT base-unit amount). This is
 // the current pricing model and out of scope to change here.
 //
 // Buyer-binding note (model B, owner-decided): deposit verification matches
@@ -204,7 +204,7 @@ export async function createEscrowIntent(
           buyerId: options.buyerId,
           providerId: slot.providerId,
           paymentToken: 'USDT_POLYGON',
-          amountBaseUnits: slot.priceNim,
+          amountBaseUnits: slot.priceUsdt,
           status: 'created',
           contractAddress,
           onChainEscrowId: newOnChainEscrowId(),

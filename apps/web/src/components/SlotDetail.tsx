@@ -35,7 +35,7 @@ export default function SlotDetail({ slot }: { slot: PublicSlot }) {
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Price</dt>
             <dd className="mt-1">
-              <PriceDisplay priceNim={slot.price_nim} large />
+              <PriceDisplay priceUsdt={slot.price_usdt} large />
             </dd>
           </div>
           <div>

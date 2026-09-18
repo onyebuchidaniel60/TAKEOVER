@@ -171,7 +171,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 13 acceptance journey (live, rea
         location_label: 'Mitte',
         starts_at: new Date(now + 2 * HOUR).toISOString(),
         ends_at: new Date(now + 4 * HOUR).toISOString(),
-        price_nim: '150000',
+        price_usdt: '150000',
         total_quantity: 1,
         payout_wallet: provider.wallet,
       },
@@ -200,7 +200,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 13 acceptance journey (live, rea
     const listed = (browse.json() as { data: { slots: Record<string, unknown>[] } }).data.slots;
     const seen = listed.find((s) => s['id'] === slotId);
     expect(seen).toBeDefined();
-    expect(seen?.['price_nim']).toBe('150000');
+    expect(seen?.['price_usdt']).toBe('150000');
     expect(seen?.['available_quantity']).toBe(1);
     expect(JSON.stringify(seen)).not.toContain('payout_wallet');
 

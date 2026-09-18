@@ -150,6 +150,13 @@ async function main(): Promise<void> {
       throw new Error(`${col} column is missing`);
     }
   }
+
+  // Phase 14h: slot price is USDT base units (renamed from price_nim).
+  console.log(`slots.price_usdt present: ${present.has('slots.price_usdt')}`);
+  console.log(`slots.price_nim absent: ${!present.has('slots.price_nim')}`);
+  if (!present.has('slots.price_usdt') || present.has('slots.price_nim')) {
+    throw new Error('slots price column rename (price_nim → price_usdt) not applied');
+  }
 }
 
 main().catch((err: unknown) => {

@@ -1,9 +1,9 @@
 // Phase 5: provider slot form (create + draft edit). Consumer language only.
-// Price is entered in NIM ("1.5"); the parent converts nothing — this form
-// emits exact base units via parseNimToBaseUnits.
+// Price is entered in USDT ("1.5"); the parent converts nothing — this form
+// emits exact base units via parseUsdtToBaseUnits.
 import { useState } from 'react';
 import {
-  parseNimToBaseUnits,
+  parseUsdtToBaseUnits,
   SLOT_CATEGORIES,
   validateSlotEndsAt,
   validateSlotPayout,
@@ -14,7 +14,7 @@ import {
   type OwnerSlot,
   type SlotWrite,
 } from '../lib/slots';
-import { formatNim } from '../lib/slots';
+import { formatUsdt } from '../lib/slots';
 
 export interface SlotFormValues {
   title: string;
@@ -47,9 +47,9 @@ function inputToIso(value: string): string | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
-function baseUnitsToNim(priceNim: string): string {
+function baseUnitsToUsdt(priceUsdt: string): string {
   try {
-    return formatNim(priceNim).replace(/ NIM$/, '');
+    return formatUsdt(priceUsdt).replace(/ USDT$/, '');
   } catch {
     return '';
   }
@@ -63,7 +63,7 @@ export function initialValues(slot?: OwnerSlot): SlotFormValues {
     location_label: slot?.location_label ?? '',
     starts_at: isoToInput(slot?.starts_at ?? null),
     ends_at: isoToInput(slot?.ends_at ?? null),
-    price: slot ? baseUnitsToNim(slot.price_nim) : '',
+    price: slot ? baseUnitsToUsdt(slot.price_usdt) : '',
     total_quantity: slot ? String(slot.total_quantity) : '',
     payout_wallet: slot?.payout_wallet ?? '',
   };
@@ -123,9 +123,9 @@ export default function SlotForm({
       return;
     }
     setFieldErrors({});
-    let priceNim: string;
+    let priceUsdt: string;
     try {
-      priceNim = parseNimToBaseUnits(values.price);
+      priceUsdt = parseUsdtToBaseUnits(values.price);
     } catch (err) {
       // Unreachable when the validator above passes (same parser), kept as a
       // backstop so a divergence can never submit a bad amount.
@@ -146,7 +146,7 @@ export default function SlotForm({
       location_label: values.location_label.trim() || undefined,
       starts_at: startsAt,
       ...(endsAt ? { ends_at: endsAt } : {}),
-      price_nim: priceNim,
+      price_usdt: priceUsdt,
       total_quantity: totalQuantity,
       payout_wallet: values.payout_wallet.trim(),
     });
@@ -253,7 +253,7 @@ export default function SlotForm({
         </div>
         <div>
           <label htmlFor="slot-price" className={labelClass}>
-            Price (NIM) *
+            Price (USDT) *
           </label>
           <input
             id="slot-price"

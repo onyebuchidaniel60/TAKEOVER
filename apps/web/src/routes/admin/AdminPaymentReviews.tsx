@@ -12,7 +12,7 @@ import ResolveDialog from '../../components/ResolveDialog';
 import { ApiError } from '../../lib/api';
 import { usePageMeta } from '../../lib/meta';
 import { fetchPaymentReviews, resolvePaymentReview, type PaymentReview } from '../../lib/admin';
-import { formatNim } from '../../lib/slots';
+import { formatUsdt } from '../../lib/slots';
 
 const PAGE_SIZE = 20;
 
@@ -82,7 +82,7 @@ export default function AdminPaymentReviews() {
                     </p>
                   </td>
                   <td className="px-3 py-2 align-top text-xs">
-                    <p>{formatNim(r.slot.price_nim)}</p>
+                    <p>{formatUsdt(r.slot.price_usdt)}</p>
                     <p className="break-all text-slate-500">To: {r.slot.payout_wallet}</p>
                     {r.intent ? (
                       <p className="break-all text-slate-500">Data: {r.intent.expected_data}</p>

@@ -80,7 +80,7 @@ export async function createPaymentIntent(
     }
     const values = {
       claimId: claim.id,
-      expectedAmountNim: slot.priceNim,
+      expectedAmountNim: slot.priceUsdt,
       expectedRecipient: canonicalizeOr500(slot.payoutWallet),
       expectedSender: canonicalizeOr500(buyer.walletAddress),
       expectedData: expectedDataForClaim(claim.id),

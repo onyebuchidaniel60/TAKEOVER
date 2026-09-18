@@ -12,7 +12,7 @@ export default function SlotCard({ slot }: { slot: PublicSlot }) {
     >
       <div className="flex items-start justify-between gap-3">
         <h2 className="text-base font-semibold leading-snug">{slot.title}</h2>
-        <PriceDisplay priceNim={slot.price_nim} />
+        <PriceDisplay priceUsdt={slot.price_usdt} />
       </div>
       <p className="mt-0.5 text-xs text-slate-500">By {slot.providerDisplay}</p>
       {slot.description ? (

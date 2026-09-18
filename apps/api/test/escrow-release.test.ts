@@ -167,7 +167,7 @@ describe.skipIf(!isDatabaseConfigured())('escrow delivery and USDT release (live
       locationLabel: 'Mitte',
       startsAt: new Date(now + 2 * HOUR),
       endsAt: new Date(now + 4 * HOUR),
-      priceNim: SLOT_PRICE,
+      priceUsdt: SLOT_PRICE,
       totalQuantity: 4,
       availableQuantity: 4,
       payoutWallet: payout,

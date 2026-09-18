@@ -2,7 +2,7 @@
 // discovery is public and read-only.
 import { apiFetch } from './api';
 
-// Mirrors the locked backend projection (snake_case). price_nim is a STRING.
+// Mirrors the locked backend projection (snake_case). price_usdt is a STRING.
 // providerDisplay names the provider (profile display_name preferred,
 // truncated wallet fallback) — public-safe in both forms.
 export interface PublicSlot {
@@ -13,7 +13,7 @@ export interface PublicSlot {
   location_label: string | null;
   starts_at: string;
   ends_at: string | null;
-  price_nim: string;
+  price_usdt: string;
   total_quantity: number;
   available_quantity: number;
   status: string;
@@ -38,8 +38,8 @@ export interface SlotFilters {
   offset?: number;
 }
 
-/** 1 NIM = 100,000 base units (Luna). Display conversion only. */
-export const LUNA_PER_NIM = 100_000;
+/** 1 USDT = 1,000,000 base units (6 decimals). Display conversion only. */
+export const BASE_UNITS_PER_USDT = 1_000_000;
 
 /**
  * Phase 14c round 5: owner-approved fixed category list. UX layer ONLY —
@@ -56,18 +56,18 @@ export const SLOT_CATEGORIES = [
 ] as const;
 
 /**
- * Format a base-unit price string as "1.5 NIM" using exact BigInt math —
+ * Format a base-unit price string as "1.5 USDT" using exact BigInt math —
  * never floats, so large values stay precise.
  */
-export function formatNim(priceNim: string): string {
-  const value = BigInt(priceNim);
-  const whole = value / BigInt(LUNA_PER_NIM);
-  const frac = value % BigInt(LUNA_PER_NIM);
+export function formatUsdt(priceUsdt: string): string {
+  const value = BigInt(priceUsdt);
+  const whole = value / BigInt(BASE_UNITS_PER_USDT);
+  const frac = value % BigInt(BASE_UNITS_PER_USDT);
   if (frac === 0n) {
-    return `${whole.toString()} NIM`;
+    return `${whole.toString()} USDT`;
   }
-  const fracStr = frac.toString().padStart(5, '0').replace(/0+$/, '');
-  return `${whole.toString()}.${fracStr} NIM`;
+  const fracStr = frac.toString().padStart(6, '0').replace(/0+$/, '');
+  return `${whole.toString()}.${fracStr} USDT`;
 }
 
 function toQuery(filters: SlotFilters): string {
@@ -113,7 +113,7 @@ export interface SlotWrite {
   location_label?: string;
   starts_at: string;
   ends_at?: string;
-  price_nim: string;
+  price_usdt: string;
   total_quantity: number;
   payout_wallet: string;
 }
@@ -251,7 +251,7 @@ export function validateSlotEndsAt(
 /** Reuses the exact base-unit parser the submit path uses. */
 export function validateSlotPrice(priceInput: string): string | null {
   try {
-    parseNimToBaseUnits(priceInput);
+    parseUsdtToBaseUnits(priceInput);
   } catch (err) {
     return err instanceof Error ? err.message : 'Enter a valid price.';
   }
@@ -282,18 +282,18 @@ export function validateSlotPayout(payoutInput: string): string | null {
 }
 
 /**
- * Parse a human NIM amount ("1.5") into exact base-unit string ("150000").
- * At most 5 decimals (1 NIM = 100,000 base units). Throws on garbage.
+ * Parse a human USDT amount ("1.5") into exact base-unit string ("1500000").
+ * At most 6 decimals (1 USDT = 1,000,000 base units). Throws on garbage.
  */
-export function parseNimToBaseUnits(input: string): string {
+export function parseUsdtToBaseUnits(input: string): string {
   const trimmed = input.trim();
-  const match = /^(\d+)(?:\.(\d{1,5}))?$/.exec(trimmed);
+  const match = /^(\d+)(?:\.(\d{1,6}))?$/.exec(trimmed);
   if (!match) {
-    throw new Error('Enter a price like 1.5 (up to 5 decimals).');
+    throw new Error('Enter a price like 1.5 (up to 6 decimals).');
   }
   const whole = BigInt(match[1] ?? '0');
-  const frac = (match[2] ?? '').padEnd(5, '0');
-  const value = whole * BigInt(LUNA_PER_NIM) + BigInt(frac);
+  const frac = (match[2] ?? '').padEnd(6, '0');
+  const value = whole * BigInt(BASE_UNITS_PER_USDT) + BigInt(frac);
   if (value <= 0n) {
     throw new Error('Price must be more than 0.');
   }

@@ -11,7 +11,7 @@ import SlotDetail from '../components/SlotDetail';
 import { isAdminUser } from '../lib/admin';
 import { ApiError } from '../lib/api';
 import { usePageMeta } from '../lib/meta';
-import { fetchSlot, formatNim, type PublicSlot } from '../lib/slots';
+import { fetchSlot, formatUsdt, type PublicSlot } from '../lib/slots';
 import { useAuth } from '../store/auth';
 
 type State =
@@ -44,10 +44,10 @@ export default function SlotDetailPage() {
     readySlot
       ? {
           title: `${readySlot.title} — TAKEOVER`,
-          description: `${formatNim(readySlot.price_nim)} · ${new Date(readySlot.starts_at).toLocaleString()}. Claim it before it’s gone.`,
+          description: `${formatUsdt(readySlot.price_usdt)} · ${new Date(readySlot.starts_at).toLocaleString()}. Claim it before it’s gone.`,
           og: {
             title: `${readySlot.title} — TAKEOVER`,
-            description: `${formatNim(readySlot.price_nim)} · ${new Date(readySlot.starts_at).toLocaleString()}`,
+            description: `${formatUsdt(readySlot.price_usdt)} · ${new Date(readySlot.starts_at).toLocaleString()}`,
           },
         }
       : { title: 'Slot — TAKEOVER' },

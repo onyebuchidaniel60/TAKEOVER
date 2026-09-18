@@ -135,7 +135,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 14c bearer fallback (live)', () 
       locationLabel: 'Mitte',
       startsAt: new Date(now + 2 * HOUR),
       endsAt: new Date(now + 4 * HOUR),
-      priceNim: 150000n,
+      priceUsdt: 150000n,
       totalQuantity: 4,
       availableQuantity: 4,
       payoutWallet: validPayout(),

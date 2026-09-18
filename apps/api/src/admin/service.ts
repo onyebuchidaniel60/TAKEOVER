@@ -9,7 +9,7 @@ import { auditEvents, claims, escrows, paymentIntents, reports, sessions, slots,
 import { truncateWalletAddress } from '../auth/nimiq-address';
 import { writeAuditEvent } from '../audit/events';
 import { AppError } from '../http/errors';
-import { serializePriceNim } from '../slots/price';
+import { serializePriceUsdt } from '../slots/price';
 import { isUniqueViolation } from '../claims/service';
 import { EscrowContractUnavailableError, EscrowSignerUnavailableError } from '../escrow/polygon/client';
 import {
@@ -364,7 +364,7 @@ export interface PaymentReviewView {
     claimed_at: string;
     updated_at: string;
   };
-  slot: { id: string; title: string; price_nim: string; payout_wallet: string };
+  slot: { id: string; title: string; price_usdt: string; payout_wallet: string };
   intent: {
     id: string;
     expected_amount_nim: string;
@@ -422,13 +422,13 @@ export async function listPaymentReviews(
       slot: {
         id: slot.id,
         title: slot.title,
-        price_nim: serializePriceNim(slot.priceNim),
+        price_usdt: serializePriceUsdt(slot.priceUsdt),
         payout_wallet: slot.payoutWallet,
       },
       intent: intent
         ? {
             id: intent.id,
-            expected_amount_nim: serializePriceNim(intent.expectedAmountNim),
+            expected_amount_nim: serializePriceUsdt(intent.expectedAmountNim),
             expected_recipient: intent.expectedRecipient,
             expected_sender: intent.expectedSender,
             expected_data: intent.expectedData,

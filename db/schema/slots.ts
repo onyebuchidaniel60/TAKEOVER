@@ -22,8 +22,8 @@ export const slots = pgTable(
     locationLabel: text('location_label'),
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
     endsAt: timestamp('ends_at', { withTimezone: true }),
-    // Integer NIM base units only — never floats.
-    priceNim: bigint('price_nim', { mode: 'bigint' }).notNull(),
+    // Integer USDT base units only (6 decimals) — never floats.
+    priceUsdt: bigint('price_usdt', { mode: 'bigint' }).notNull(),
     totalQuantity: integer('total_quantity').notNull(),
     availableQuantity: integer('available_quantity').notNull(),
     payoutWallet: text('payout_wallet').notNull(),
@@ -46,7 +46,7 @@ export const slots = pgTable(
       'slots_avail_qty_check',
       sql`${t.availableQuantity} >= 0 AND ${t.availableQuantity} <= ${t.totalQuantity}`,
     ),
-    check('slots_price_check', sql`${t.priceNim} > 0`),
+    check('slots_price_check', sql`${t.priceUsdt} > 0`),
     index('slots_status_starts_at_idx').on(t.status, t.startsAt),
   ],
 );

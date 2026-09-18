@@ -536,7 +536,7 @@ describe('SellDetail demand section (P2)', () => {
     location_label: 'Mitte',
     starts_at: new Date(Date.now() + 3600_000).toISOString(),
     ends_at: null,
-    price_nim: '1500000',
+    price_usdt: '1500000',
     total_quantity: 4,
     available_quantity: 3,
     status: 'published',

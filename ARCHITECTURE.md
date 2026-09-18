@@ -453,7 +453,7 @@ Publicly expose only safe profile fields.
 - location_label TEXT NULL
 - starts_at TIMESTAMPTZ NOT NULL
 - ends_at TIMESTAMPTZ NULL
-- price_nim BIGINT NOT NULL (integer NIM base units, no floats)
+- price_usdt BIGINT NOT NULL (integer USDT base units, 6 decimals, no floats)
 - total_quantity INTEGER NOT NULL
 - available_quantity INTEGER NOT NULL
 - payout_wallet TEXT NOT NULL
@@ -471,7 +471,7 @@ Constraints:
 - total_quantity > 0
 - available_quantity >= 0
 - available_quantity <= total_quantity
-- price_nim > 0
+- price_usdt > 0
 
 ### claims
 

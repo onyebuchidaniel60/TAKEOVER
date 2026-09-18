@@ -20,7 +20,7 @@ function validDraft(): PublishableInput {
     title: 'Table for two',
     startsAt: new Date(NOW.getTime() + 3_600_000),
     endsAt: new Date(NOW.getTime() + 2 * 3_600_000),
-    priceNim: 150000n,
+    priceUsdt: 150000n,
     totalQuantity: 2,
     payoutWallet: VALID_PAYOUT,
   };
@@ -46,7 +46,7 @@ describe('validatePublishable', () => {
         NOW,
       ),
     ).toEqual(['ends_at']);
-    expect(validatePublishable({ ...validDraft(), priceNim: 0n }, NOW)).toEqual(['price_nim']);
+    expect(validatePublishable({ ...validDraft(), priceUsdt: 0n }, NOW)).toEqual(['price_usdt']);
     expect(validatePublishable({ ...validDraft(), totalQuantity: 0 }, NOW)).toEqual([
       'total_quantity',
     ]);

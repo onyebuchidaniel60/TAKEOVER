@@ -2,7 +2,7 @@
 // camelCase contract. expected_sender is DELIBERATELY absent — it is
 // server-side reconciliation data, never shown to the buyer.
 import type { paymentIntents } from '../../../../db/schema';
-import { serializePriceNim } from '../slots/price';
+import { serializePriceUsdt } from '../slots/price';
 
 type IntentRow = typeof paymentIntents.$inferSelect;
 
@@ -23,7 +23,7 @@ export function toPaymentIntentView(row: IntentRow): PaymentIntentView {
   return {
     id: row.id,
     claimId: row.claimId,
-    expectedAmountNim: serializePriceNim(row.expectedAmountNim),
+    expectedAmountNim: serializePriceUsdt(row.expectedAmountNim),
     expectedRecipient: row.expectedRecipient,
     expectedData: row.expectedData,
     status: row.status,

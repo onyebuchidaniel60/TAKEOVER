@@ -55,7 +55,7 @@ describe.skipIf(!isDatabaseConfigured())('public marketplace (live)', () => {
       locationLabel: overrides.location ?? loc,
       startsAt: overrides.startsAt ?? new Date(now + 2 * HOUR),
       endsAt: new Date(now + 3 * HOUR),
-      priceNim: 1500000n,
+      priceUsdt: 1500000n,
       totalQuantity: 4,
       availableQuantity: overrides.available ?? 4,
       payoutWallet: `NQ00 P4PAYOUT${tag.toUpperCase()}`,
@@ -97,7 +97,7 @@ describe.skipIf(!isDatabaseConfigured())('public marketplace (live)', () => {
     title: string;
     status: string;
     starts_at: string;
-    price_nim: unknown;
+    price_usdt: unknown;
   }
 
   interface ListBody {
@@ -179,7 +179,7 @@ describe.skipIf(!isDatabaseConfigured())('public marketplace (live)', () => {
         'ends_at',
         'id',
         'location_label',
-        'price_nim',
+        'price_usdt',
         'providerDisplay',
         'published_at',
         'starts_at',
@@ -188,7 +188,7 @@ describe.skipIf(!isDatabaseConfigured())('public marketplace (live)', () => {
         'total_quantity',
       ].sort(),
     );
-    expect(body.data.slot['price_nim']).toBe('1500000');
+    expect(body.data.slot['price_usdt']).toBe('1500000');
     expect(body.data.slot).not.toHaveProperty('payout_wallet');
     expect(body.data.slot).not.toHaveProperty('provider_id');
   });

@@ -24,7 +24,7 @@ import {
 } from '../payments/rpc';
 import { toOwnerSlot, type OwnerSlot } from './owner-slot';
 import { loadProviderDisplay, loadProviderDisplayMap } from './provider-display';
-import { serializePriceNim } from './price';
+import { serializePriceUsdt } from './price';
 import {
   canonicalizePayoutWallet,
   requireCancellableStatus,
@@ -71,7 +71,7 @@ export async function createSlot(
       locationLabel: input.location_label ?? null,
       startsAt: new Date(input.starts_at),
       endsAt: input.ends_at ? new Date(input.ends_at) : null,
-      priceNim: BigInt(serializePriceNim(input.price_nim)),
+      priceUsdt: BigInt(serializePriceUsdt(input.price_usdt)),
       totalQuantity: input.total_quantity,
       availableQuantity: input.total_quantity,
       payoutWallet: canonicalizePayoutWallet(input.payout_wallet),
@@ -100,7 +100,7 @@ export async function updateDraftSlot(
   if (patch.location_label !== undefined) values.locationLabel = patch.location_label ?? null;
   if (patch.starts_at !== undefined) values.startsAt = new Date(patch.starts_at);
   if (patch.ends_at !== undefined) values.endsAt = patch.ends_at ? new Date(patch.ends_at) : null;
-  if (patch.price_nim !== undefined) values.priceNim = BigInt(serializePriceNim(patch.price_nim));
+  if (patch.price_usdt !== undefined) values.priceUsdt = BigInt(serializePriceUsdt(patch.price_usdt));
   if (patch.total_quantity !== undefined) {
     // Drafts hold no demand, so the full quantity stays available.
     values.totalQuantity = patch.total_quantity;
@@ -240,7 +240,7 @@ async function publishSlotUnpaid(
         title: current.title,
         startsAt: current.startsAt,
         endsAt: current.endsAt,
-        priceNim: current.priceNim,
+        priceUsdt: current.priceUsdt,
         totalQuantity: current.totalQuantity,
         payoutWallet: current.payoutWallet,
       },
@@ -320,7 +320,7 @@ async function publishSlotWithFee(
       title: pre.title,
       startsAt: pre.startsAt,
       endsAt: pre.endsAt,
-      priceNim: pre.priceNim,
+      priceUsdt: pre.priceUsdt,
       totalQuantity: pre.totalQuantity,
       payoutWallet: pre.payoutWallet,
     },

@@ -297,7 +297,7 @@ describe('axe on admin routes', () => {
           reviews: [
             {
               claim: { id: 'claim-1', status: 'payment_review', buyerWallet: 'NQ0700000000000000000000000000000000', claimed_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-              slot: { id: 'slot-1', title: 'Table for two', price_nim: '150000', payout_wallet: 'NQ3200000000000000000000000000000000' },
+              slot: { id: 'slot-1', title: 'Table for two', price_usdt: '150000', payout_wallet: 'NQ3200000000000000000000000000000000' },
               intent: { id: 'intent-1', expected_amount_nim: '150000', expected_recipient: 'NQ32', expected_sender: 'NQ07', expected_data: 'TAKEOVER:v1:claim-1', tx_hash: null, submitted_at: null },
             },
           ],

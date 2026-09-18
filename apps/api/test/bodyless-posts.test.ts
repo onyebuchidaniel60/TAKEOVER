@@ -79,7 +79,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 14c round 3 bodyless mutations (
       location_label: 'Mitte',
       starts_at: new Date(now + 24 * 3_600_000).toISOString(),
       ends_at: new Date(now + 25 * 3_600_000).toISOString(),
-      price_nim: '100000',
+      price_usdt: '100000',
       total_quantity: 1,
       payout_wallet: payout,
     };

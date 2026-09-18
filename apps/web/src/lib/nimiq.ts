@@ -93,7 +93,7 @@ export interface ListingFeeSend {
   slotId: string;
 }
 
-/** 1 NIM = 100,000 base units (Luna). Mirrors lib/slots.ts LUNA_PER_NIM. */
+/** 1 NIM = 100,000 base units (Luna). Fee-side constant (slot prices use USDT base units in lib/slots.ts). */
 const LUNA_PER_NIM_FEE = 100_000;
 
 /**

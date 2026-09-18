@@ -158,7 +158,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
       locationLabel: 'Mitte',
       startsAt: new Date(now + 2 * HOUR),
       endsAt: new Date(now + 4 * HOUR),
-      priceNim: 150000n,
+      priceUsdt: 150000n,
       totalQuantity: overrides.total ?? 4,
       availableQuantity: overrides.available ?? overrides.total ?? 4,
       payoutWallet: payout,
@@ -534,7 +534,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
     const intent = found?.['intent'] as Record<string, unknown>;
     expect(claim['buyerWallet']).toBe(buyerWallet);
     expect(claim['buyerWallet']).not.toContain('…');
-    expect(slot['price_nim']).toBe('150000');
+    expect(slot['price_usdt']).toBe('150000');
     expect(slot['payout_wallet']).toBe(payout);
     expect(intent['tx_hash']).toBe(hash);
     expect(intent['expected_data']).toBe(`TAKEOVER:v1:${claimId}`);
@@ -643,7 +643,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
       locationLabel: 'Mitte',
       startsAt: new Date(Date.now() + 2 * HOUR),
       endsAt: new Date(Date.now() + 4 * HOUR),
-      priceNim: 150000n,
+      priceUsdt: 150000n,
       totalQuantity: 2,
       availableQuantity: 2,
       payoutWallet: validPayout(),
@@ -675,7 +675,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
       locationLabel: 'Mitte',
       startsAt: new Date(Date.now() + 2 * HOUR),
       endsAt: new Date(Date.now() + 4 * HOUR),
-      priceNim: 150000n,
+      priceUsdt: 150000n,
       totalQuantity: 2,
       availableQuantity: 2,
       payoutWallet: validPayout(),
