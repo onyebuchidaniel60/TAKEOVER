@@ -279,6 +279,24 @@ first runs the transition check, so a `funded` escrow past its
 transitions; a funded escrow past deadline refunds on next read, never
 spontaneously.
 
+### Phase 14j-1 mainnet note (2026-09-18)
+
+Both rails are on mainnet. USDT escrow: `TakeoverEscrow` deployed on
+Polygon mainnet (chainId 137) at
+`0x7F8F66E1e07372dc371edf8F21d2d84208a4Fc06` (deploy tx
+`0x69be60fcb56601d8e83fd469cbe858a59f9e705201a114e32edb08ab811c47fa`),
+constructed with the canonical mainnet USDT
+`0xc2132D05D31c914a87C6611C10748AEb04B58e8F` (6 decimals) and the
+unchanged backend signer `0xf08613ee86cF9bCCCdDD361BB89116680C05f942`.
+(The same address exists on Amoy from 14e-2a — a CREATE-nonce
+coincidence, not the live contract; Amoy is unreferenced.) NIM
+listing fee: verified against the Nimiq mainnet RPC with the fresh
+mainnet fee wallet `NQ56SQVDDVCYJXDA3BT0Q01F0STKXRALLD8B`
+(receive-only; testnet wallet retired). Reads use the Tenderly
+Polygon gateway; server-signed broadcasts use publicnode (split-RPC
+pattern from 14e-2e retained: free public RPCs reject one path or
+the other). Contract unverified on Polygonscan (no API key).
+
 ## 7. Slot/claim concurrency
 
 The final unit of a slot is scarce inventory and must be protected with a database transaction.
@@ -1487,11 +1505,11 @@ GitHub (public, MIT)
               +--> Nimiq read API
 ```
 
-- Polygon RPC endpoint (configurable via POLYGON_RPC_URL)
-- USDT contract address on Polygon
-- TAKEOVER escrow contract address on Polygon
+- Polygon mainnet RPC endpoint for reads (configurable via POLYGON_RPC_URL; split-RPC: broadcasts use POLYGON_BROADCAST_RPC_URL)
+- Canonical USDT address on Polygon mainnet (configurable via USDT_TOKEN_ADDRESS; never hardcoded)
+- TAKEOVER escrow contract address on Polygon mainnet (configurable via USDT_ESCROW_CONTRACT_ADDRESS; deployed 14j-1 at 0x7F8F66E1e07372dc371edf8F21d2d84208a4Fc06, chainId 137)
 - Server signer address (contract caller)
-- NIM listing-fee wallet address (receive-only; `TAKEOVER_FEE_WALLET_ADDRESS`, per-environment)
+- NIM listing-fee wallet address on Nimiq mainnet (receive-only; `TAKEOVER_FEE_WALLET_ADDRESS`; live since 14j-1)
 - Note: competition build may use env secrets for keys; production requires KMS.
 
 Environment-specific configuration is separated between development and production.
@@ -1540,8 +1558,8 @@ The coding agent must treat these as non-negotiable:
 2. Fastify backend.
 3. PostgreSQL + Drizzle.
 4. Nimiq wallet authentication.
-5. Payment rails: USDT (ERC-20 on Polygon) escrowed by the non-custodial escrow contract; NIM (native Nimiq) as the env-gated listing fee paid by sellers at publish time (verified on-chain, receive-only wallet, no custody). (F3 cleanup, 2026-09-17: the dual-rail custodial NIM escrow was retired in 14f-r.)
-6. Escrow: buyer funds are held in the Polygon smart contract (non-custodial). The escrow contract's state is authoritative for USDT. (F3 cleanup, 2026-09-17: the NIM custodial escrow wallet was retired in 14f-r; there is no NIM escrow balance to be authoritative.)
+5. Payment rails: USDT (ERC-20 on Polygon mainnet) escrowed by the non-custodial escrow contract; NIM (native Nimiq on Nimiq mainnet) as the env-gated listing fee paid by sellers at publish time (verified on-chain, receive-only wallet, no custody). (F3 cleanup, 2026-09-17: the dual-rail custodial NIM escrow was retired in 14f-r. 14j-1, 2026-09-18: testnet retired — both rails on mainnet.)
+6. Escrow: buyer funds are held in the Polygon mainnet smart contract (non-custodial). The escrow contract's state is authoritative for USDT. (F3 cleanup, 2026-09-17: the NIM custodial escrow wallet was retired in 14f-r; there is no NIM escrow balance to be authoritative.)
 7. Server-authoritative payment verification.
 8. DB transaction/locking around claims.
 9. Explicit state machines.

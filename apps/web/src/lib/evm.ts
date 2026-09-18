@@ -13,9 +13,9 @@
 // Nothing here is token-specific except the address passed in — the token
 // address always comes from the server depositInstruction (D7 variant B).
 
-/** Polygon Amoy chain id (decimal + hex). The escrow contract lives here. */
-export const AMOY_CHAIN_ID = 80002;
-export const AMOY_CHAIN_ID_HEX = '0x13882';
+/** Polygon mainnet chain id (decimal + hex). The escrow contract lives here. */
+export const POLYGON_CHAIN_ID = 137;
+export const POLYGON_CHAIN_ID_HEX = '0x89';
 
 /**
  * Explicit gas limits (hex strings) for every eth_sendTransaction call.
@@ -163,12 +163,12 @@ async function request<T>(provider: EthereumProvider, method: string, params?: u
 }
 
 /**
- * Assert the wallet sits on Polygon Amoy, switching (or adding) the chain
+ * Assert the wallet sits on Polygon mainnet, switching (or adding) the chain
  * when needed. Rejects loudly on user cancellation vs RPC failure.
  */
 export async function ensureChain(
   provider: EthereumProvider = getEthereumProvider(),
-  chainIdHex: string = AMOY_CHAIN_ID_HEX,
+  chainIdHex: string = POLYGON_CHAIN_ID_HEX,
 ): Promise<void> {
   const current = await request<string>(provider, 'eth_chainId');
   if (typeof current === 'string' && current.toLowerCase() === chainIdHex.toLowerCase()) {
@@ -198,10 +198,10 @@ export async function ensureChain(
   await request(provider, 'wallet_addEthereumChain', [
     {
       chainId: chainIdHex,
-      chainName: 'Polygon Amoy',
+      chainName: 'Polygon',
       nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
-      rpcUrls: ['https://rpc-amoy.polygon.technology/'],
-      blockExplorerUrls: ['https://amoy.polygonscan.com/'],
+      rpcUrls: ['https://polygon-bor-rpc.publicnode.com/'],
+      blockExplorerUrls: ['https://polygonscan.com/'],
     },
   ]);
 }

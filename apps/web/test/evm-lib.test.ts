@@ -4,8 +4,8 @@
 // viem byte-for-byte.
 import { describe, expect, it, vi } from 'vitest';
 import {
-  AMOY_CHAIN_ID,
-  AMOY_CHAIN_ID_HEX,
+  POLYGON_CHAIN_ID,
+  POLYGON_CHAIN_ID_HEX,
   APPROVE_GAS_LIMIT,
   DEPOSIT_GAS_LIMIT,
   DISPUTE_GAS_LIMIT,
@@ -107,9 +107,9 @@ describe('input validation (fail closed, never a malformed broadcast)', () => {
 });
 
 describe('provider + chain handling', () => {
-  it('chain constants target Polygon Amoy', () => {
-    expect(AMOY_CHAIN_ID).toBe(80002);
-    expect(AMOY_CHAIN_ID_HEX).toBe('0x13882');
+  it('chain constants target Polygon mainnet', () => {
+    expect(POLYGON_CHAIN_ID).toBe(137);
+    expect(POLYGON_CHAIN_ID_HEX).toBe('0x89');
   });
 
   it('missing window.ethereum → user-facing NoEthereumProviderError', () => {
@@ -117,22 +117,22 @@ describe('provider + chain handling', () => {
   });
 
   it('matching chain → no switch call', async () => {
-    const { provider, calls } = fakeProvider(() => AMOY_CHAIN_ID_HEX);
+    const { provider, calls } = fakeProvider(() => POLYGON_CHAIN_ID_HEX);
     await ensureChain(provider);
     expect(calls.map((c) => c.method)).toEqual(['eth_chainId']);
   });
 
-  it('mismatched chain → switch with the Amoy id', async () => {
+  it('mismatched chain → switch with the Polygon id', async () => {
     const { provider, calls } = fakeProvider((method) => {
       if (method === 'eth_chainId') return '0x1';
       return null;
     });
     await ensureChain(provider);
     expect(calls.map((c) => c.method)).toEqual(['eth_chainId', 'wallet_switchEthereumChain']);
-    expect(calls[1]?.params).toEqual([{ chainId: AMOY_CHAIN_ID_HEX }]);
+    expect(calls[1]?.params).toEqual([{ chainId: POLYGON_CHAIN_ID_HEX }]);
   });
 
-  it('4902 → add chain with explicit Amoy params', async () => {
+  it('4902 → add chain with explicit Polygon params', async () => {
     const { provider, calls } = fakeProvider((method) => {
       if (method === 'eth_chainId') return '0x1';
       if (method === 'wallet_switchEthereumChain') {
@@ -144,11 +144,11 @@ describe('provider + chain handling', () => {
     const add = calls.find((c) => c.method === 'wallet_addEthereumChain');
     expect(add?.params).toEqual([
       {
-        chainId: AMOY_CHAIN_ID_HEX,
-        chainName: 'Polygon Amoy',
+        chainId: POLYGON_CHAIN_ID_HEX,
+        chainName: 'Polygon',
         nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
-        rpcUrls: ['https://rpc-amoy.polygon.technology/'],
-        blockExplorerUrls: ['https://amoy.polygonscan.com/'],
+        rpcUrls: ['https://polygon-bor-rpc.publicnode.com/'],
+        blockExplorerUrls: ['https://polygonscan.com/'],
       },
     ]);
   });

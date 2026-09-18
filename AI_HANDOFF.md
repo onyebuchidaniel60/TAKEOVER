@@ -3,6 +3,81 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase 14j-1 — both payment rails on mainnet (deploy + reconfig)
+
+```text
+CURRENT PHASE: Phase 14j-1 complete — both rails on mainnet. Escrow
+  on Polygon mainnet at
+  0x7F8F66E1e07372dc371edf8F21d2d84208a4Fc06; NIM fee on Nimiq
+  mainnet with new fee wallet
+  NQ56SQVDDVCYJXDA3BT0Q01F0STKXRALLD8B. DB is empty
+  (pre-migration wipe). Owner runs the first live Mini App E2E
+  next. Do NOT begin Phase 15.
+COMPLETED: prereqs (tree clean at 45cdef2; forge 1.8.3; deployer
+  9.7 POL + signer 9.78 POL on mainnet; Nimiq mainnet RPC block
+  61913068) + STEP 1 (fresh mainnet fee wallet via @nimiq/core;
+  key to gitignored contracts/.env only, address-only on stdout;
+  stale testnet wallet line removed) + STEP 2 (DeployPolygon.s.sol
+  adapted from DeployAmoy — identical (token, signer) constructor;
+  sim green; broadcast via publicnode; on-chain getters match; no
+  Polygonscan key → unverified) + STEP 3 (Railway 6 vars set —
+  reads Tenderly gateway, broadcast publicnode, escrow contract,
+  mainnet USDT token, mainnet Nimiq RPC, new fee wallet; signer key
+  + LISTING_FEE_NIM=400 untouched; /health ok; /config serves the
+  new wallet, required=true) + STEP 4 (evm.ts 137/0x89 + mainnet
+  chain params; zero Amoy refs remain in apps/; chain hardcoded —
+  no Vercel var; Vercel auto-deploys from push) + docs (ARCH
+  §6/§22/§24, .env.example, contracts/README, this checkpoint)
+TESTS RUN: deploy tx
+  0x69be60fcb56601d8e83fd469cbe858a59f9e705201a114e32edb08ab811c47fa
+  (status 1, block 94008361, 656357 gas); bytecode non-empty (5346
+  chars); TOKEN() = 0xc2132D05…e8F (mainnet USDT); ESCROW_SIGNER()
+  = 0xf086…f942; Railway /health ok + /config required=true with
+  wallet NQ56…; typecheck exit 0 (all workspaces + db); lint exit
+  0; web FULL 20 files/210 tests green (incl. evm-lib 23/23);
+  build exit 0; frontend dist chunk contains 0x89 (+ mainnet chain
+  params), zero 0x13882/80002 hits.
+RESULT: single commit (message below), pushed. Live Mini App E2E is
+  the owner's run (not attempted here).
+KNOWN ISSUES:
+- Contract unverified on Polygonscan (no API key in contracts/.env).
+- Real funds now in escrow — cap demo escrows at small amounts.
+- Fee wallet key handles real NIM (gitignored contracts/.env only)
+  — rotate at Phase 15; KMS production note stands.
+- Amoy contract still deployed but unreferenced (same address — a
+  CREATE-nonce coincidence, not the live contract).
+- polygon-rpc.com is dead (tenant-disabled 401): reads use the
+  Tenderly Polygon gateway, broadcasts use publicnode (deviation
+  from the brief's reference values, evidence-backed this phase;
+  the 14e-2d split-RPC pattern is retained, not regressed).
+- USDT_TOKEN_ADDRESS was set though absent from the brief's var
+  list — otherwise approve() would target Amoy USDT.
+- STEP 4 + STEP 5 landed in one commit, not two — Vercel
+  auto-deploys from the phase commit.
+- Carried residuals (P3 + reconciliation blocks).
+SECURITY NOTES: deployer/signer keys never printed
+  (balances/addresses/block numbers only); fee private key written
+  to gitignored contracts/.env by script, never stdout (address
+  only); stale testnet fee-wallet line removed (no ambiguous
+  dotenv duplicate); Railway values never listed (keys-only audit +
+  public values); no Bearer/session material; broadcast JSON
+  carries public tx data only.
+FILES CHANGED: contracts/script/DeployPolygon.s.sol (new),
+  contracts/broadcast/DeployPolygon.s.sol/137/run-latest.json
+  (new), contracts/README.md, .env.example,
+  apps/web/src/lib/evm.ts, apps/web/test/evm-lib.test.ts,
+  ARCHITECTURE.md, AI_HANDOFF.md (this checkpoint).
+  contracts/.env fee-wallet lines changed (gitignored, never
+  committed).
+GIT COMMIT: feat: phase 14j-1 — migrate both payment rails to
+  mainnet (single commit with this checkpoint; hash recorded at
+  push)
+NEXT TASK: Owner runs the Mini App E2E (create slot → publish with
+  NIM fee → claim → deposit USDT → mark delivered → confirm →
+  release). Then Phase 15.
+BLOCKED BY: none.
+```
+
 ## Phase 14h PART 1 — slot prices in USDT (migration 0009 landed; no checkpoint at the time)
 
 ```text
