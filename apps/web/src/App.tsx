@@ -18,6 +18,7 @@ const ClaimsPage = lazy(() => import('./routes/ClaimsPage'));
 const Sell = lazy(() => import('./routes/Sell'));
 const SellNew = lazy(() => import('./routes/SellNew'));
 const SellDetail = lazy(() => import('./routes/SellDetail'));
+const NotificationsPage = lazy(() => import('./routes/NotificationsPage'));
 const Profile = lazy(() => import('./routes/Profile'));
 const NotFound = lazy(() => import('./routes/NotFound'));
 const AdminDashboard = lazy(() => import('./routes/admin/AdminDashboard'));
@@ -127,6 +128,14 @@ export default function App() {
                 element={
                   <RequireAuth>
                     <SellDetail />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/notifications"
+                element={
+                  <RequireAuth>
+                    <NotificationsPage />
                   </RequireAuth>
                 }
               />

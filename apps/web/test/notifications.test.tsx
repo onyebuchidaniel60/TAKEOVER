@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 // Phase 14l-2: notifications UI — badge visibility, newest-first list,
 // mark-all-read clearing the badge, tap-to-read navigation.
+// Nav-tab move: the badge lives on the top-level Notifications link
+// (not Profile); the list renders at /notifications via
+// NotificationsPage; Profile no longer mounts the section.
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -8,6 +11,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import NotificationsSection from '../src/components/NotificationsSection';
 import TopBar from '../src/components/TopBar';
 import type { NotificationView } from '../src/lib/slots';
+import NotificationsPage from '../src/routes/NotificationsPage';
+import Profile from '../src/routes/Profile';
 import { useAuth } from '../src/store/auth';
 import { useNotifications } from '../src/store/notifications';
 
@@ -76,7 +81,9 @@ describe('TopBar unread badge', () => {
         <TopBar />
       </MemoryRouter>,
     );
-    expect(await screen.findByLabelText('Profile, 3 unread notifications')).toBeTruthy();
+    expect(await screen.findByLabelText('Notifications, 3 unread')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Profile' })).toBeTruthy();
+    expect(screen.queryByLabelText(/^Profile,/)).toBeNull();
   });
 
   it('hides the badge when unread is 0', async () => {
@@ -93,8 +100,88 @@ describe('TopBar unread badge', () => {
       </MemoryRouter>,
     );
     await waitFor(() => expect(useNotifications.getState().unread).toBe(0));
+    expect(screen.getByRole('link', { name: 'Notifications' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Profile' })).toBeTruthy();
-    expect(screen.queryByLabelText(/unread notifications/)).toBeNull();
+    expect(screen.queryByLabelText(/unread/)).toBeNull();
+  });
+
+  it('tapping the nav link navigates to /notifications', async () => {
+    const user = userEvent.setup();
+    authAsBuyer();
+    stubFetch((url) => {
+      if (url.includes('/api/v1/me/notifications')) {
+        return { status: 200, body: { data: { notifications: [], unreadCount: 0 }, requestId: 't' } };
+      }
+      return { status: 200, body: { data: {}, requestId: 't' } };
+    });
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<TopBar />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await user.click(await screen.findByRole('link', { name: 'Notifications' }));
+    expect(await screen.findByRole('heading', { name: 'Notifications' })).toBeTruthy();
+  });
+
+  it('the list renders on the notifications page', async () => {
+    authAsBuyer();
+    stubFetch((url) => {
+      if (url.includes('/api/v1/me/notifications')) {
+        return { status: 200, body: { data: { notifications: [note()], unreadCount: 1 }, requestId: 't' } };
+      }
+      return { status: 200, body: { data: {}, requestId: 't' } };
+    });
+    render(
+      <MemoryRouter initialEntries={['/notifications']}>
+        <Routes>
+          <Route path="/notifications" element={<NotificationsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Notifications' })).toBeTruthy();
+    expect(await screen.findByText('Marked delivered')).toBeTruthy();
+  });
+
+  it('Profile no longer renders the notifications section', async () => {
+    authAsBuyer();
+    stubFetch((url) => {
+      if (url === '/api/v1/me') {
+        return {
+          status: 200,
+          body: {
+            data: {
+              user: {
+                id: 'u-1',
+                walletAddress: 'NQ3200000000000000000000000000000000',
+                role: 'buyer',
+                status: 'active',
+                hasProviderProfile: false,
+                providerProfile: null,
+              },
+            },
+            requestId: 't',
+          },
+        };
+      }
+      if (url.startsWith('/api/v1/me/slots')) {
+        return { status: 200, body: { data: { slots: [], total: 0, limit: 1, offset: 0 }, requestId: 't' } };
+      }
+      return { status: 200, body: { data: {}, requestId: 't' } };
+    });
+    render(
+      <MemoryRouter initialEntries={['/profile']}>
+        <Routes>
+          <Route path="/profile" element={<Profile />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByRole('heading', { name: 'Profile' });
+    await waitFor(() => expect(screen.queryByLabelText(/loading/i)).toBeNull());
+    expect(screen.queryByLabelText('Notifications')).toBeNull();
+    expect(screen.queryByRole('button', { name: /mark all read/i })).toBeNull();
   });
 });
 

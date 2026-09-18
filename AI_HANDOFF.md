@@ -3,6 +3,117 @@
 Status: Pre-implementation
 Date: 2026-09-11
 
+## Phase: retheme — reverted Geist to system font; palette now warm earthy (ivory/cream/taupe/terracotta).
+
+```text
+CURRENT PHASE: Retheme complete — system font stack, warm earthy
+  light theme (ivory/cream/taupe/terracotta) + warm deep-brown dark
+  mode. This supersedes the 14l-3 palette below; 14l-3 is recorded
+  as it shipped.
+COMPLETED: deleted all 6 Geist woff2 files (fonts/ dir removed;
+  280 KB payload gone) + @font-face block removed (no preload ever
+  existed — fonts were CSS-lazy) + tailwind sans/mono → system
+  stacks (scale proportions byte-identical) + 37 earthy tokens in
+  tailwind.config.js + full conversion (49 files via ordered
+  exact-substring script + manual edge cases: App page→ivory,
+  placeholders faint→muted for 4.5:1, dark destructive clayfilld
+  #A65A32 threading text-4.71 + boundary-3.18) + sky→neutral
+  sand/taupe, orange→ochre folds + terracotta rings/primary/links/
+  badge + index.css/index.html/ARCH §20 updates + type-scale test
+  asserts system stacks + no Geist in fontFamily
+TESTS RUN: typecheck exit 0; lint exit 0; web FULL 25 files/250
+  green (incl. a11y 34/34 light+dark, zero critical/serious);
+  build exit 0 (index 212.69 kB neutral, CSS 25.35→21.20 kB,
+  no dist/fonts/, CSS purity proven: zero slate palette — the 12
+  `slate-` hits are all `translate-*`; the 2 `#fff` hits are
+  Tailwind's own ring-offset default var, overridden everywhere
+  used); FULL with DATABASE_URL exit 0 — api 44/465, web 25/250,
+  shared 1/1.
+CONTRAST: 51/51 pairs pass both modes (text ≥ 4.5, UI ≥ 3).
+  Tightest: muted/sand 4.58, ivory/clayfilld 4.71,
+  borderwarm/cream 3.07, rootedge/cocoa 3.38, clayfilld/cocoa
+  3.18. Five first-pass failures fixed by adjusting values, never
+  the rule. Full table in the phase report.
+RESULT: single commit 909cfe3 (message below), pushed.
+  Follow-up icon/thumbnail regen landed separately as 082465f
+  (bark tile / ivory cradle / terra tab; ivory og-image).
+KNOWN ISSUES:
+- Warm-palette discipline is now grep-enforced by convention only
+  (no slate/stone/gray/zinc/neutral/amber/emerald/red/orange/sky/
+  white/black classes in src); a future phase could add a lint
+  rule or posture test.
+- Input fills equal their card fill (cream-on-cream light,
+  cocoa-on-cocoa SellDetail-demand excluded) — boundaries carry
+  the affordance (3.07:1 / 3.38:1 measured).
+- Carried residuals: icon budget still 10/10 (zero icons added);
+  contract unverified on Polygonscan; fee-wallet key rotation
+  tracked Phase 15; backdrop-blur-md real-device cost unverified.
+NEXT TASK: Phase 15 — submission readiness (demo video,
+  declutter, README). Do NOT start automatically.
+BLOCKED BY: none.
+GIT COMMIT: revert: drop Geist; retheme as warm earthy (ivory,
+  cream, taupe, terracotta) (909cfe3, pushed)
+```
+
+## Phase 14l-3 complete — Geist typography and warm dark mode.
+
+NOTE (recorded after the fact): the 14l-3 palette below was
+superseded by the warm earthy retheme above (909cfe3, which also
+reverted Geist to the system font). 14l-3 is recorded here as it
+shipped at 22e6f87.
+
+```text
+CURRENT PHASE: Phase 14l-3 complete — Geist typography and warm
+  dark mode. Do NOT begin Phase 15 automatically.
+COMPLETED: Geist Sans 400/500/600/700 + Geist Mono 400/500 woff2
+  self-hosted under apps/web/public/fonts/ (286,564 B total, SIL
+  OFL, official Vercel 1.7.2 release; font-display: swap; no
+  latin-only subset ships upstream and subsetting locally would
+  add a font toolchain for ~10 KB/file — shipped full files) +
+  tailwind darkMode:'class' + six-step type scale (display
+  30/36/-0.02, h1 24/32/-0.02, h2 20/28/-0.01, h3 16/24/-0.01,
+  body 14/20/0, small 12/16/+0.01; weights stay explicit per call
+  site) + Geist Mono pairing for all figures + warm-dark stone
+  ramp (page stone-950, cards stone-900, panels stone-800; primary
+  fills invert to stone-100; status hues to the 300 level on 950
+  washes; elevation via border contrast, card shadows render
+  dark:shadow-none) + zustand theme store (Light/Dark/Auto,
+  takeover-theme key, pre-paint script in index.html, OS-follow
+  only in Auto, instant switch — no motion) + Profile segmented
+  toggle (text-only, icon budget untouched) + full component
+  conversion (dark: variants + scale + mono, zero layout change)
+  + ARCH §20/§21 docs
+TESTS RUN: typecheck exit 0; lint exit 0; theme store 5/5
+  (persistence across reload, OS fallback, class application);
+  type-scale 3/3 (verbatim snapshot incl. darkMode:'class');
+  bearer-auth posture updated (store/theme.ts is the single
+  sanctioned localStorage user; credential-free asserted);
+  a11y-routes 34/34 (17 light + 17 dark-forced, zero
+  critical/serious); web FULL 25/225→25/250 green (+2 files/+25
+  tests, exactly the new suites); build exit 0 (section work
+  route-split; index 211.33→212.84 kB, CSS +5.81 kB for
+  @font-face + dark variants, Profile 7.57→9.90 kB for the
+  toggle); FULL with DATABASE_URL exit 0 — api 44/465, web
+  25/250, shared 1/1, zero flakes.
+CONTRAST: every new pair measured both modes (text ≥ 4.5, UI ≥
+  3). Two fixes applied (input/secondary borders stone-600→500
+  at 3.65:1; destructive outline borders red-800→600 at 3.62:1).
+  Full table in the phase report.
+RESULT: single commit 22e6f87 (message below), pushed.
+KNOWN ISSUES (at ship time; palette items moot after retheme):
+- No latin subsetting (see above).
+- Pre-existing light pairs (e.g. slate-200/white 1.23 container
+  borders) held to the baseline decorative standard, unchanged.
+- Carried residuals: icon budget 10/10; contract unverified;
+  fee-wallet rotation → Phase 15; blur real-device cost
+  unverified.
+NEXT TASK: Phase 15 — submission readiness (demo video,
+  declutter, README). Do NOT start automatically.
+BLOCKED BY: none.
+GIT COMMIT: feat: phase 14l-3 — Geist typography and warm dark
+  mode (22e6f87, pushed)
+```
+
 ## Phase 14l-2 complete — in-app notifications (slot funded → provider; marked delivered → buyer). Do NOT begin 14l-3 automatically.
 
 ```text

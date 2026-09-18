@@ -1,6 +1,7 @@
-// Phase 14l-2: Profile notifications section. Own fetch (loading/error
-// states local to the section); newest first; unread rows carry a dot;
-// tapping a row marks it read and navigates to the related claim or slot.
+// Phase 14l-2: notifications section (top-level Notifications page since
+// the nav-tab move). Own fetch (loading/error states local to the
+// section); newest first; unread rows carry a dot; tapping a row marks
+// it read and navigates to the related claim or slot.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError } from '../lib/api';
@@ -36,7 +37,7 @@ export default function NotificationsSection() {
       .then((res) => {
         if (cancelled) return;
         // Defensive: a malformed payload must render the empty state,
-        // never crash the Profile page.
+        // never crash the Notifications page.
         setItems(Array.isArray(res.notifications) ? res.notifications : []);
         setLoading(false);
       })

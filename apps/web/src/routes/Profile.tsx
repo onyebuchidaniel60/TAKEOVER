@@ -6,7 +6,6 @@ import { Link } from 'react-router-dom';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
-import NotificationsSection from '../components/NotificationsSection';
 import { ApiError } from '../lib/api';
 import { usePageMeta } from '../lib/meta';
 import {
@@ -100,8 +99,6 @@ export default function Profile() {
               setUser({ ...user, providerProfile: { displayName }, hasProviderProfile: true })
             }
           />
-
-          <NotificationsSection />
 
           <section className="flex flex-wrap gap-2" aria-label="Shortcuts">
             <Link

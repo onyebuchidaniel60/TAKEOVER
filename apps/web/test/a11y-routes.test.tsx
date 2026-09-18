@@ -22,6 +22,7 @@ import ClaimDetailPage from '../src/routes/ClaimDetailPage';
 import ClaimsPage from '../src/routes/ClaimsPage';
 import Home from '../src/routes/Home';
 import NotFound from '../src/routes/NotFound';
+import NotificationsPage from '../src/routes/NotificationsPage';
 import Profile from '../src/routes/Profile';
 import Sell from '../src/routes/Sell';
 import SellDetail from '../src/routes/SellDetail';
@@ -90,6 +91,24 @@ function slotsList(total = 2): Record<string, unknown> {
     total,
     limit: 20,
     offset: 0,
+  };
+}
+
+function notificationsList(): Record<string, unknown> {
+  return {
+    notifications: [
+      {
+        id: 'note-1',
+        type: 'slot_delivered',
+        entity_type: 'claim',
+        entity_id: 'claim-1',
+        title: 'Marked delivered',
+        body: 'Your claim was marked delivered.',
+        read_at: null,
+        created_at: new Date().toISOString(),
+      },
+    ],
+    unreadCount: 1,
   };
 }
 
@@ -240,6 +259,25 @@ describe('axe on consumer routes', () => {
     );
     await awaitLoaded();
     await checkAxe('/profile', container);
+  });
+
+  it('/notifications renders without critical/serious violations', async () => {
+    setBuyer();
+    mockFetch((url) => {
+      if (url === '/api/v1/me/notifications') return notificationsList();
+      return undefined;
+    });
+    const container = renderAt(
+      '/notifications',
+      '/notifications',
+      <RequireAuth>
+        <NotificationsPage />
+      </RequireAuth>,
+    );
+    // The section's loading copy carries no aria-label, so awaitLoaded
+    // would resolve early: wait for the loaded list instead.
+    await screen.findByText('Marked delivered');
+    await checkAxe('/notifications', container);
   });
 
   it('unknown path renders the 404 page without critical/serious violations', async () => {
@@ -595,6 +633,24 @@ describe('axe on routes with dark mode forced', () => {
     );
     await awaitLoaded();
     await checkAxe('/profile (dark)', container);
+  });
+
+  it('/notifications renders without critical/serious violations (dark)', async () => {
+    setBuyer();
+    mockFetch((url) => {
+      if (url === '/api/v1/me/notifications') return notificationsList();
+      return undefined;
+    });
+    const container = renderAt(
+      '/notifications',
+      '/notifications',
+      <RequireAuth>
+        <NotificationsPage />
+      </RequireAuth>,
+    );
+    // Same early-resolve guard as the light-mode test above.
+    await screen.findByText('Marked delivered');
+    await checkAxe('/notifications (dark)', container);
   });
 
   it('unknown path renders the 404 page without critical/serious violations (dark)', async () => {

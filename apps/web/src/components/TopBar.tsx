@@ -39,11 +39,11 @@ export default function TopBar() {
             Claims
           </Link>
           <Link
-            to="/profile"
+            to="/notifications"
             className="inline-flex min-h-touch items-center gap-1.5 text-body text-taupe dark:text-drift"
-            aria-label={unread ? `Profile, ${unread} unread notifications` : 'Profile'}
+            aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications'}
           >
-            Profile
+            Notifications
             {unread ? (
               <span
                 aria-hidden="true"
@@ -52,6 +52,12 @@ export default function TopBar() {
                 {unread > 99 ? '99+' : unread}
               </span>
             ) : null}
+          </Link>
+          <Link
+            to="/profile"
+            className="inline-flex min-h-touch items-center gap-1.5 text-body text-taupe dark:text-drift"
+          >
+            Profile
           </Link>
           {isAdminUser(user) ? (
             <Link
