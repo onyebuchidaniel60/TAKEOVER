@@ -17,6 +17,10 @@ Read these files before changing code:
 
 These documents are authoritative.
 
+## Design skills
+
+For any UI, styling, animation, or visual-polish work in apps/web, consult the design skills under .opencode/skills/. Load them via the skill tool before making design decisions. The emil-design-eng skill is the primary reference; the others (apple-design, find-animation-opportunities, improve-animations, review-animations) support specific polish tasks.
+
 ## Fixed architecture
 
 Frontend:
