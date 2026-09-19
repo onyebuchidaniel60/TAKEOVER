@@ -20,6 +20,7 @@ import {
   cancelSlot,
   createSlot,
   getOwnSlot,
+  isSlotOwner,
   listOwnSlots,
   publishSlot,
   updateDraftSlot,
@@ -123,6 +124,22 @@ export async function slotRoutes(app: FastifyInstance, opts: SlotRouteOptions = 
       });
     }
     throw new AppError(404, 'NOT_FOUND', 'Slot not found.');
+  });
+
+  app.get('/slots/:slotId/ownership', async (request) => {
+    const user = await requireAuth(request);
+    const params = slotIdParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      throw new AppError(400, 'INVALID_INPUT', 'Invalid slot id.');
+    }
+    const db = getDb();
+    // UX gate for the claim button only — the claim transaction enforces
+    // the rule itself. Boolean only; the provider id is never exposed.
+    const owned = await isSlotOwner(db, user.id, params.data.slotId);
+    if (owned === null) {
+      throw new AppError(404, 'NOT_FOUND', 'Slot not found.');
+    }
+    return successBody(request, { isOwner: owned });
   });
 
   app.post('/slots', { preHandler: slotCreateLimiter }, async (request, reply) => {

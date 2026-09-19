@@ -11,7 +11,7 @@ import SlotDetail from '../components/SlotDetail';
 import { isAdminUser } from '../lib/admin';
 import { ApiError } from '../lib/api';
 import { usePageMeta } from '../lib/meta';
-import { fetchSlot, formatUsdt, type PublicSlot } from '../lib/slots';
+import { fetchSlot, formatUsdt, fetchSlotOwnership, type PublicSlot } from '../lib/slots';
 import { useAuth } from '../store/auth';
 
 type State =
@@ -37,6 +37,10 @@ export default function SlotDetailPage() {
   const [retryKey, setRetryKey] = useState(0);
   const [reporting, setReporting] = useState(false);
   const [reported, setReported] = useState(false);
+  // Owner gate for the claim action (UX only — the claim transaction
+  // rejects owners with CANNOT_CLAIM_OWN_SLOT regardless). Null while
+  // unknown: no action is offered until ownership resolves.
+  const [isOwner, setIsOwner] = useState<boolean | null>(null);
 
   // Shared-link preview: title, price, and time once the opening loads.
   const readySlot = state.kind === 'ready' ? state.slot : null;
@@ -80,6 +84,24 @@ export default function SlotDetailPage() {
     };
   }, [slotId, retryKey]);
 
+  // Ownership resolves only for authenticated viewers on a loaded slot.
+  // Fail-open lives inside fetchSlotOwnership; the backend is the boundary.
+  const readySlotId = state.kind === 'ready' ? state.slot.id : null;
+  useEffect(() => {
+    if (!authenticated || !readySlotId) {
+      setIsOwner(null);
+      return;
+    }
+    let cancelled = false;
+    setIsOwner(null);
+    void fetchSlotOwnership(readySlotId).then(({ isOwner: owned }) => {
+      if (!cancelled) setIsOwner(owned);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticated, readySlotId, retryKey]);
+
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
       <Link to="/" className="inline-block min-h-touch py-2 text-body font-medium text-taupe dark:text-drift">
@@ -107,8 +129,11 @@ export default function SlotDetailPage() {
           <>
             <SlotDetail slot={state.slot} />
             <div className="mt-4">
-              {authenticated && isClaimable(state.slot) ? (
+              {authenticated && isClaimable(state.slot) && isOwner === false ? (
                 <ClaimButton slotId={state.slot.id} />
+              ) : null}
+              {authenticated && isClaimable(state.slot) && isOwner === true ? (
+                <p className="text-body text-taupe dark:text-drift">This is your opening.</p>
               ) : null}
               {!authenticated ? (
                 <p className="rounded-lg border border-hairline bg-cream p-3 text-body text-taupe dark:border-rootline dark:bg-cocoa dark:text-drift">

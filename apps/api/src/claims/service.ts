@@ -72,10 +72,12 @@ export interface CreateClaimOptions {
 }
 
 /**
- * Atomically claim one unit: lock the slot row, return the buyer's existing
- * live claim if there is one (FR-05 idempotent return — no second claim, no
- * decrement), otherwise re-check eligibility, insert the hold, decrement, and
- * flip to sold_out at 0.
+ * Atomically claim one unit: lock the slot row, reject the slot's own
+ * provider (403 CANNOT_CLAIM_OWN_SLOT — before the live-claim check),
+ * return the buyer's existing live claim if there is one (FR-05
+ * idempotent return — no second claim, no decrement), otherwise
+ * re-check eligibility, insert the hold, decrement, and flip to
+ * sold_out at 0.
  */
 export async function createClaim(
   db: Db,
@@ -88,6 +90,15 @@ export async function createClaim(
     const slot = locked[0];
     if (!slot) {
       throw new AppError(404, 'NOT_FOUND', 'Slot not found.');
+    }
+    // One person is never both provider and buyer for the same slot.
+    // Runs before the live-claim check on purpose: a provider with no
+    // claim gets CANNOT_CLAIM_OWN_SLOT (not a no-op), and a provider
+    // with an anomalous pre-existing claim is rejected rather than
+    // served the anomalous row back. slot.providerId is already in
+    // scope from the locked row — no second query.
+    if (slot.providerId === options.buyerId) {
+      throw new AppError(403, 'CANNOT_CLAIM_OWN_SLOT', 'You cannot claim your own opening.');
     }
     const liveClaimWhere = and(
       eq(claims.slotId, options.slotId),

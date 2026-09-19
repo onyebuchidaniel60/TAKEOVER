@@ -40,7 +40,6 @@ type SlotRow = typeof slots.$inferSelect;
 // Claims in these states mean money may already be moving: cancellation is
 // blocked and the provider cannot strand or double-spend that demand.
 const BLOCKING_CLAIM_STATUSES = ['payment_pending', 'paid', 'payment_review'] as const;
-
 /** Load an owned slot or throw 404 (never reveal other owners' slots). */
 export async function getOwnSlot(db: Db, ownerId: string, slotId: string): Promise<SlotRow> {
   const rows = await db
@@ -53,6 +52,28 @@ export async function getOwnSlot(db: Db, ownerId: string, slotId: string): Promi
     throw new AppError(404, 'NOT_FOUND', 'Slot not found.');
   }
   return row;
+}
+
+/**
+ * Ownership probe for the claim-button gate (UX only — the claim
+ * transaction itself enforces the rule). Returns null when the slot
+ * does not exist; never exposes the provider id.
+ */
+export async function isSlotOwner(
+  db: Db,
+  userId: string,
+  slotId: string,
+): Promise<boolean | null> {
+  const rows = await db
+    .select({ providerId: slots.providerId })
+    .from(slots)
+    .where(eq(slots.id, slotId))
+    .limit(1);
+  const row = rows[0];
+  if (!row) {
+    return null;
+  }
+  return row.providerId === userId;
 }
 
 export async function createSlot(

@@ -418,6 +418,22 @@ export function createClaim(slotId: string): Promise<{ claim: ClaimView; slot: P
   );
 }
 
+/**
+ * Ownership probe for the claim-button gate (UX only — the claim
+ * transaction enforces the rule itself). Resolves isOwner false on any
+ * failure (fail open); the backend rejects owners anyway.
+ */
+export async function fetchSlotOwnership(slotId: string): Promise<{ isOwner: boolean }> {
+  try {
+    const res = await apiFetch<{ isOwner: unknown }>(
+      `/api/v1/slots/${encodeURIComponent(slotId)}/ownership`,
+    );
+    return { isOwner: res.isOwner === true };
+  } catch {
+    return { isOwner: false };
+  }
+}
+
 export function fetchClaim(claimId: string): Promise<{ claim: ClaimView; slot: PublicSlot }> {
   return apiFetch<{ claim: ClaimView; slot: PublicSlot }>(
     `/api/v1/claims/${encodeURIComponent(claimId)}`,

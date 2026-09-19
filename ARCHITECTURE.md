@@ -316,6 +316,8 @@ COMMIT
 
 The unique constraint and row lock are both required; application-level checks alone are insufficient.
 
+The slot's provider cannot claim their own slot (403 CANNOT_CLAIM_OWN_SLOT, checked inside the locked transaction before the live-claim check).
+
 ### Phase 6 implementation note (2026-09-11)
 
 Sold-out openings stay publicly visible: the read filter is status IN
@@ -776,6 +778,14 @@ display_name when set, else the truncated provider wallet — public-safe in
 both forms). The owner projection carries the same fields (the NIM-era
 `payout_wallet` was removed from it — the escrow flow collects the payout
 address at mark-delivered time).
+
+### GET /api/v1/slots/:slotId/ownership
+
+Auth: session.
+
+Returns `{ isOwner: boolean }` — whether the caller provides the slot.
+UX gate for the claim button only (the claim transaction enforces the
+rule itself); the provider id is never exposed. Missing slot → 404.
 
 ### POST /api/v1/slots
 
@@ -1256,6 +1266,7 @@ Minimum stable codes:
 - SLOT_CANCELLED
 - CLAIM_EXPIRED
 - CLAIM_NOT_PAYABLE
+- CANNOT_CLAIM_OWN_SLOT
 - CLAIM_ALREADY_PAID
 - PAYMENT_INTENT_EXISTS
 - PAYMENT_INTENT_REQUIRED
