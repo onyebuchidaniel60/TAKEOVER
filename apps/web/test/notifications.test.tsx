@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 // Phase 14l-2: notifications UI — badge visibility, newest-first list,
 // mark-all-read clearing the badge, tap-to-read navigation.
-// Nav-tab move: the badge lives on the top-level Notifications link
-// (not Profile); the list renders at /notifications via
-// NotificationsPage; Profile no longer mounts the section.
+// Hamburger-drawer move: the badge lives on the Notifications item
+// inside the drawer (plus a numberless dot on the menu button); the
+// list renders at /notifications via NotificationsPage; the top row
+// holds only brand + menu button + wallet.
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -67,26 +68,9 @@ function authAsBuyer(): void {
   });
 }
 
-describe('TopBar unread badge', () => {
-  it('shows the count when unread > 0', async () => {
-    authAsBuyer();
-    stubFetch((url) => {
-      if (url.includes('/api/v1/me/notifications')) {
-        return { status: 200, body: { data: { notifications: [], unreadCount: 3 }, requestId: 't' } };
-      }
-      return { status: 200, body: { data: {}, requestId: 't' } };
-    });
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <TopBar />
-      </MemoryRouter>,
-    );
-    expect(await screen.findByLabelText('Notifications, 3 unread')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Profile' })).toBeTruthy();
-    expect(screen.queryByLabelText(/^Profile,/)).toBeNull();
-  });
-
-  it('hides the badge when unread is 0', async () => {
+describe('TopBar navigation drawer', () => {
+  it('keeps the top row to brand + menu; the four links live in the drawer', async () => {
+    const user = userEvent.setup();
     authAsBuyer();
     stubFetch((url) => {
       if (url.includes('/api/v1/me/notifications')) {
@@ -99,13 +83,64 @@ describe('TopBar unread badge', () => {
         <TopBar />
       </MemoryRouter>,
     );
-    await waitFor(() => expect(useNotifications.getState().unread).toBe(0));
+    expect(screen.getByRole('link', { name: 'TAKEOVER home' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open menu' })).toBeTruthy();
+    // No inline nav links on the top row (Profile overflow fix).
+    expect(screen.queryByRole('link', { name: 'Sell' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Claims' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Notifications' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Profile' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
+    expect(await screen.findByRole('link', { name: 'Sell' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Claims' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Notifications' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Profile' })).toBeTruthy();
+  });
+
+  it('shows the count on the drawer item plus a dot on the menu button when unread > 0', async () => {
+    const user = userEvent.setup();
+    authAsBuyer();
+    stubFetch((url) => {
+      if (url.includes('/api/v1/me/notifications')) {
+        return { status: 200, body: { data: { notifications: [], unreadCount: 3 }, requestId: 't' } };
+      }
+      return { status: 200, body: { data: {}, requestId: 't' } };
+    });
+    const { container } = render(
+      <MemoryRouter initialEntries={['/']}>
+        <TopBar />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByLabelText('Open menu, 3 unread notifications')).toBeTruthy();
+    // Terracotta dot on the hamburger, no number while the drawer is closed.
+    expect(container.querySelector('button span.rounded-full')).toBeTruthy();
+    await user.click(screen.getByLabelText('Open menu, 3 unread notifications'));
+    expect(await screen.findByLabelText('Notifications, 3 unread')).toBeTruthy();
+  });
+
+  it('hides the count and the dot when unread is 0', async () => {
+    const user = userEvent.setup();
+    authAsBuyer();
+    stubFetch((url) => {
+      if (url.includes('/api/v1/me/notifications')) {
+        return { status: 200, body: { data: { notifications: [], unreadCount: 0 }, requestId: 't' } };
+      }
+      return { status: 200, body: { data: {}, requestId: 't' } };
+    });
+    const { container } = render(
+      <MemoryRouter initialEntries={['/']}>
+        <TopBar />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(useNotifications.getState().unread).toBe(0));
+    expect(screen.getByRole('button', { name: 'Open menu' })).toBeTruthy();
+    expect(container.querySelector('button span.rounded-full')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
+    expect(await screen.findByRole('link', { name: 'Notifications' })).toBeTruthy();
     expect(screen.queryByLabelText(/unread/)).toBeNull();
   });
 
-  it('tapping the nav link navigates to /notifications', async () => {
+  it('tapping the drawer link navigates to /notifications', async () => {
     const user = userEvent.setup();
     authAsBuyer();
     stubFetch((url) => {
@@ -122,6 +157,7 @@ describe('TopBar unread badge', () => {
         </Routes>
       </MemoryRouter>,
     );
+    await user.click(await screen.findByRole('button', { name: 'Open menu' }));
     await user.click(await screen.findByRole('link', { name: 'Notifications' }));
     expect(await screen.findByRole('heading', { name: 'Notifications' })).toBeTruthy();
   });

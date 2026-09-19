@@ -1,9 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { Menu } from 'lucide-react';
 import { isAdminUser } from '../lib/admin';
 import { useAuth } from '../store/auth';
 import { useNotifications } from '../store/notifications';
 import BrandMark from './BrandMark';
+import NavDrawer from './NavDrawer';
 import WalletStatus from './WalletStatus';
 
 export default function TopBar() {
@@ -12,6 +14,7 @@ export default function TopBar() {
   const unread = useNotifications((s) => s.unread);
   const refreshUnread = useNotifications((s) => s.refresh);
   const pathname = useLocation().pathname;
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Badge refresh trigger: re-read the unread count after every navigation.
   // No polling loop, no realtime channel (14l-2 scope).
@@ -20,10 +23,17 @@ export default function TopBar() {
     void refreshUnread();
   }, [pathname, authenticated, refreshUnread]);
 
+  // The drawer is route-scoped chrome: any navigation dismisses it.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  const count = unread ?? 0;
+
   return (
     <header className="sticky top-0 z-40 border-b border-hairline/80 bg-cream/80 backdrop-blur-md dark:border-rootline dark:bg-coal/80">
-      <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
-        <nav className="flex flex-wrap items-center gap-x-4 gap-y-1" aria-label="Primary">
+      <div className="mx-auto flex max-w-3xl flex-wrap items-start justify-between gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
+        <div className="flex min-w-0 flex-col items-start gap-1.5">
           <Link
             to="/"
             aria-label="TAKEOVER home"
@@ -32,44 +42,32 @@ export default function TopBar() {
             <BrandMark size={24} />
             TAKEOVER
           </Link>
-          <Link to="/sell" className="inline-flex min-h-touch items-center text-body text-taupe dark:text-drift">
-            Sell
-          </Link>
-          <Link to="/claims" className="inline-flex min-h-touch items-center text-body text-taupe dark:text-drift">
-            Claims
-          </Link>
-          <Link
-            to="/notifications"
-            className="inline-flex min-h-touch items-center gap-1.5 text-body text-taupe dark:text-drift"
-            aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications'}
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            aria-expanded={menuOpen}
+            aria-controls="site-nav"
+            aria-label={count > 0 ? `Open menu, ${count} unread notifications` : 'Open menu'}
+            className="relative inline-flex min-h-touch items-center gap-2 rounded-lg border border-borderwarm bg-cream px-3 py-1 text-body font-medium text-taupe transition-transform duration-press ease-out-strong active:scale-[0.97] dark:border-rootedge dark:bg-cocoa dark:text-khaki"
           >
-            Notifications
-            {unread ? (
+            <Menu size={18} aria-hidden="true" />
+            Menu
+            {count > 0 ? (
               <span
                 aria-hidden="true"
-                className="inline-flex min-h-[20px] min-w-[20px] items-center justify-center rounded-full bg-terra px-1 font-mono text-small font-bold tabular-nums text-ivory"
-              >
-                {unread > 99 ? '99+' : unread}
-              </span>
+                className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-cream bg-terra dark:border-cocoa dark:bg-terralight"
+              />
             ) : null}
-          </Link>
-          <Link
-            to="/profile"
-            className="inline-flex min-h-touch items-center gap-1.5 text-body text-taupe dark:text-drift"
-          >
-            Profile
-          </Link>
-          {isAdminUser(user) ? (
-            <Link
-              to="/admin"
-              className="inline-flex min-h-touch items-center text-body font-medium text-bark dark:text-parchment"
-            >
-              Admin
-            </Link>
-          ) : null}
-        </nav>
+          </button>
+        </div>
         <WalletStatus />
       </div>
+      <NavDrawer
+        open={menuOpen}
+        unread={unread}
+        isAdmin={isAdminUser(user)}
+        onClose={() => setMenuOpen(false)}
+      />
     </header>
   );
 }

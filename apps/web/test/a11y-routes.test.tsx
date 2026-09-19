@@ -12,6 +12,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import RequireAdmin from '../src/components/RequireAdmin';
 import RequireAuth from '../src/components/RequireAuth';
+import TopBar from '../src/components/TopBar';
 import AdminAudit from '../src/routes/admin/AdminAudit';
 import AdminDashboard from '../src/routes/admin/AdminDashboard';
 import AdminPaymentReviews from '../src/routes/admin/AdminPaymentReviews';
@@ -28,6 +29,7 @@ import Sell from '../src/routes/Sell';
 import SellDetail from '../src/routes/SellDetail';
 import SellNew from '../src/routes/SellNew';
 import SlotDetailPage from '../src/routes/SlotDetailPage';
+import { useNotifications } from '../src/store/notifications';
 import {
   assertZeroCriticalOrSerious,
   claimFixture,
@@ -473,6 +475,49 @@ describe('axe on error states', () => {
   });
 });
 
+// Hamburger drawer: the header is axe-clean with the drawer closed and
+// with it open (badge pill + backdrop included — the drawer mounts
+// inside the header element, so scoping to the header covers all of it).
+function renderShell(): void {
+  useNotifications.setState({ unread: null });
+  setBuyer();
+  mockFetch((url) => {
+    if (url === '/api/v1/me/notifications') return { notifications: [], unreadCount: 3 };
+    return undefined;
+  });
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <TopBar />
+      <main>
+        <h1>Shell page</h1>
+      </main>
+    </MemoryRouter>,
+  );
+}
+
+describe('axe on the nav drawer', () => {
+  it('header with closed drawer has no critical/serious violations', async () => {
+    renderShell();
+    await waitFor(() => {
+      expect(useNotifications.getState().unread).toBe(3);
+    });
+    const header = document.querySelector('header') as HTMLElement;
+    await checkAxe('header drawer closed', header);
+  });
+
+  it('header with open drawer has no critical/serious violations', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await waitFor(() => {
+      expect(useNotifications.getState().unread).toBe(3);
+    });
+    await user.click(screen.getByRole('button', { name: /open menu/i }));
+    await screen.findByRole('navigation', { name: 'Site menu' });
+    const header = document.querySelector('header') as HTMLElement;
+    await checkAxe('header drawer open', header);
+  });
+});
+
 // Phase 14l-3: the same route coverage with dark mode forced (the `dark`
 // class Tailwind's class strategy reads). Dark variants are class-only, so
 // forcing the class is the full theme switch — no matchMedia stub needed.
@@ -823,5 +868,37 @@ describe('axe on routes with dark mode forced', () => {
     const reportButton = screen.getByRole('button', { name: /report this opening/i });
     await user.click(reportButton);
     await checkAxe('report dialog (dark)', container);
+  });
+});
+
+describe('axe on the nav drawer with dark mode forced', () => {
+  beforeEach(() => {
+    document.documentElement.classList.add('dark');
+  });
+
+  afterEach(() => {
+    document.documentElement.classList.remove('dark');
+    useNotifications.setState({ unread: null });
+  });
+
+  it('header with closed drawer has no critical/serious violations (dark)', async () => {
+    renderShell();
+    await waitFor(() => {
+      expect(useNotifications.getState().unread).toBe(3);
+    });
+    const header = document.querySelector('header') as HTMLElement;
+    await checkAxe('header drawer closed (dark)', header);
+  });
+
+  it('header with open drawer has no critical/serious violations (dark)', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await waitFor(() => {
+      expect(useNotifications.getState().unread).toBe(3);
+    });
+    await user.click(screen.getByRole('button', { name: /open menu/i }));
+    await screen.findByRole('navigation', { name: 'Site menu' });
+    const header = document.querySelector('header') as HTMLElement;
+    await checkAxe('header drawer open (dark)', header);
   });
 });
