@@ -18,7 +18,7 @@ export const claims = pgTable(
     status: claimStatus('status').notNull().default('active_hold'),
     holdExpiresAt: timestamp('hold_expires_at', { withTimezone: true }).notNull(),
     claimedAt: timestamp('claimed_at', { withTimezone: true }).notNull().defaultNow(),
-    // Phase 14d-2 completion: verification-window clock. Set on the
+    // 2 Completion: verification-window clock. Set on the
     // active_hold → deposit_submitted transition; cleared to NULL when the
     // claim leaves deposit_submitted for a state where the clock no longer
     // applies (e.g. payment_review after expiry); left in place on

@@ -1,4 +1,4 @@
-// Phase 4: public marketplace read service. Phase 6: sold_out slots stay
+// Public marketplace read service. Sold_out slots stay
 // visible (they flip back to published when holds expire). Server is
 // authoritative: only slots with status IN ('published', 'sold_out') AND
 // starts_at > now() are ever returned. Draft, cancelled, expired, and past

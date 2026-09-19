@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Phase 11 motion + countdown announcements: the stylesheet neutralizes
+// motion + countdown announcements: the stylesheet neutralizes
 // animation under prefers-reduced-motion, and the hold countdown announces
 // only at the 5 min / 1 min / 30s / 10s thresholds plus expiry — never
 // every second.

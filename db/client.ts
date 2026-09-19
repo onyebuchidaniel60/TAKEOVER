@@ -1,9 +1,7 @@
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
-// Phase 1: lazy client factory only. Nothing in Phase 1 connects to the
-// database — the API boots and GET /health works without DATABASE_URL.
-// First real use arrives with Phase 2 (schema/migrations).
+// Lazy database client factory (connects on first use).
 let db: NodePgDatabase | undefined;
 
 export function isDatabaseConfigured(): boolean {

@@ -1,4 +1,4 @@
-// Phase 10: report + admin moderation input validation. All external input
+// Report + admin moderation input validation. All external input
 // is validated at the API boundary with Zod; unknown fields are rejected.
 import { z } from 'zod';
 

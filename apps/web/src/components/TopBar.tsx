@@ -17,7 +17,7 @@ export default function TopBar() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Badge refresh trigger: re-read the unread count after every navigation.
-  // No polling loop, no realtime channel (14l-2 scope).
+  // No polling loop, no realtime channel ( scope).
   useEffect(() => {
     if (!authenticated) return;
     void refreshUnread();

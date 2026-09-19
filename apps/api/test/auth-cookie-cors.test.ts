@@ -3,7 +3,7 @@ import { buildApp } from '../src/app';
 import { sessionCookieOptions } from '../src/auth/session';
 import { DEV_CORS_ORIGIN, parseCorsOrigins } from '../src/env';
 
-// Phase 3 completion: locked Vercel -> Railway cross-origin topology.
+// Completion: locked Vercel -> Railway cross-origin topology.
 // Cookies must be Lax/insecure in dev and None/Secure in prod (HttpOnly always).
 // CORS must use an explicit allowlist with credentials, never a wildcard.
 describe('auth cookies (dev vs prod)', () => {

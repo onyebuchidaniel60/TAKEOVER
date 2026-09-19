@@ -1,4 +1,4 @@
-// Phase 14d-3b: admin dispute resolution + escrow list (live DB, mocked
+// Admin dispute resolution + escrow list (live DB, mocked
 // Polygon client). Disputed fixtures flow through the real buyer/provider
 // endpoints; admin promotion uses the real ADMIN_WALLET_ADDRESSES env (set
 // only around the admin login, then cleared — moderation.test.ts pattern).
@@ -30,7 +30,7 @@ import {
 
 const TEST_CONTRACT = '0x3333333333333333333333333333333333333333';
 process.env.USDT_ESCROW_CONTRACT_ADDRESS = TEST_CONTRACT;
-// Phase 14e P1 (D7 variant B): intent fail-closes without a token address.
+// Intent fail-closes without a token address.
 process.env.USDT_TOKEN_ADDRESS = '0x4444444444444444444444444444444444444444';
 
 const PAYOUT = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';

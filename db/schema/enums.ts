@@ -1,6 +1,6 @@
 import { pgEnum } from 'drizzle-orm/pg-core';
 
-// Phase 2 domain enums — values and defaults match the Phase 2 schema brief exactly.
+// domain enums — values and defaults match the schema brief exactly.
 export const userRole = pgEnum('user_role', ['buyer', 'provider', 'admin']);
 
 export const userStatus = pgEnum('user_status', ['active', 'disabled']);
@@ -41,7 +41,7 @@ export const paymentStatus = pgEnum('payment_status', [
 
 export const reportStatus = pgEnum('report_status', ['open', 'reviewed', 'dismissed']);
 
-// Phase 14d-1 escrow enums. payment_token selects the rail at escrow-intent
+// 1 Escrow enums. payment_token selects the rail at escrow-intent
 // time; escrow_status starts at 'created' (row exists before the deposit).
 export const paymentToken = pgEnum('payment_token', ['NIM', 'USDT_POLYGON']);
 
@@ -52,7 +52,7 @@ export const escrowStatus = pgEnum('escrow_status', [
   'disputed',
   'released',
   'refunded',
-  // Phase 14d-3b: escrow-internal transitional states (broadcast in flight,
+  // Escrow-internal transitional states (broadcast in flight,
   // terminal flip happens on confirmation policy). No claim_status change.
   'refunding',
   'releasing',

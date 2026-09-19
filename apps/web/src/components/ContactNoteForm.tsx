@@ -1,4 +1,4 @@
-// Phase 14e P2: one-way provider contact note (14d-4) — set/clear on the
+// One-way provider contact note — set/clear on the
 // owned slot. Client mirrors the server rules for UX only (trimmed 1–500
 // chars; no `://` or `www.` case-insensitive; null clears); the server
 // stays authoritative. The note is buyer-visible only past the escrow

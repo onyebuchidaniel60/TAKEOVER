@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Phase 3: same-origin /api proxy to the Fastify backend (cookies stay first-party
+// Same-origin /api proxy to the Fastify backend (cookies stay first-party
 // in dev). No Nimiq transaction wiring; SDK is used for connect/sign only.
 export default defineConfig({
   plugins: [react()],

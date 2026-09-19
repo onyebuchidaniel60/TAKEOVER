@@ -1,4 +1,4 @@
-// Phase 6: hold one unit of a claimable opening, then open the claim page.
+// Hold one unit of a claimable opening, then open the claim page.
 // No wallet SDK here — the session cookie authenticates the POST.
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';

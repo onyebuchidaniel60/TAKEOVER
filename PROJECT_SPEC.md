@@ -309,7 +309,7 @@ Acceptance criteria:
 - Funds refund to the buyer only on delivery timeout or admin resolution.
 - USDT escrow is enforced on-chain by the escrow contract.
 
-2026-09-17 decision: NIM custodial escrow retired (14f-r). Rationale: custodial escrow infrastructure — backend wallet custody, double-entry ledger reconciliation, invariant enforcement, KMS handling — is not justified for the MVP demo. The non-custodial USDT rail covers the escrow need fully. NIM remains part of the product as a small platform listing fee (separate, future phase — NOT built here).
+2026-09-17 decision: NIM custodial escrow retired. Rationale: custodial escrow infrastructure — backend wallet custody, double-entry ledger reconciliation, invariant enforcement, KMS handling — is not justified for the MVP demo. The non-custodial USDT rail covers the escrow need fully. NIM remains part of the product as a small platform listing fee (separate, future phase — NOT built here).
 
 ### FR-07 My Claims
 
@@ -335,7 +335,7 @@ Admin can disable users/listings and mark reports resolved. Admin actions genera
 
 ### FR-12 Escrow lifecycle
 
-USDT on Polygon is the only escrow rail. The NIM custodial escrow rail described in earlier revisions was retired (14f-r, 2026-09-17). The lifecycle states below remain token-agnostic in the schema; only the USDT path is implemented.
+USDT on Polygon is the only escrow rail. The NIM custodial escrow rail described in earlier revisions was retired (2026-09-17). The lifecycle states below remain token-agnostic in the schema; only the USDT path is implemented.
 
 Purpose: Hold buyer funds and release them per the delivery condition.
 

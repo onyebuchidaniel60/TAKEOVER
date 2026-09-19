@@ -1,4 +1,4 @@
-// Phase 8 live RPC smoke test — hits the REAL Nimiq network. Purpose: catch
+// live RPC smoke test — hits the REAL Nimiq network. Purpose: catch
 // RPC schema drift (if the public endpoint changes its getTransactionByHash
 // shape, this fails loudly). Uses a known settled mainnet transaction mined
 // in block 61350291 (observed 2026-09-11, a "You mined NIM on Nimiq.Space!"

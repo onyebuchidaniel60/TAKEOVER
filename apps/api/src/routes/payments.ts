@@ -1,6 +1,6 @@
-// Phase 7: payment intents + submission recording. No chain reads and no
-// verification here — that is Phase 8 (see verify-payment below).
-// Phase 8: POST /claims/:claimId/verify-payment checks the submitted hash
+// Payment intents + submission recording. No chain reads and no
+// verification here — that is (see verify-payment below).
+// POST /claims/:claimId/verify-payment checks the submitted hash
 // against the Nimiq chain. All responses use the
 // { data, requestId } envelope; errors use { error: { code, message }, requestId }.
 import type { FastifyInstance } from 'fastify';

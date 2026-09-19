@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Phase 14e P3 a11y extension: axe-core over the escrow (14e) + fee (14g-1)
+// Axe-core over the escrow + fee
 // components. Zero critical/serious violations allowed (same bar as
 // a11y-routes). Follows the a11y-helpers harness (mockFetch, fixtures).
 // Interactive checks: every control named, validation announced via

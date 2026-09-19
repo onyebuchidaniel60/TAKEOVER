@@ -1,4 +1,4 @@
-// Phase 10: POST /api/v1/reports — any authenticated user. Rate limit:
+// POST /api/v1/reports — any authenticated user. Rate limit:
 // 5 creations per hour per user → 429 REPORT_RATE_LIMITED.
 import type { FastifyInstance } from 'fastify';
 import { getDb } from '../../../../db/client';

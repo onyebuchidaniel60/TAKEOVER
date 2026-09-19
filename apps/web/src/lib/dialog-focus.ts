@@ -1,4 +1,4 @@
-// Phase 11: shared dialog focus management. While a dialog is open, Tab
+// Shared dialog focus management. While a dialog is open, Tab
 // cycles inside it, Escape closes it, and focus returns to the element that
 // opened it when it closes. Used by every modal (report, resolve, disable)
 // and the inline cancel confirmation.

@@ -1,4 +1,4 @@
-// Phase 2: complete MVP relational model (tables only — no application logic yet).
+// Complete MVP relational model (tables only — no application logic yet).
 export * from './enums';
 export * from './users';
 export * from './auth';

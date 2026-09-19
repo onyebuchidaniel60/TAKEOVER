@@ -1,4 +1,4 @@
-// Phase 9: provider self-service profile (display name only).
+// Provider self-service profile (display name only).
 // All responses use the { data, requestId } envelope; errors use
 // { error: { code, message }, requestId }.
 import type { FastifyInstance } from 'fastify';

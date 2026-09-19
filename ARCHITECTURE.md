@@ -54,8 +54,8 @@ Nimiq Pay Mini App
   +--> USDT --> Polygon chain --> Escrow smart contract
 ```
 
-(F3 cleanup, 2026-09-17: the NIM custodial escrow wallet was retired in
-14f-r and replaced in 14g-1 by the receive-only listing-fee wallet. No
+(2026-09-17 cleanup: the NIM custodial escrow wallet was retired
+and replaced by the receive-only listing-fee wallet. No
 backend key, no signing, no ledger, no custody.)
 
 ## 3. Architectural principles
@@ -65,7 +65,7 @@ backend key, no signing, no ledger, no custody.)
 3. Database transactions protect scarce inventory.
 4. Every security-sensitive API checks authorization server-side.
 5. Payment is not considered successful until server-side blockchain verification succeeds.
-6. Buyer funds are held in escrow until a release condition is met. USDT is escrowed by a non-custodial smart contract on Polygon; the escrow contract is the authoritative source of truth. (F3 cleanup, 2026-09-17: the NIM custodial escrow wallet was retired in 14f-r. NIM is now only the publish-time listing fee — a receive-only wallet, verified on-chain, never custody.)
+6. Buyer funds are held in escrow until a release condition is met. USDT is escrowed by a non-custodial smart contract on Polygon; the escrow contract is the authoritative source of truth. (2026-09-17 cleanup: the NIM custodial escrow wallet was retired. NIM is now only the publish-time listing fee — a receive-only wallet, verified on-chain, never custody.)
 7. No LLM controls financial or ownership decisions.
 8. Every state transition is explicit. State transitions are performed through service-layer functions rather than arbitrary controller updates.
 9. Every irreversible action is narrow and audited.
@@ -89,9 +89,9 @@ Session expiration: 7 days fixed from issuance (the `expires_at` set at session 
 
 Logout destroys/revokes the session server-side.
 
-#### Bearer fallback (Phase 14c, owner approved)
+#### Bearer fallback
 
-Some hosts drop the third-party session cookie (confirmed: Nimiq Pay Android WebView third-party-cookie policy, Phase 14b). For those hosts, `POST /auth/verify` additionally returns the raw session token (`sessionToken`) in the success body, and the server accepts `Authorization: Bearer <sessionId>.<secret>` as an alternate presentation of the SAME session row (same constant-time secret comparison, same TTL, same revocation; cookie preferred when it parses). The token is never logged and never returned by any other endpoint. The frontend keeps it in `sessionStorage` only (in-memory fallback when `sessionStorage` is unavailable; never `localStorage`, never a cookie, never `window`/global) and clears it on logout; server-side logout revokes the single session, killing both presentations together. Precedence rule: when a session cookie IS present (even alongside a Bearer token), the cookie path — including the §16 CSRF guard — applies unchanged. The `HttpOnly`-loss trade-off (token in JS-accessible storage) is accepted and bounded by the 7-day TTL, revoke-on-logout, and sessionStorage-only scope; see SECURITY_REVIEW.md.
+Some hosts drop the third-party session cookie (confirmed: Nimiq Pay Android WebView third-party-cookie policy). For those hosts, `POST /auth/verify` additionally returns the raw session token (`sessionToken`) in the success body, and the server accepts `Authorization: Bearer <sessionId>.<secret>` as an alternate presentation of the SAME session row (same constant-time secret comparison, same TTL, same revocation; cookie preferred when it parses). The token is never logged and never returned by any other endpoint. The frontend keeps it in `sessionStorage` only (in-memory fallback when `sessionStorage` is unavailable; never `localStorage`, never a cookie, never `window`/global) and clears it on logout; server-side logout revokes the single session, killing both presentations together. Precedence rule: when a session cookie IS present (even alongside a Bearer token), the cookie path — including the §16 CSRF guard — applies unchanged. The `HttpOnly`-loss trade-off (token in JS-accessible storage) is accepted and bounded by the 7-day TTL, revoke-on-logout, and sessionStorage-only scope.
 
 ### 4.3 Challenge
 
@@ -106,9 +106,9 @@ A challenge is single-use.
 
 ### 4.4 Important implementation detail
 
-**IMPLEMENTATION DETAIL — AGENT MAY DECIDE:** exact byte encoding/message envelope required by the installed `@nimiq/mini-app-sdk` `sign()` API, provided the resulting server verification preserves the rules above and follows the current official SDK API.
+**Implementation latitude:** exact byte encoding/message envelope required by the installed `@nimiq/mini-app-sdk` `sign()` API, provided the resulting server verification preserves the rules above and follows the current official SDK API.
 
-### 4.5 Signature verification proof (Phase 3 completion)
+### 4.5 Signature verification proof
 
 The exact signed-message envelope is:
 
@@ -128,7 +128,7 @@ signatures are produced by the official library and only consumed/verified by
 production code (cross-checked in both directions). It is never imported by
 production code.
 
-Reverted in 14f-r (2026-09-17): the 14f-1 dual-use revision was for NIM
+Removed (2026-09-17): the dual-use revision was for NIM
 escrow-wallet signing, which has been retired. `@nimiq/core` is once again
 a root devDependency used exclusively as the test oracle.
 
@@ -157,7 +157,7 @@ Every API accepting a user-controlled ID must load the resource and compare the 
 
 USDT on Polygon is the sole escrow rail. All new payments route through
 the non-custodial escrow contract; the buyer pays USDT at escrow-intent
-time. (Retired in 14f-r, 2026-09-17: the NIM custodial escrow rail —
+time. (Retired 2026-09-17: the NIM custodial escrow rail —
 Path B below and the D5 sender-bound note — was removed before
 implementation completed. The design text is retained for reference;
 only the USDT path is implemented.)
@@ -186,7 +186,7 @@ Path B — NIM:
   - Dispute -> admin resolves -> backend signs release or refund.
   - Delivery timeout -> backend signs refund to the buyer.
 
-### NIM listing fee (Phase 14g-1)
+### NIM listing fee
 
 Publishing a slot costs a pinned NIM listing fee when configured
 (`LISTING_FEE_NIM`, decimal string, e.g. `"400"`; `TAKEOVER_FEE_WALLET_ADDRESS`
@@ -217,10 +217,10 @@ Ledger invariant (retired NIM design, retained for reference):
   'escrow:wallet') across escrow_ledger must equal the on-chain NIM
   escrow wallet balance at all times.
 
-Note: the previous Phase 8 note about direct buyer-to-provider
+Note: direct buyer-to-provider
 payment is superseded. All new payments route through escrow.
 
-### Phase 14d-2 implementation note (2026-09-15)
+### Implementation note (2026-09-15)
 
 USDT-only on-demand deposit verification. The buyer polls
 `POST /claims/:claimId/verify-deposit`; each call reads the contract's
@@ -228,8 +228,7 @@ USDT-only on-demand deposit verification. The buyer polls
 against the escrow row (escrow id, exact base-unit amount).
 No background worker exists: polling is the verification trigger, mirroring
 the deprecated `verify-payment` pattern. NIM requested at escrow-intent
-time was rejected with 409 `ESCROW_TOKEN_UNSUPPORTED` (superseded in
-14f-1 — NIM intent is now supported, see the endpoint entry below). Env read: `POLYGON_RPC_URL` (event reads, fail-closed when unset),
+time was rejected with 409 `ESCROW_TOKEN_UNSUPPORTED` (superseded — NIM intent is now supported, see the endpoint entry below). Env read: `POLYGON_RPC_URL` (event reads, fail-closed when unset),
 `USDT_ESCROW_CONTRACT_ADDRESS` (event filter + deposit instruction, never
 hardcoded), `ESCROW_DEPOSIT_VERIFICATION_SECONDS` (default 1800, pending →
 `payment_review` on expiry, inventory stays reserved), and the new
@@ -238,16 +237,16 @@ funding, enforced later). The escrow row is created at intent time
 (`created`, NULL funded fields) and moves to `funded` with
 `deposit_tx_hash`/`funded_at`/`delivery_deadline` in the same transaction
 as the claim's move to `escrow_funded`. `release()`/`refund()` remain
-not-implemented (14d-3).
+not-implemented.
 
-### Phase 14d-2 completion note (2026-09-15)
+### Deposit verification note (2026-09-15)
 
 Deposit verification matches on `escrowId` and exact `amount` only; the
 on-chain `buyer` is recorded by the contract for refund routing and is not
 verified backend-side. The verification window is measured from
 `claims.deposit_submitted_at`.
 
-### Phase 14d-3a release note (2026-09-15)
+### Release note (2026-09-15)
 
 Provider marks delivered with their EVM payout address (stored immutably on
 the escrow row; later calls must match); the claim moves to `delivered` and
@@ -263,14 +262,14 @@ writes (re-submit returns pending, re-confirm after release is a no-op);
 audits are `escrow.delivered`, `escrow.release_submitted`, and
 `escrow.released`.
 
-### Phase 14d-3b dispute/refund note (2026-09-16)
+### Dispute/refund note (2026-09-16)
 
 Dispute is buyer-initiated on-chain and backend-observed: the buyer calls the
 contract's `dispute(escrowId)` from their own wallet (the server never
 broadcasts it); `POST /claims/:claimId/dispute` returns the call instruction
 until the `Disputed` event is visible, then flips claim and escrow to
 `disputed` for admin resolution (release or refund, both server-signed with
-the same signer as 14d-3a). Auto-refund is lazy — no worker exists: every
+the same signer as the release path). Auto-refund is lazy — no worker exists: every
 escrow read (`GET /escrow` buyer/provider views, `GET /admin/escrows`)
 first runs the transition check, so a `funded` escrow past its
 `delivery_deadline` broadcasts `refund()` and parks in `refunding`, and
@@ -279,7 +278,7 @@ first runs the transition check, so a `funded` escrow past its
 transitions; a funded escrow past deadline refunds on next read, never
 spontaneously.
 
-### Phase 14j-1 mainnet note (2026-09-18)
+### Mainnet note (2026-09-18)
 
 Both rails are on mainnet. USDT escrow: `TakeoverEscrow` deployed on
 Polygon mainnet (chainId 137) at
@@ -288,13 +287,13 @@ Polygon mainnet (chainId 137) at
 constructed with the canonical mainnet USDT
 `0xc2132D05D31c914a87C6611C10748AEb04B58e8F` (6 decimals) and the
 unchanged backend signer `0xf08613ee86cF9bCCCdDD361BB89116680C05f942`.
-(The same address exists on Amoy from 14e-2a — a CREATE-nonce
+(The same address exists on Amoy from an earlier deployment — a CREATE-nonce
 coincidence, not the live contract; Amoy is unreferenced.) NIM
 listing fee: verified against the Nimiq mainnet RPC with the fresh
 mainnet fee wallet `NQ56SQVDDVCYJXDA3BT0Q01F0STKXRALLD8B`
 (receive-only; testnet wallet retired). Reads use the Tenderly
 Polygon gateway; server-signed broadcasts use publicnode (split-RPC
-pattern from 14e-2e retained: free public RPCs reject one path or
+pattern retained: free public RPCs reject one path or
 the other). Contract unverified on Polygonscan (no API key).
 
 ## 7. Slot/claim concurrency
@@ -318,7 +317,7 @@ The unique constraint and row lock are both required; application-level checks a
 
 The slot's provider cannot claim their own slot (403 CANNOT_CLAIM_OWN_SLOT, checked inside the locked transaction before the live-claim check).
 
-### Phase 6 implementation note (2026-09-11)
+### Implementation note (2026-09-11)
 
 Sold-out openings stay publicly visible: the read filter is status IN
 ('published', 'sold_out') plus starts_at > now(), for both the list and the
@@ -327,7 +326,7 @@ claim transaction that decrements it to zero; lazy hold expiry flips
 'sold_out' back to 'published' inside the same restoration transaction when
 stock returns. Expiry runs on GET /slots/:slotId, POST /slots/:slotId/claims,
 and GET /me/claims — no background workers. The 'expired' slot status is not
-set by any Phase 6 path. Claim holds last CLAIM_HOLD_TTL_SECONDS (default
+set by any claim path. Claim holds last CLAIM_HOLD_TTL_SECONDS (default
 600s per FR-05); claim quantity is fixed at 1. Duplicate claims by the same
 buyer are idempotent: POST returns the existing live claim (200), never a
 second row — the partial unique index remains the DB-level backstop.
@@ -372,7 +371,7 @@ active_hold -> cancelled
 
 Remove "paid" from the claim_status enum. Terminal states are released, refunded, expired, cancelled.
 
-### Deposit submission (Phase 14d-1)
+### Deposit submission
 
 ```text
 active_hold ──(no deposit reference in window)──> expired
@@ -409,16 +408,15 @@ The same transaction cannot verify two successful payment intents. The current e
 
 ## 9. Database model
 
-Reconciled to the implemented Phase 2 schema on 2026-09-11 (follow-up): the Phase 2
-schema is the source of truth. The migration SQL under `db/migrations/` is authoritative
+The migration SQL under `db/migrations/` is authoritative
 for DDL; this section describes it.
 
 The seed script (`db/seed.ts`) and its fixture data (`NQ00 SEED*` wallets,
 fixed `11111111-…`/`22222222-…` IDs) are development-only: `db:seed` refuses
 `NODE_ENV=production`, and production databases must not contain `NQ00 SEED*`
 rows. Fixture payouts deliberately fail address canonicalization, so any
-leaked seed row breaks payment-intent creation for claims on it (Phase 14c
-round 2); the one-time cleanup lives in `docs/phase-14c-seed-cleanup.sql`.
+leaked seed row breaks payment-intent creation for claims on it; a one-time
+cleanup removed them.
 
 ### users
 
@@ -466,7 +464,7 @@ Publicly expose only safe profile fields.
 - provider_id UUID FK users.id
 - title TEXT NOT NULL
 - description TEXT NULL
-- provider_contact_note TEXT NULL (Phase 14d-4: one-way provider contact
+- provider_contact_note TEXT NULL (one-way provider contact
   note; API-validated 1–500 chars, no URLs; buyer-visible only past the
   escrow gate, never public)
 - category TEXT NULL
@@ -564,7 +562,7 @@ Deprecated: the payment_intents table is kept for historical rows only. All new 
 ### escrow_ledger (retired NIM design — table retained, currently unused)
 
 No backend code writes to this table (the NIM custodial rail that used
-it was retired in 14f-r). The table is retained because dropping it
+it was retired). The table is retained because dropping it
 would need a migration that is not justified for a demo. Field
 reference (schema is authoritative):
 
@@ -602,7 +600,7 @@ reference (schema is authoritative):
 - metadata JSONB NULL
 - created_at TIMESTAMPTZ NOT NULL
 
-### notifications (Phase 14l-2)
+### notifications
 
 In-app funding/delivery notices. Rows are written INSIDE the same DB
 transaction as the state change they describe. Bodies carry display
@@ -801,7 +799,7 @@ Auth: session + owner.
 
 Only editable DRAFT slots. Once published, commercial fields are immutable.
 
-### PATCH /api/v1/me/slots/:slotId/contact-note (Phase 14d-4)
+### PATCH /api/v1/me/slots/:slotId/contact-note
 
 Auth: session + slot owner (non-owner or missing slot → 404 `NOT_FOUND`,
 never 403; anonymous → 401).
@@ -824,7 +822,7 @@ Auth: session + owner.
 
 Publishes valid draft.
 
-Body (strict, Phase 14g-1): `{}` or `{ transactionHash: string }`. When the
+Body (strict): `{}` or `{ transactionHash: string }`. When the
 NIM listing fee is configured (`LISTING_FEE_NIM` + `TAKEOVER_FEE_WALLET_ADDRESS`
 both set), the hash is required and verified on-chain before the flip
 (sender = owner, recipient = fee wallet, exact Luna amount, data
@@ -838,7 +836,7 @@ recorded and a `slot.published` audit (carries the fee hash). Re-POST of the
 same hash on the same published slot is an idempotent 200. When no fee is
 configured the body is ignored and behavior is unchanged.
 
-### GET /api/v1/config (Phase 14g-1)
+### GET /api/v1/config
 
 Auth: none (public).
 
@@ -895,7 +893,7 @@ Idempotency-Key required.
 
 Auth: session + buyer or provider owner of slot, with field-level response restrictions.
 
-Phase 14d-4: the buyer view carries `provider_contact_note: string | null`
+The buyer view carries `provider_contact_note: string | null`
 — the slot's note when the claim's escrow is `funded`, `delivered`,
 `disputed`, `releasing`, or `released`, else null (no escrow, or escrow
 `created`/`refunding`/`refunded`, all read null). The provider owner is not
@@ -936,7 +934,7 @@ Auth: session + buyer owner, and safe to call repeatedly.
 
 Server re-queries Nimiq state and attempts deterministic verification.
 
-### POST /api/v1/claims/:claimId/escrow-intent (Phase 14d-2: USDT live)
+### POST /api/v1/claims/:claimId/escrow-intent
 
 Auth: session + buyer owner (foreign → 404 `CLAIM_NOT_FOUND`, anonymous → 401).
 
@@ -944,8 +942,8 @@ Request: `{ token: 'NIM' | 'USDT_POLYGON' }` (strict, no unknown fields).
 `NIM` → 409 `ESCROW_TOKEN_UNSUPPORTED` (no row created); wrong claim state →
 409 `CLAIM_NOT_PAYABLE`; funded → 409 `ESCROW_ALREADY_FUNDED`.
 
-(Retired in 14f-r, 2026-09-17: NIM escrow intent was briefly live in
-14f-1 and now returns 409 again. USDT on Polygon is the sole escrow
+(Retired 2026-09-17: NIM escrow intent was briefly live
+and now returns 409 again. USDT on Polygon is the sole escrow
 rail.)
 
 Response: `{ escrow, claim, depositInstruction }` where the instruction
@@ -959,7 +957,7 @@ Existing escrow pre-funding → returned as-is (idempotent, no new row).
 
 Rate limit: per-IP 10/60s (matches the deprecated intent path).
 
-### POST /api/v1/claims/:claimId/escrow-submission (Phase 14d-2: USDT live)
+### POST /api/v1/claims/:claimId/escrow-submission
 
 Auth: session + buyer owner.
 
@@ -973,7 +971,7 @@ verification happens in `verify-deposit`.
 
 Rate limit: per-IP 10/60s.
 
-### POST /api/v1/claims/:claimId/verify-deposit (Phase 14d-2: USDT live)
+### POST /api/v1/claims/:claimId/verify-deposit
 
 Auth: session + buyer owner, and safe to call repeatedly (buyer polling;
 no background worker).
@@ -993,7 +991,7 @@ with no state change.
 Rate limit: per-claim 1/5s (same as deprecated `verify-payment`) → 429
 `VERIFY_RATE_LIMITED` with `Retry-After`.
 
-### POST /api/v1/claims/:claimId/mark-delivered (Phase 14d-3a: USDT live)
+### POST /api/v1/claims/:claimId/mark-delivered
 
 Auth: session + provider owner of the slot only (buyer or stranger → 404
 `CLAIM_NOT_FOUND`, anonymous → 401).
@@ -1010,7 +1008,7 @@ no-op; different address → 409 `CONFLICT`.
 
 Rate limit: per-IP 10/60s.
 
-### POST /api/v1/claims/:claimId/confirm-receipt (Phase 14d-3a: USDT live)
+### POST /api/v1/claims/:claimId/confirm-receipt
 
 Auth: session + buyer owner only (foreign → 404, anonymous → 401).
 
@@ -1025,7 +1023,7 @@ confirmations, ... }`; at/over → one transaction flips both rows to
 200 no-op without any RPC call. Signer/RPC/contract failure → 503
 `ESCROW_RELEASE_FAILED` with no state change.
 
-Poll target (P3 note, 14e E2E finding): the buyer confirms by polling
+Poll target (note): the buyer confirms by polling
 THIS endpoint, not `GET /escrow`. The first call stores
 `release_tx_hash` while the rows stay `delivered` — and `delivered`
 is not a lazy-transition state — so reads never observe the
@@ -1034,7 +1032,7 @@ confirm-receipt` receipt-polls a broadcast release into `released`.
 
 Rate limit: per-IP 10/60s.
 
-### POST /api/v1/claims/:claimId/dispute (Phase 14d-3b: USDT live)
+### POST /api/v1/claims/:claimId/dispute
 
 Auth: session + buyer owner only (foreign → 404, anonymous → 401).
 
@@ -1051,7 +1049,7 @@ the event is visible, one transaction flips both rows to `disputed`
 
 Rate limit: per-IP 10/60s.
 
-### GET /api/v1/claims/:claimId/escrow (Phase 14d-2: USDT live, 14d-3a extended, 14d-3b lazy transitions)
+### GET /api/v1/claims/:claimId/escrow
 
 Auth: session + buyer owner or provider owner of the slot (neither → 404,
 anonymous → 401).
@@ -1060,7 +1058,7 @@ Returns `{ escrow, claim }` for the claim's escrow (`ESCROW_NOT_FOUND` when
 none exists), including `provider_payout_address`, `delivered_at`,
 `dispute_window_ends`, `disputed_at`, `release_tx_hash`, `refund_tx_hash`,
 `resolved_at`, and `status`. `resolution_notes` is populated for the
-provider view only (the buyer view carries null). Phase 14d-4: the buyer
+provider view only (the buyer view carries null). The buyer
 view's `claim` carries the same gated `provider_contact_note` as
 `GET /claims/:claimId` (evaluated against the post-transition escrow
 status, so a funded row that flips to `refunding` on this same read hides
@@ -1088,14 +1086,14 @@ Auth: session.
 
 Buyer history.
 
-### GET /api/v1/me/notifications (Phase 14l-2)
+### GET /api/v1/me/notifications
 
 Auth: session.
 
 Returns `{ notifications, unreadCount }` for the caller, newest first
 (limit 50). `read_at` null means unread.
 
-### POST /api/v1/me/notifications/:id/read (Phase 14l-2)
+### POST /api/v1/me/notifications/:id/read
 
 Auth: session + owner (foreign or missing → 404 `NOT_FOUND`, never
 403; anonymous → 401).
@@ -1103,7 +1101,7 @@ Auth: session + owner (foreign or missing → 404 `NOT_FOUND`, never
 Marks one notification read. Idempotent: an already-read owned row
 returns its view with no second write.
 
-### POST /api/v1/me/notifications/read-all (Phase 14l-2)
+### POST /api/v1/me/notifications/read-all
 
 Auth: session.
 
@@ -1186,7 +1184,7 @@ Query: `eventType`, `entityType`, `entityId`, `actorUserId`, `since`,
 wallets; metadata holds IDs/states/reasons only — never wallets, tx
 hashes, or credentials.
 
-### GET /api/v1/admin/escrows (Phase 14d-3b: USDT live)
+### GET /api/v1/admin/escrows
 
 Auth: admin (anonymous → 401, non-admin → 403 `FORBIDDEN`, never 404).
 
@@ -1201,7 +1199,7 @@ No private keys or signature bodies anywhere in the response (only public
 chain identifiers). Rows deleted between page query and projection are
 skipped, never 500.
 
-### POST /api/v1/admin/escrows/:escrowId/resolve (Phase 14d-3b: USDT live)
+### POST /api/v1/admin/escrows/:escrowId/resolve
 
 Auth: admin (anonymous → 401, non-admin → 403).
 
@@ -1218,7 +1216,7 @@ tx hash with `resolutionNotes`/`resolved_by`, and writes the
 state change. The terminal flip happens on a later read once the
 confirmation policy is met.
 
-### Phase 10 implementation note (2026-09-11)
+### Implementation note (2026-09-11)
 
 Admin identity is `ADMIN_WALLET_ADDRESSES` (comma-separated canonical
 wallets): allowlisted wallets are promoted to `admin` on
@@ -1229,7 +1227,7 @@ action they describe (retrofitted: `user.created`, `slot.published`,
 `payment.review`; new: `report.created`, `report.resolved`,
 `slot.disabled_by_admin`, `user.disabled`, `payment_review.resolved`).
 Idempotent re-returns never log. Admin endpoints carry a generous per-IP
-backstop limiter behind admin auth (Phase 12; abuse tripwire, not the
+backstop limiter behind admin auth (abuse tripwire, not the
 control — admin auth + audit remain the control); only POST /reports is
 tightly rate-limited (5/hour per user).
 
@@ -1246,7 +1244,7 @@ Apply separate limits:
 
 Exact numeric values are configuration, not business rules.
 
-**IMPLEMENTATION DETAIL — AGENT MAY DECIDE:** the exact rate-limit package and storage mechanism, provided it works for the deployed single-region MVP and can fail closed for sensitive endpoints.
+**Implementation latitude:** the exact rate-limit package and storage mechanism, provided it works for the deployed single-region MVP and can fail closed for sensitive endpoints.
 
 ## 15. Error codes
 
@@ -1346,7 +1344,7 @@ Origin allowlist validation + required X-Takeover-Client header on credentialed 
 
 Every state-changing request (POST/PATCH/PUT/DELETE) that carries the session cookie must also carry an allowlisted Origin header (missing or unlisted → 403 FORBIDDEN_ORIGIN) and the custom `X-Takeover-Client: web` header sent by the web client on mutations only (missing or wrong → 403 MISSING_CLIENT_HEADER). The custom header forces a CORS preflight for any cross-origin request, and preflight is already allowlist-gated, so a foreign page can neither send the header nor read the response. Requests without a session cookie (nothing auto-attached to steal) and idempotent methods are unaffected.
 
-Bearer exemption (Phase 14c, owner approved): a request authenticated SOLELY via `Authorization: Bearer <session-token>` — no session cookie present — skips the Origin/header requirement. Justification: unlike the cookie, the token is never auto-attached by the browser, and sending `Authorization` cross-origin forces a CORS preflight that is already allowlist-gated, so a foreign origin can neither send the header nor read the response; the CORS allowlist remains the boundary for this path. Precedence: when a session cookie IS present (even alongside a Bearer token), the cookie path — and this guard in full — applies unchanged.
+Bearer exemption: a request authenticated SOLELY via `Authorization: Bearer <session-token>` — no session cookie present — skips the Origin/header requirement. Justification: unlike the cookie, the token is never auto-attached by the browser, and sending `Authorization` cross-origin forces a CORS preflight that is already allowlist-gated, so a foreign origin can neither send the header nor read the response; the CORS allowlist remains the boundary for this path. Precedence: when a session cookie IS present (even alongside a Bearer token), the cookie path — and this guard in full — applies unchanged.
 
 ### SSRF
 
@@ -1370,7 +1368,7 @@ Never trust amount/recipient/sender/tx data from browser after payment intent cr
 
 ### Secrets
 
-All secrets server-only. The Polygon contract signer key is a server-only secret (KMS in production); it is never logged, printed, returned, or committed. (F3 cleanup, 2026-09-17: the NIM escrow wallet private key named here before no longer exists — the 14g-1 fee wallet is receive-only and has no server-side key.)
+All secrets server-only. The Polygon contract signer key is a server-only secret (KMS in production); it is never logged, printed, returned, or committed. (2026-09-17 cleanup: the NIM escrow wallet private key named here before no longer exists — the fee wallet is receive-only and has no server-side key.)
 
 ### Sensitive data exposure
 
@@ -1385,10 +1383,10 @@ Role is server-controlled. Never accept role changes from client input. Admin me
 - Smart-contract vulnerability (USDT): reentrancy, integer issues, access control. Mitigation: OpenZeppelin base contracts, external audit, fuzz tests, exact-amount approvals, revoke after deposit.
 - Server signer key compromise (USDT): key that can call contract release/refund. Mitigation: KMS in production, env secret for competition build, least-privilege signing service.
 - NIM escrow wallet key compromise (not applicable in the current product
-  scope — NIM escrow retired in 14f-r; analysis retained: KMS in production,
+  scope — NIM escrow retired; analysis retained: KMS in production,
   env secret for competition build, cold/hot separation, balance monitoring).
 - Ledger drift (not applicable in the current product scope — NIM escrow
-  retired in 14f-r; analysis retained: double-entry invariant, periodic
+  retired; analysis retained: double-entry invariant, periodic
   reconciliation against on-chain balance, halt on mismatch).
 - Deposit replay across claims: UNIQUE deposit_tx_hash + claim binding.
 - Release replay: UNIQUE release_tx_hash.
@@ -1441,7 +1439,7 @@ Future AI must never be allowed to decide payment verification, ownership, eligi
 
 ## 19. UI architecture
 
-### Phase 9 implementation note (2026-09-11)
+### Implementation note (2026-09-11)
 
 Buyer/provider dashboards add no new wallet SDK usage and no new columns
 (`provider_profiles.display_name` already exists). `/profile` is a real
@@ -1474,7 +1472,7 @@ Admin:
 - `/admin/slots`
 - `/admin/audit`
 
-### Phase 10 implementation note (2026-09-11)
+### Implementation note (2026-09-11)
 
 Admin pages add no new wallet SDK usage and no transactions. `RequireAdmin`
 passes only authenticated `role='admin'` users; others return to `/` with a
@@ -1488,7 +1486,7 @@ API surface). New shared components: `AdminTable`, `AdminTile`,
 button on `/slot/:slotId` (authenticated non-admin viewers only, never the
 listing's own provider, never admins).
 
-### Phase 11 implementation note (2026-09-11)
+### Implementation note (2026-09-11)
 
 Finishing pass only: no API, payment-logic, or feature changes. Routes are
 code-split (`React.lazy` — one chunk per route file, admin chunks load only
@@ -1561,7 +1559,7 @@ via a small meta hook. New shared pieces: `ErrorBoundary`,
 - Sufficient text contrast.
 - Reduced-motion support.
 - Contrast is measured programmatically for every palette pair in BOTH
-  themes (14l-3: text ≥ 4.5:1, interactive boundaries ≥ 3:1; decorative
+  themes (text ≥ 4.5:1, interactive boundaries ≥ 3:1; decorative
   container/hairline borders inherit the light-baseline standard).
   jsdom cannot compute styles, so the axe suites assert structure while
   the math lives in the phase report.
@@ -1582,9 +1580,9 @@ GitHub (public, MIT)
 
 - Polygon mainnet RPC endpoint for reads (configurable via POLYGON_RPC_URL; split-RPC: broadcasts use POLYGON_BROADCAST_RPC_URL)
 - Canonical USDT address on Polygon mainnet (configurable via USDT_TOKEN_ADDRESS; never hardcoded)
-- TAKEOVER escrow contract address on Polygon mainnet (configurable via USDT_ESCROW_CONTRACT_ADDRESS; deployed 14j-1 at 0x7F8F66E1e07372dc371edf8F21d2d84208a4Fc06, chainId 137)
+- TAKEOVER escrow contract address on Polygon mainnet (configurable via USDT_ESCROW_CONTRACT_ADDRESS; deployed at 0x7F8F66E1e07372dc371edf8F21d2d84208a4Fc06, chainId 137)
 - Server signer address (contract caller)
-- NIM listing-fee wallet address on Nimiq mainnet (receive-only; `TAKEOVER_FEE_WALLET_ADDRESS`; live since 14j-1)
+- NIM listing-fee wallet address on Nimiq mainnet (receive-only; `TAKEOVER_FEE_WALLET_ADDRESS`; live)
 - Note: competition build may use env secrets for keys; production requires KMS.
 
 Environment-specific configuration is separated between development and production.
@@ -1633,8 +1631,8 @@ The coding agent must treat these as non-negotiable:
 2. Fastify backend.
 3. PostgreSQL + Drizzle.
 4. Nimiq wallet authentication.
-5. Payment rails: USDT (ERC-20 on Polygon mainnet) escrowed by the non-custodial escrow contract; NIM (native Nimiq on Nimiq mainnet) as the env-gated listing fee paid by sellers at publish time (verified on-chain, receive-only wallet, no custody). (F3 cleanup, 2026-09-17: the dual-rail custodial NIM escrow was retired in 14f-r. 14j-1, 2026-09-18: testnet retired — both rails on mainnet.)
-6. Escrow: buyer funds are held in the Polygon mainnet smart contract (non-custodial). The escrow contract's state is authoritative for USDT. (F3 cleanup, 2026-09-17: the NIM custodial escrow wallet was retired in 14f-r; there is no NIM escrow balance to be authoritative.)
+5. Payment rails: USDT (ERC-20 on Polygon mainnet) escrowed by the non-custodial escrow contract; NIM (native Nimiq on Nimiq mainnet) as the env-gated listing fee paid by sellers at publish time (verified on-chain, receive-only wallet, no custody). (2026-09-17 cleanup: the dual-rail custodial NIM escrow was retired. 2026-09-18: testnet retired — both rails on mainnet.)
+6. Escrow: buyer funds are held in the Polygon mainnet smart contract (non-custodial). The escrow contract's state is authoritative for USDT. (2026-09-17 cleanup: the NIM custodial escrow wallet was retired; there is no NIM escrow balance to be authoritative.)
 7. Server-authoritative payment verification.
 8. DB transaction/locking around claims.
 9. Explicit state machines.

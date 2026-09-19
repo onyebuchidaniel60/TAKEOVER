@@ -1,10 +1,10 @@
-// Phase 5 integration tests — live DB. Auth goes through the real
+// Integration tests — live DB. Auth goes through the real
 // challenge/verify flow with an injected signature stub (cryptography itself
 // is proven by crypto.test.ts + the @nimiq/core oracle). Fixtures use unique
 // per-run tags; everything created here is deleted afterwards.
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
-// Phase 13 determinism: live-DB chains (login + mutations + verification
+// Determinism: live-DB chains (login + mutations + verification
 // reads) measure 2-5s per test against remote Postgres with spikes past 5s;
 // observed failures were wall-clock timeouts only, scattered across tests
 // and runs, never wrong values. File-level budget per the claims.test.ts
@@ -32,7 +32,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
   const tag = randomUUID().slice(0, 8);
   const wallets: string[] = [];
 
-  // Phase 12 completion (F4): the CSRF guard requires an allowlisted Origin
+  // Completion (F4): the CSRF guard requires an allowlisted Origin
   // and the client header on every credentialed mutation. The test allowlist
   // is the dev default (CORS_ORIGINS unset here).
   const CSRF = { origin: 'http://localhost:5173', 'x-takeover-client': 'web' };
@@ -115,7 +115,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
         .where(inArray(users.walletAddress, wallets));
       const userIds = found.map((u) => u.id);
       if (userIds.length > 0) {
-        // Phase 10 audit rows reference their actor: remove them first.
+        // Audit rows reference their actor: remove them first.
         await db.delete(auditEvents).where(inArray(auditEvents.actorUserId, userIds));
         await db.delete(sessions).where(inArray(sessions.userId, userIds));
         await db.delete(users).where(inArray(users.id, userIds));
@@ -282,7 +282,7 @@ describe.skipIf(!isDatabaseConfigured())('provider slot lifecycle (live)', () =>
   });
 
   // Explicit timeout: six sequential live-DB round trips against remote
-  // Postgres (plus the Phase 10 cancel audit write) exceed the 5s default.
+  // Postgres (plus the cancel audit write) exceed the 5s default.
   it('cancels a published slot with no claims and releases active holds', { timeout: 30_000 }, async () => {
     const db = getDb();
     const ownerWallet = randomWallet();

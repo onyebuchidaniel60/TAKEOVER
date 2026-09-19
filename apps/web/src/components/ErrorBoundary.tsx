@@ -1,4 +1,4 @@
-// Phase 11: React error boundaries. The top-level boundary keeps a render
+// React error boundaries. The top-level boundary keeps a render
 // crash branded ("Something went wrong." + reload); the admin route group
 // gets its own boundary so an admin-surface crash never takes down the
 // consumer marketplace. Fallbacks show human sentences, never error objects.

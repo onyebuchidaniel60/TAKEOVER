@@ -1,4 +1,4 @@
-// Phase 14k-1: TAKEOVER brand mark — a claim tab landing in a release slot.
+// TAKEOVER brand mark — a claim tab landing in a release slot.
 //
 // Concept (chosen from three sketches; see the phase report): a rounded
 // "U" cradle (the released slot on the board) with a solid tab dropping

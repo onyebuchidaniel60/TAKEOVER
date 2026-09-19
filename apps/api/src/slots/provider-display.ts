@@ -1,4 +1,4 @@
-// Phase 9: provider display resolution (display_name preferred, truncated
+// Provider display resolution (display_name preferred, truncated
 // wallet fallback). Display-only: truncation never throws, so a corrupt stored
 // wallet degrades the label instead of breaking public reads. Lookups are
 // batched by provider id to avoid N+1 queries on list endpoints.

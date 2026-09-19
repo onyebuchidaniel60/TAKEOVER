@@ -1,4 +1,4 @@
-// Phase 11: inline confirmation takes focus on open, Escape backs out,
+// Inline confirmation takes focus on open, Escape backs out,
 // and focus returns to the trigger on close (shared dialog hook).
 import { useDialogFocus } from '../lib/dialog-focus';
 

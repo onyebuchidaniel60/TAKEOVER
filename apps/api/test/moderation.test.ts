@@ -1,11 +1,11 @@
-// Phase 10 integration tests — live DB. Auth via the real challenge/verify
+// Integration tests — live DB. Auth via the real challenge/verify
 // flow with an injected signature stub; admin promotion via the real
 // ADMIN_WALLET_ADDRESSES env (set only around the admin login, then cleared).
 // Chain reads use a fake RPC client. Fresh fixtures per test keep the
 // per-user report limiter and per-claim verify limiter isolated.
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
-// Phase 13 determinism: live-DB chains (login + mutations + verification
+// Determinism: live-DB chains (login + mutations + verification
 // reads) measure 2-5s per test against remote Postgres with spikes past 5s;
 // observed failures were wall-clock timeouts only, scattered across tests
 // and runs, never wrong values. File-level budget per the claims.test.ts
@@ -51,7 +51,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
       verify: { windowMs: 60_000, max: 1000 },
       intent: { windowMs: 60_000, max: 1000 },
       submission: { windowMs: 60_000, max: 1000 },
-      // Phase 12 budgets disabled here (proven separately in security.test.ts).
+      // Budgets disabled here (proven separately in security.test.ts).
       claimCreate: { windowMs: 60_000, max: 1000 },
       slotCreate: { windowMs: 3_600_000, max: 1000 },
       slotMutate: { windowMs: 60_000, max: 1000 },
@@ -63,7 +63,7 @@ describe.skipIf(!isDatabaseConfigured())('moderation and audit (live)', () => {
   const tag = randomUUID().slice(0, 8);
   const wallets: string[] = [];
 
-  // Phase 12 completion (F4): the CSRF guard requires an allowlisted Origin
+  // Completion (F4): the CSRF guard requires an allowlisted Origin
   // and the client header on every credentialed mutation. The test allowlist
   // is the dev default (CORS_ORIGINS unset here).
   const CSRF = { origin: 'http://localhost:5173', 'x-takeover-client': 'web' };

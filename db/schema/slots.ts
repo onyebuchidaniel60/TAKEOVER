@@ -12,7 +12,7 @@ export const slots = pgTable(
       .references(() => users.id),
     title: text('title').notNull(),
     description: text('description'),
-    // Phase 14d-4: one-way provider contact note. Nullable; NULL means unset.
+    // One-way provider contact note. Nullable; NULL means unset.
     // Plain TEXT at DB level (no CHECK — consistent with title/description/
     // resolution_notes); length 1–500 and the no-URLs rule are enforced at
     // the API boundary. Visible to the buyer only once the claim's escrow
@@ -31,7 +31,7 @@ export const slots = pgTable(
     // on escrows.provider_payout_address). Nullable; new slots leave it NULL.
     payoutWallet: text('payout_wallet'),
     status: slotStatus('status').notNull().default('draft'),
-    // Phase 14g-1: NIM listing-fee receipt. NULL = unpaid (pre-fee slot or
+    // NIM listing-fee receipt. NULL = unpaid (pre-fee slot or
     // fee-not-configured publish). UNIQUE when present: the same on-chain fee
     // transfer can never publish two slots (replay backstop; Postgres treats
     // NULLs as distinct, so unpaid rows never collide).

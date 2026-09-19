@@ -1,4 +1,4 @@
-// Phase 9: provider display-name validation. Only display_name is editable;
+// Provider display-name validation. Only display_name is editable;
 // trim first so length and link checks run on the stored value (which also
 // makes leading/trailing whitespace and whitespace-only input impossible).
 import { z } from 'zod';

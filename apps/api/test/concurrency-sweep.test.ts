@@ -1,4 +1,4 @@
-// Phase 13 concurrency sweep at scale — live DB, no mocks. Every scenario
+// Concurrency sweep at scale — live DB, no mocks. Every scenario
 // fires real parallel HTTP against real Postgres row locks and asserts the
 // EXACT final state (counts, codes, inventory, rows), not just winners.
 // Authentication uses the injected stub (crypto is proven by the E2E journey
@@ -7,7 +7,7 @@
 //
 // Scale budget: 50 logins + 50-way races against remote Postgres need wall
 // time, so this file carries a 5-minute budget (proportional to workload,
-// Phase 10 precedent — not a flake fix; every assert below is on exact final
+// precedent — not a flake fix; every assert below is on exact final
 // state, never on timing).
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
@@ -33,7 +33,7 @@ vi.setConfig({ testTimeout: 300000 });
 
 const LIVE_STATUSES = ['active_hold', 'payment_pending', 'payment_review', 'paid'] as const;
 
-describe.skipIf(!isDatabaseConfigured())('phase 13 concurrency sweep (live, no mocks)', () => {
+describe.skipIf(!isDatabaseConfigured())('concurrency sweep (live, no mocks)', () => {
   const stubVerifier: VerifySignatureFn = () => true;
 
   const fake: { txByHash: Map<string, TxRecord>; delayMs: number } = { txByHash: new Map(), delayMs: 0 };

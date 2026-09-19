@@ -1,4 +1,4 @@
-// Phase 10: /admin/payment-reviews — full reconciliation context per row
+// /Admin/payment-reviews — full reconciliation context per row
 // (full buyer wallet + intent terms; deliberately more than buyers or
 // providers ever see). Confirming paid is an admin override: no chain
 // re-check happens.

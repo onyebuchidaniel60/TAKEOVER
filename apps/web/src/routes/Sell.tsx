@@ -1,5 +1,5 @@
-// Phase 5: provider's own openings in every status, plus entry to creation.
-// Phase 9: summary tiles plus per-card demand counts (single source: the
+// Provider's own openings in every status, plus entry to creation.
+// Summary tiles plus per-card demand counts (single source: the
 // same /me/slots endpoint for tiles; the provider claims endpoint for counts).
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';

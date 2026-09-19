@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Phase 14l-3: theme store — Auto follows the OS, a manual Light/Dark/Auto
+// Theme store — Auto follows the OS, a manual Light/Dark/Auto
 // choice persists in localStorage, and applying the theme is class-only
 // (instant, no transition — dark mode adds no motion).
 import { beforeEach, describe, expect, it, vi } from 'vitest';

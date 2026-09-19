@@ -1,6 +1,6 @@
-// Phase 10: admin moderation surfaces. Every route requires admin auth
+// Admin moderation surfaces. Every route requires admin auth
 // (requireAdmin after requireAuth: anonymous → 401, non-admin → 403
-// FORBIDDEN — endpoints do not hide their existence). Phase 12 adds a generous
+// FORBIDDEN — endpoints do not hide their existence). adds a generous
 // per-IP backstop limiter behind admin auth (abuse tripwire, not the control —
 // admin auth + audit remain the control). All responses use the
 // { data, requestId } envelope.

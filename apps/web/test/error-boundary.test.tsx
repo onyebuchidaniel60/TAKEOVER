@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Phase 11 error boundaries: a throwing child renders the branded fallback
+// error boundaries: a throwing child renders the branded fallback
 // with a working reload action; nothing raw ever reaches the screen.
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

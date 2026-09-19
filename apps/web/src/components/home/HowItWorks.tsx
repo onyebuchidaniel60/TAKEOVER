@@ -1,4 +1,4 @@
-// Phase 14k-1: "How it works" — three steps in consumer language
+// "How it works" — three steps in consumer language
 // (PROJECT_SPEC.md §7: no crypto jargon). Static cards; no animation.
 import { BadgeCheck, Eye, Hand } from 'lucide-react';
 

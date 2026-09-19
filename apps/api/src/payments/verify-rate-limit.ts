@@ -1,4 +1,4 @@
-// Phase 8: per-claim verification rate limiter. Scope is the claim (not the
+// Per-claim verification rate limiter. Scope is the claim (not the
 // IP): at most one chain lookup per claim per window. Backed by an in-memory
 // map — correct for the deployed single-region MVP (same standing note as the
 // auth limiters); a multi-instance deployment would need shared storage.

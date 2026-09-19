@@ -1,4 +1,4 @@
-// Phase 11: catch-all 404 page for unknown paths. Consumer language, with a
+// Catch-all 404 page for unknown paths. Consumer language, with a
 // way back to the marketplace.
 import { Link } from 'react-router-dom';
 import EmptyState from '../components/EmptyState';

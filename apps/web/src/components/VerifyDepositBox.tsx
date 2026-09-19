@@ -1,4 +1,4 @@
-// Phase 14e P1: verify-deposit polling box (buyer loop).
+// Verify-deposit polling box (buyer loop).
 // Polls POST verify-deposit on the plan cadence (6 s, cap 60 attempts ≈
 // 6 min; the per-claim limiter is 1/5 s). Stops on funded / mismatch /
 // review; backs off on 503 / 429 with Retry-After. Manual check always

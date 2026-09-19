@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
 
-// Phase 14c round 4: the @fastify/cors default allow-methods is only
+// The @fastify/cors default allow-methods is only
 // GET,HEAD,POST, which blocked PATCH preflights from the Mini App
 // (browser fails at the preflight stage). The app config must allow
 // PATCH plus near-term verbs. No DB is touched: preflight is answered

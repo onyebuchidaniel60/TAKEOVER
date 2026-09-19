@@ -8,9 +8,9 @@ export default function PublishButton({
   onPublish: () => void;
   publishing: boolean;
   disabled?: boolean;
-  /** Phase 14g-1: idle label override (e.g. "Approve payment & publish"). */
+  /** Idle label override (e.g. "Approve payment & publish"). */
   label?: string;
-  /** Phase 14g-1: busy label override (e.g. "Paying…" / "Verifying…"). */
+  /** Busy label override (e.g. "Paying…" / "Verifying…"). */
   busyLabel?: string;
 }) {
   return (

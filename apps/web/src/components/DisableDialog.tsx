@@ -1,4 +1,4 @@
-// Phase 10: admin disable confirmation (users + slots). The reason is
+// Admin disable confirmation (users + slots). The reason is
 // required (5–1000 chars, enforced server-side) and is stored on the audit
 // event. Disabling never moves funds and cannot be undone from this UI.
 import { useState } from 'react';

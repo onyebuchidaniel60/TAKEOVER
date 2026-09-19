@@ -1,6 +1,6 @@
-// Phase 14d-2: USDT escrow service (deposit path only).
-// Phase 14d-3a: delivery + release slice (markDelivered, confirmReceipt).
-// No dispute/admin/refund logic — those are 14d-3b. No NIM path.
+// USDT escrow service (deposit path only).
+// Delivery + release slice (markDelivered, confirmReceipt).
+// No dispute/admin/refund logic — those live in the dispute module. No NIM path.
 //
 // Pricing note: amount_base_units is snapshotted from the slot's price_usdt
 // (the USDT-denominated price is used as the USDT base-unit amount). This is
@@ -73,7 +73,7 @@ export interface EscrowView {
 
 export interface DepositInstruction {
   contractAddress: string;
-  /** Phase 14e P1 (D7 variant B): canonical USDT token address for the approve() call. Served, never hardcoded. */
+  /** Canonical USDT token address for the approve() call. Served, never hardcoded. */
   tokenAddress: string;
   usdtAmount: string;
   onChainEscrowId: string;
@@ -129,7 +129,7 @@ function contractAddressOr503(): string {
   }
 }
 
-/** Phase 14e P1 (D7 variant B): token address or the same generic escrow 503. */
+/** Token address or the same generic escrow 503. */
 function tokenAddressOr503(): string {
   try {
     return getUsdtTokenAddress();
@@ -588,7 +588,7 @@ export async function verifyDeposit(
         requestId: options.requestId ?? null,
         metadata: { escrowId: freshEscrow.id, from: 'deposit_submitted', to: 'escrow_funded' },
       });
-      // Phase 14l-2: provider notification in the same transaction. The
+      // Provider notification in the same transaction. The
       // conditional UPDATE above admits exactly one winner, so exactly one
       // notification is written; concurrent losers take the funded no-op
       // branch above and write nothing.
@@ -655,7 +655,7 @@ export async function getEscrowForBuyer(
     .from(claims)
     .where(eq(claims.id, claim.id))
     .limit(1);
-  // Phase 14d-4: gated contact note on the buyer view, evaluated against
+  // Gated contact note on the buyer view, evaluated against
   // the post-transition escrow status (a funded row that just flipped to
   // refunding hides the note on this same read).
   const slotRows = await db.select().from(slots).where(eq(slots.id, claim.slotId)).limit(1);
@@ -712,7 +712,7 @@ export async function getEscrowForProvider(
  * Normalize an EVM address for storage/comparison (lowercase — EIP-55
  * checksum is display encoding, not identity). Returns null when malformed.
  *
- * IMPLEMENTATION DETAIL — AGENT MAY DECIDE: lowercase storage; all
+ * Implementation latitude: lowercase storage; all
  * comparisons are exact on the normalized form.
  */
 export function normalizeEvmAddress(value: string): string | null {
@@ -839,7 +839,7 @@ export async function markDelivered(
       requestId: options.requestId ?? null,
       metadata: { escrowId: escrow.id, claimId: claim.id, from: 'escrow_funded', to: 'delivered' },
     });
-    // Phase 14l-2: buyer notification in the same transaction. This is the
+    // Buyer notification in the same transaction. This is the
     // winner path only (losers return the delivered no-op or throw above),
     // so exactly one notification is written per delivery.
     await writeNotification(tx, {

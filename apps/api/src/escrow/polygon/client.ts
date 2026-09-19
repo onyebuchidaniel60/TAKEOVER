@@ -1,13 +1,13 @@
-// Phase 14d-2: Polygon escrow-contract client (USDT deposit path).
-// Phase 14d-3a: real server-signed release() + receipt polling for the
+// Polygon escrow-contract client (USDT deposit path).
+// Real server-signed release() + receipt polling for the
 // confirmation policy.
-// Phase 14d-3b: real server-signed refund() + buyer-side disputeCallData().
+// Real server-signed refund() + buyer-side disputeCallData().
 // Real implementation of EscrowContractClient from
 // packages/shared/src/escrow/contract.ts, backed by viem (base library only,
 // no Polygon kit). Reads RPC + contract address from env only — never
 // hardcoded, never client-supplied.
 //
-// Trust boundary (AGENTS.md Polygon rules): events are verified against the
+// Trust boundary (see ARCHITECTURE.md §22): events are verified against the
 // configured contract address only. getLogs is filtered by that address and
 // the Deposited/Disputed topic, further filtered by the indexed escrowId.
 // Client-supplied escrow ids and contract addresses are never trusted for
@@ -98,7 +98,7 @@ export function getEscrowContractAddress(
 }
 
 /**
- * Phase 14e P1 (D7 variant B): USDT token address from USDT_TOKEN_ADDRESS.
+ * USDT token address from USDT_TOKEN_ADDRESS.
  * Served to the frontend inside the escrow-intent depositInstruction so the
  * UI approves the exact token without hardcoding anything token-specific.
  * Unset/malformed → unavailable (fail closed, same as the contract
@@ -166,7 +166,7 @@ export function decodeDepositedLog(
 
 /**
  * Pure Disputed-log decoder (no network). Same address-filter + throw-on-
- * malformed contract as decodeDepositedLog. Not used this phase beyond
+ * malformed contract as decodeDepositedLog. Not used beyond
  * completeness (cheap, same shape).
  */
 export function decodeDisputedLog(
@@ -201,10 +201,10 @@ export interface PolygonClientOptions {
 
 /**
  * Real Polygon client. Injectable via AppOptions (fake in tests, real in
- * production), mirroring the Phase 8 RPC-client pattern.
+ * production), mirroring the payment RPC-client pattern.
  *
- * IMPLEMENTATION DETAIL — AGENT MAY DECIDE: full-chain scan (fromBlock 0n).
- * No deployment block is configured this phase; bounding the scan by escrow
+ * Implementation latitude: full-chain scan (fromBlock 0n).
+ * No deployment block is configured; bounding the scan by escrow
  * creation time is a later optimization. Correctness first: older deposits
  * must still be found.
  */
@@ -337,7 +337,7 @@ export function disputeCallData(escrowId: string, contractAddress?: string): Dis
 }
 
 /**
- * Phase 14e-2d: fd-2 diagnostics for the opaque release path.
+ * fd-2 diagnostics for the opaque release path.
  *
  * The service maps every signer/contract failure to a generic 503, and the
  * AppError branch never reaches the server log — so a broadcast failure was
@@ -428,7 +428,7 @@ function logPolygonFailure(site: string, err: unknown, context: Record<string, s
  * throw EscrowSignerUnavailableError; RPC/contract problems throw
  * EscrowContractUnavailableError. Neither error embeds key material.
  *
- * IMPLEMENTATION DETAIL — AGENT MAY DECIDE: no `viem/chains` import. That
+ * Implementation latitude: no `viem/chains` import. That
  * barrel pulls DOM-dependent sources that break the API's DOM-less tsc
  * build (verified by bisection), and a static descriptor would sign the
  * wrong chain id when the RPC points at a testnet. The descriptor below
@@ -480,7 +480,7 @@ async function releaseTx(
     });
     throw new EscrowContractUnavailableError('Polygon RPC request failed.');
   }
-  // Phase 14e-2e read/write split: the broadcast wallet uses the optional
+  // Read/write split: the broadcast wallet uses the optional
   // broadcast endpoint when configured; reads stay on POLYGON_RPC_URL.
   // Unset → identical to before (same URL for both paths).
   const broadcastRpcUrl = getPolygonBroadcastRpcUrl() ?? rpcUrl;
@@ -545,7 +545,7 @@ async function refundTx(
     }
     throw new EscrowContractUnavailableError('Polygon RPC request failed.');
   }
-  // Phase 14e-2e read/write split: the broadcast wallet uses the optional
+  // Read/write split: the broadcast wallet uses the optional
   // broadcast endpoint when configured; reads stay on POLYGON_RPC_URL.
   // Unset → identical to before (same URL for both paths).
   const broadcastRpcUrl = getPolygonBroadcastRpcUrl() ?? rpcUrl;

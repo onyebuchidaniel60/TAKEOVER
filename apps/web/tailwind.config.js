@@ -1,13 +1,13 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  // Phase 14l-3: class-driven dark mode (warm dark, stone-based — never an
+  // Class-driven dark mode (warm dark, stone-based — never an
   // inversion). Components carry light + dark values on the SAME utilities
   // (e.g. bg-white dark:bg-stone-900) — not a parallel token system.
   darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
-      // Phase 11 design tokens. Values match what the UI already used —
+      // design tokens. Values match what the UI already used —
       // this is naming and consolidating, not a visual change.
       minHeight: {
         // Minimum touch target (44×44 CSS px). Replaces min-h-[44px].
@@ -20,7 +20,7 @@ export default {
         // this width instead of squeezing columns or the page.
         admintable: '40rem',
       },
-      // Phase 14i-1 motion tokens (emil-design-eng: strong custom curves,
+      // 1 Motion tokens (emil-design-eng: strong custom curves,
       // never bare ease/ease-in; every UI duration under 300ms).
       transitionTimingFunction: {
         // Strong ease-out — entrances and standard UI. Starts fast so the
@@ -39,7 +39,7 @@ export default {
         // Larger panels/dialogs (200-500ms budget, kept at the floor).
         panel: '280ms',
       },
-      // Phase 14i-1 shadow scale (direction A: warm, semi-transparent —
+      // 1 Shadow scale (direction A: warm, semi-transparent —
       // never solid borders for elevation). shadow-sm stays for dense
       // rows; card/card-hover carry the feed.
       boxShadow: {
@@ -47,7 +47,7 @@ export default {
         'card-hover':
           '0 2px 4px rgb(28 25 23 / 0.06), 0 16px 32px -12px rgb(28 25 23 / 0.22)',
       },
-      // Phase 14l-3 type scale (direction A + apple skill §15: tracking
+      // 3 Type scale (direction A + apple skill §15: tracking
       // is size-specific — negative on display/headings, neutral on body,
       // slightly positive on small; leading runs inversely to size;
       // hierarchy comes from weight + size + leading as a set).
@@ -137,7 +137,7 @@ export default {
         claywashd: '#332016',
         clayfilld: '#A65A32',
       },
-      // Phase 14i-1 feed entrance (direction A only, capped + staggered in
+      // 1 Feed entrance (direction A only, capped + staggered in
       // SlotList). opacity + translateY(8px) only — never scale(0).
       keyframes: {
         'feed-in': {
@@ -160,11 +160,11 @@ export default {
 // + color, never color alone. Cool grays are banned (slate/gray/zinc/
 // neutral must not appear in src). Dark mode is warm deep brown.
 //
-// Radius language (direction A, locked 14i-1): cards rounded-2xl, inner
+// Radius language (direction A, locked): cards rounded-2xl, inner
 // panels/buttons/inputs rounded-lg, badges/pills rounded-full. Modals join
-// rounded-2xl in 14i-3; nothing new uses rounded-xl-for-cards.
+// rounded-2xl; nothing new uses rounded-xl-for-cards.
 //
-// Type scale (14l-3, locked; proportions unchanged by the retheme):
+// Type scale (locked; proportions unchanged by the retheme):
 // display 30/36/-0.02 bold; h1 24/32/-0.02 bold; h2 20/28/-0.01 bold;
 // h3 16/24/-0.01 semibold; body 14/20/0 regular; small 12/16/+0.01
 // medium. System stacks only (Geist removed by owner call). Figures

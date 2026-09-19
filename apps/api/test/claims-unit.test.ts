@@ -1,4 +1,4 @@
-// Phase 6 unit tests — no database. Covers the hold TTL, the eligibility
+// unit tests — no database. Covers the hold TTL, the eligibility
 // mirror of the claim transaction, and the hold-expiry predicate.
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CLAIM_HOLD_TTL_SECONDS, getClaimHoldTtlSeconds } from '../src/env';

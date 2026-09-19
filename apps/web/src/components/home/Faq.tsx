@@ -1,4 +1,4 @@
-// Phase 14k-1: FAQ — six questions in consumer language, native
+// FAQ — six questions in consumer language, native
 // <details> disclosures. Deliberately unanimated: occasional frequency
 // does not justify custom motion, native disclosure is keyboard-free and
 // reduced-motion-safe by construction, and it matches the ClaimsPage

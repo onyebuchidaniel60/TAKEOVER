@@ -1,4 +1,4 @@
-// Phase 14e P1: typed client for the USDT escrow endpoints (buyer loop).
+// Typed client for the USDT escrow endpoints (buyer loop).
 // Shapes mirror the backend projections exactly (snake_case, string
 // amounts) — the backend is authoritative (ARCHITECTURE.md §13). No
 // token-specific constants here except the single hardcoded rail (D8);
@@ -94,7 +94,7 @@ export interface FetchEscrowResult {
 
 /**
  * Claim view as served by the escrow endpoints. The buyer projection
- * carries the provider contact note past the escrow gate (14d-4:
+ * carries the provider contact note past the escrow gate (
  * funded/delivered/disputed/releasing/released show it, otherwise null).
  * The backend gates; the UI renders-what-it-gets (null → hidden).
  */

@@ -1,4 +1,4 @@
-// Phase 14g-1 integration tests — live DB, fake Nimiq RPC. Auth goes through
+// 1 Integration tests — live DB, fake Nimiq RPC. Auth goes through
 // the real challenge/verify flow with an injected signature stub (same as
 // slots-lifecycle.test.ts). Fee env is controlled per test via vi.stubEnv
 // (the lifecycle reads process.env at call time). Fixtures use unique
@@ -106,7 +106,7 @@ describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () =>
     const HOUR = 3_600_000;
     return {
       title,
-      description: `14g-1 ${tag} description`,
+      description: `listing-fee ${tag} description`,
       category: 'dining',
       location_label: 'Mitte',
       starts_at: new Date(now + 2 * HOUR).toISOString(),
@@ -213,7 +213,7 @@ describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () =>
   it('publishes without a body when no fee is configured (old behavior)', async () => {
     useNoFee();
     const cookie = await loginAs(randomWallet());
-    const slotId = await createDraft(cookie, `14g-1 ${tag} nofee`);
+    const slotId = await createDraft(cookie, `listing-fee ${tag} nofee`);
     const res = await publish(cookie, slotId, {});
     expect(res.statusCode).toBe(200);
     expect((res.json() as { data: { slot: { status: string } } }).data.slot.status).toBe('published');
@@ -228,7 +228,7 @@ describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () =>
     useFee(wallet);
     const owner = randomWallet();
     const cookie = await loginAs(owner);
-    const slotId = await createDraft(cookie, `14g-1 ${tag} fee-ok`);
+    const slotId = await createDraft(cookie, `listing-fee ${tag} fee-ok`);
     const tx = feeTx(slotId, owner, wallet);
     chain.set(tx.hash, tx);
     const res = await publish(cookie, slotId, { transactionHash: tx.hash });
@@ -245,7 +245,7 @@ describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () =>
     useFee(wallet);
     const owner = randomWallet();
     const cookie = await loginAs(owner);
-    const slotId = await createDraft(cookie, `14g-1 ${tag} fee-anysender`);
+    const slotId = await createDraft(cookie, `listing-fee ${tag} fee-anysender`);
     // A stranger's wallet pays a correct fee for the owner's slot.
     const tx = feeTx(slotId, randomWallet(), wallet);
     chain.set(tx.hash, tx);
@@ -262,7 +262,7 @@ describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () =>
     useFee(wallet);
     const owner = randomWallet();
     const cookie = await loginAs(owner);
-    const slotId = await createDraft(cookie, `14g-1 ${tag} fee-diag`);
+    const slotId = await createDraft(cookie, `listing-fee ${tag} fee-diag`);
     const tx = feeTx(slotId, owner, wallet, { value: '39999999' });
     chain.set(tx.hash, tx);
     const errors: Array<unknown> = [];
@@ -297,7 +297,7 @@ describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () =>
     const wallet = feeWallet();
     useFee(wallet);
     const cookie = await loginAs(randomWallet());
-    const slotId = await createDraft(cookie, `14g-1 ${tag} fee-missing`);
+    const slotId = await createDraft(cookie, `listing-fee ${tag} fee-missing`);
     expect(errorOf(await publish(cookie, slotId, {}))).toEqual({
       status: 400,
       code: 'PAYMENT_INVALID_TX',
@@ -316,7 +316,7 @@ describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () =>
     const wallet = feeWallet();
     useFee(wallet);
     const cookie = await loginAs(randomWallet());
-    const slotId = await createDraft(cookie, `14g-1 ${tag} fee-strict}`);
+    const slotId = await createDraft(cookie, `listing-fee ${tag} fee-strict}`);
     const tx = feeTx(slotId, randomWallet(), wallet);
     expect(
       errorOf(await publish(cookie, slotId, { transactionHash: tx.hash, role: 'admin' })),
@@ -336,7 +336,7 @@ describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () =>
       { name: 'data', overrides: { data: FEE_DATA(randomUUID()) }, code: 'PAYMENT_DATA_MISMATCH' },
     ];
     for (const { name, overrides, code } of cases) {
-      const slotId = await createDraft(cookie, `14g-1 ${tag} fee-${name}`);
+      const slotId = await createDraft(cookie, `listing-fee ${tag} fee-${name}`);
       const tx = feeTx(slotId, owner, wallet, overrides);
       chain.set(tx.hash, tx);
       expect(errorOf(await publish(cookie, slotId, { transactionHash: tx.hash }))).toEqual({
@@ -355,11 +355,11 @@ describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () =>
     useFee(wallet);
     const owner = randomWallet();
     const cookie = await loginAs(owner);
-    const missingId = await createDraft(cookie, `14g-1 ${tag} fee-notfound`);
+    const missingId = await createDraft(cookie, `listing-fee ${tag} fee-notfound`);
     expect(
       errorOf(await publish(cookie, missingId, { transactionHash: feeHash() })),
     ).toEqual({ status: 409, code: 'PAYMENT_NOT_FOUND' });
-    const pendingId = await createDraft(cookie, `14g-1 ${tag} fee-pending`);
+    const pendingId = await createDraft(cookie, `listing-fee ${tag} fee-pending`);
     const tx = feeTx(pendingId, owner, wallet, { confirmations: 2 });
     chain.set(tx.hash, tx);
     expect(errorOf(await publish(cookie, pendingId, { transactionHash: tx.hash }))).toEqual({
@@ -373,14 +373,14 @@ describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () =>
     useFee(wallet);
     const owner = randomWallet();
     const cookie = await loginAs(owner);
-    const slotA = await createDraft(cookie, `14g-1 ${tag} fee-replay-a`);
+    const slotA = await createDraft(cookie, `listing-fee ${tag} fee-replay-a`);
     const tx = feeTx(slotA, owner, wallet);
     chain.set(tx.hash, tx);
     expect((await publish(cookie, slotA, { transactionHash: tx.hash })).statusCode).toBe(200);
     // Same slot + same hash: idempotent success.
     expect((await publish(cookie, slotA, { transactionHash: tx.hash })).statusCode).toBe(200);
     // Same hash on another slot: replay.
-    const slotB = await createDraft(cookie, `14g-1 ${tag} fee-replay-b`);
+    const slotB = await createDraft(cookie, `listing-fee ${tag} fee-replay-b`);
     expect(errorOf(await publish(cookie, slotB, { transactionHash: tx.hash }))).toEqual({
       status: 409,
       code: 'PAYMENT_REPLAY',
@@ -390,7 +390,7 @@ describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () =>
   it('fails closed with 503 INTERNAL_ERROR when half-configured (F4)', async () => {
     useFee(null);
     const cookie = await loginAs(randomWallet());
-    const slotId = await createDraft(cookie, `14g-1 ${tag} fee-misconfigured`);
+    const slotId = await createDraft(cookie, `listing-fee ${tag} fee-misconfigured`);
     expect(
       errorOf(await publish(cookie, slotId, { transactionHash: feeHash() })),
     ).toEqual({ status: 503, code: 'INTERNAL_ERROR' });

@@ -1,4 +1,4 @@
-// Phase 8 unit tests — no database. Covers the pure verification predicate
+// unit tests — no database. Covers the pure verification predicate
 // (one failing check at a time), BigInt amount boundaries, the confirmation
 // threshold, the pending-timeout predicate, the per-claim limiter, and RPC
 // normalization. Chain reads are injected fakes elsewhere, never here.

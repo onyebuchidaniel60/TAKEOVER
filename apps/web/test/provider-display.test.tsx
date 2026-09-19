@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Phase 14c round 5 (Item 2): providerDisplay must be visible on the slot
+// ProviderDisplay must be visible on the slot
 // card (feed) and the slot detail page — for the profile-name path AND the
 // truncated-wallet fallback path. The field was already in the PublicSlot
 // type but neither component rendered it.

@@ -1,4 +1,4 @@
-// Phase 9: real profile page (replaces the Phase 3 debug placeholder).
+// Real profile page (replaces the debug placeholder).
 // Wallet, role, provider display-name setup/edit, links, logout. No wallet
 // SDK usage here — display and form state only, server stays authoritative.
 import { useEffect, useState } from 'react';
@@ -127,7 +127,7 @@ export default function Profile() {
   );
 }
 
-// Phase 14l-3: appearance toggle (Light / Dark / Auto). Auto follows the
+// Appearance toggle (Light / Dark / Auto). Auto follows the
 // OS; a manual choice is remembered across reloads by the theme store. Plain
 // text segments — the icon budget stays at 10/10.
 const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
@@ -232,7 +232,7 @@ export function DisplayNameForm({
 
   const handleSubmit = (event: React.FormEvent): void => {
     event.preventDefault();
-    // Phase 14c round 3 (Fix C1): validate against the server rules before
+    // Validate against the server rules before
     // sending, so rejections surface inline instead of as a failed request.
     // The server stays authoritative for anything that still slips through.
     const reason = validateDisplayName(value);

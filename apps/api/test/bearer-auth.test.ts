@@ -1,4 +1,4 @@
-// Phase 14c Bearer fallback suite — live DB. The Bearer token is the SAME
+// Bearer fallback suite — live DB. The Bearer token is the SAME
 // server session the cookie carries (same row, TTL, revocation); these tests
 // prove the alternate presentation, the approved CSRF exemption (Bearer-only),
 // and the cookie-present precedence rule. Auth goes through the real
@@ -26,13 +26,13 @@ import {
   users,
 } from '../../../db/schema';
 
-// Remote-Postgres latency: 30s budget per test (Phase 10 precedent).
+// Remote-Postgres latency: 30s budget per test (established precedent).
 vi.setConfig({ testTimeout: 30000 });
 
 // Vitest runs with cwd = apps/api, so anchor the source scan there.
 const API_SRC = resolve(process.cwd(), 'src');
 
-describe.skipIf(!isDatabaseConfigured())('phase 14c bearer fallback (live)', () => {
+describe.skipIf(!isDatabaseConfigured())('bearer fallback (live)', () => {
   const stubVerifier: VerifySignatureFn = () => true;
 
   // Shared app: every budget disabled (budgets are proven by dedicated tests).

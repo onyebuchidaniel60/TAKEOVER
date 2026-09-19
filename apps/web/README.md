@@ -13,4 +13,5 @@ which always sends `credentials: 'include'`.
   `NODE_ENV=production` and only answers CORS to origins in the backend
   `CORS_ORIGINS` allowlist (with `credentials: true`, no wildcard).
 
-No bearer-token fallback exists in this phase.
+Authenticated fetches use the session cookie; cookie-blocking hosts
+additionally use the Bearer fallback (see ARCHITECTURE.md §4).

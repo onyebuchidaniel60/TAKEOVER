@@ -1,4 +1,4 @@
-// Phase 14d-3b: refund() + disputeCallData() client tests (no network, no DB).
+// Refund() + disputeCallData() client tests (no network, no DB).
 // viem's network edge is mocked at the module boundary (this file only —
 // every test file runs in its own worker); signing uses the real
 // throwaway test vector from escrow-signer.test.ts via loadEscrowSigner.

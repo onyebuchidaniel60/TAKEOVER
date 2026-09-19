@@ -1,4 +1,4 @@
-// Phase 4: price_usdt is BIGINT in Postgres (integer USDT base units —
+// Price_usdt is BIGINT in Postgres (integer USDT base units —
 // 6 decimals — never floats).
 // JSON has no bigint, so the public API always serializes it as a decimal string.
 // A JS number must never be used: values above 2^53 would silently lose precision.

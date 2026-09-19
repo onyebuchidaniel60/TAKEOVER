@@ -1,4 +1,4 @@
-// Phase 14e P1: window.ethereum wrapper + hand-encoded calldata (D1).
+// Window.ethereum wrapper + hand-encoded calldata (D1).
 //
 // No viem/ethers on the frontend (owner decision D1). The three fixed call
 // shapes (ERC-20 approve, escrow deposit, escrow dispute) are encoded by

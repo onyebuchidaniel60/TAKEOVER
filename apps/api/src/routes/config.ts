@@ -1,4 +1,4 @@
-// Phase 14g-1: public fee-terms endpoint. Serves the NIM listing-fee state
+// Public fee-terms endpoint. Serves the NIM listing-fee state
 // (amount + receive-only wallet) so the publish page can render the fee copy
 // and drive the pay-then-publish flow. PUBLIC (no auth): the terms are not
 // secrets, and the publish page needs them pre-auth. Reads env tolerantly

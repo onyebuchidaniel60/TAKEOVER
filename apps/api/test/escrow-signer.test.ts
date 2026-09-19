@@ -1,4 +1,4 @@
-// Phase 14d-3a: escrow signer module tests (no network, no DB).
+// Escrow signer module tests (no network, no DB).
 // The signer is the first server-side private key in this project: loading
 // is lazy + cached, failures are generic (never embed key material), and a
 // source scan proves the key is never logged, returned, or stringified.

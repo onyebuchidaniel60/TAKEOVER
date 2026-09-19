@@ -1,4 +1,4 @@
-// Phase 14g-1 unit tests — no DB, no chain. Covers the fee predicate matrix,
+// 1 Unit tests — no DB, no chain. Covers the fee predicate matrix,
 // hash normalization, the Luna-exact amount conversion round-trip, the
 // tolerant fee-state branches (unset / set / misconfigured), and the
 // [listing-fee-error] diagnostic line shape.

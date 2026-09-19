@@ -1,4 +1,4 @@
-// Phase 5 unit tests — no database. Covers publish validation (each field
+// unit tests — no database. Covers publish validation (each field
 // failing on its own) and the lifecycle state guards.
 import { describe, expect, it } from 'vitest';
 import { AppError } from '../src/http/errors';

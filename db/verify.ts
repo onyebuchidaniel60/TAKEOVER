@@ -1,4 +1,4 @@
-// Phase 2 tooling: connectivity check + schema confirmation.
+// Tooling: connectivity check + schema confirmation.
 // Reads DATABASE_URL from the environment and never logs it.
 // Usage (values stay in your shell, never printed):
 //   npm.cmd run db:verify [-- --expect-empty]
@@ -28,7 +28,7 @@ async function main(): Promise<void> {
     throw new Error(`expected an empty database, found ${names.length} table(s)`);
   }
 
-  // Phase 2 follow-up: confirm the additive columns exist.
+  // follow-up: confirm the additive columns exist.
   const expectedColumns = [
     'users.disabled_at',
     'slots.cancelled_at',
@@ -65,7 +65,7 @@ async function main(): Promise<void> {
     throw new Error('claims partial index predicate does not match the reconciled definition');
   }
 
-  // Phase 14d-1: escrow tables, enum values, and the funded-fields CHECK.
+  // Escrow tables, enum values, and the funded-fields CHECK.
   for (const table of ['escrows', 'escrow_ledger']) {
     if (!names.includes(table)) {
       throw new Error(`missing table: ${table}`);
@@ -73,7 +73,7 @@ async function main(): Promise<void> {
   }
   console.log('escrow tables ok (escrows, escrow_ledger present)');
 
-  // Phase 14l-2: notifications table for in-app funding/delivery notices.
+  // Notifications table for in-app funding/delivery notices.
   if (!names.includes('notifications')) {
     throw new Error('missing table: notifications');
   }
@@ -118,21 +118,21 @@ async function main(): Promise<void> {
     throw new Error('escrows CHECK constraint on the funded-fields tuple is missing');
   }
 
-  // Phase 14d-2 completion: verification-window clock column.
+  // 2 Completion: verification-window clock column.
   const hasDepositSubmittedAt = present.has('claims.deposit_submitted_at');
   console.log(`claims.deposit_submitted_at present: ${hasDepositSubmittedAt}`);
   if (!hasDepositSubmittedAt) {
     throw new Error('claims.deposit_submitted_at column is missing');
   }
 
-  // Phase 14d-3a: provider EVM payout address column.
+  // Provider EVM payout address column.
   const hasProviderPayoutAddress = present.has('escrows.provider_payout_address');
   console.log(`escrows.provider_payout_address present: ${hasProviderPayoutAddress}`);
   if (!hasProviderPayoutAddress) {
     throw new Error('escrows.provider_payout_address column is missing');
   }
 
-  // Phase 14d-3b: escrow-internal transitional states for refund/release broadcasts.
+  // Escrow-internal transitional states for refund/release broadcasts.
   const hasRefunding = escrowLabels.has('refunding');
   const hasReleasing = escrowLabels.has('releasing');
   console.log(`escrow_status has refunding: ${hasRefunding}`);
@@ -141,14 +141,14 @@ async function main(): Promise<void> {
     throw new Error('escrow_status enum is missing refunding/releasing');
   }
 
-  // Phase 14d-4: one-way provider contact-note column on slots.
+  // One-way provider contact-note column on slots.
   const hasProviderContactNote = present.has('slots.provider_contact_note');
   console.log(`slots.provider_contact_note present: ${hasProviderContactNote}`);
   if (!hasProviderContactNote) {
     throw new Error('slots.provider_contact_note column is missing');
   }
 
-  // Phase 14g-1: NIM listing-fee receipt columns on slots.
+  // NIM listing-fee receipt columns on slots.
   for (const col of ['slots.listing_fee_tx_hash', 'slots.listing_fee_paid_at']) {
     const has = present.has(col);
     console.log(`${col} present: ${has}`);
@@ -157,7 +157,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // Phase 14h: slot price is USDT base units (renamed from price_nim).
+  // Slot price is USDT base units (renamed from price_nim).
   console.log(`slots.price_usdt present: ${present.has('slots.price_usdt')}`);
   console.log(`slots.price_nim absent: ${!present.has('slots.price_nim')}`);
   if (!present.has('slots.price_usdt') || present.has('slots.price_nim')) {

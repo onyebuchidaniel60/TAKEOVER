@@ -1,4 +1,4 @@
-// Phase 10: audit event helper. Every audit row is written INSIDE the same DB
+// Audit event helper. Every audit row is written INSIDE the same DB
 // transaction as the action it describes — audit and action succeed or fail
 // together. Never a best-effort side write.
 //

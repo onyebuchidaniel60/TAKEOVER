@@ -1,4 +1,4 @@
-// Phase 4 integration tests — live DB. Fixtures use a unique per-run tag so
+// Integration tests — live DB. Fixtures use a unique per-run tag so
 // assertions stay isolated from seed data and other suites.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
@@ -69,7 +69,7 @@ describe.skipIf(!isDatabaseConfigured())('public marketplace (live)', () => {
       row(ids.draft, { status: 'draft' }),
       row(ids.cancelled, { status: 'cancelled' }),
       row(ids.expired, { status: 'expired', startsAt: new Date(now - 2 * HOUR) }),
-      // Phase 6: sold_out slots stay visible (own start time avoids sort ties).
+      // Sold_out slots stay visible (own start time avoids sort ties).
       row(ids.soldOut, {
         title: `P4 ${tag} sold out supper`,
         status: 'sold_out',
@@ -211,7 +211,7 @@ describe.skipIf(!isDatabaseConfigured())('public marketplace (live)', () => {
     }
   });
 
-  it('returns 200 for sold_out slots (still visible in Phase 6)', async () => {
+  it('returns 200 for sold_out slots (still visible)', async () => {
     const res = await app.inject({ method: 'GET', url: `/api/v1/slots/${ids.soldOut}` });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: { slot: SlotJson } };

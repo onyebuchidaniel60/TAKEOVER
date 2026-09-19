@@ -1,7 +1,7 @@
-// Phase 4: public slot projection. The marketplace read path exposes ONLY the
+// Public slot projection. The marketplace read path exposes ONLY the
 // locked fields below — never payout_wallet, provider_id, or internal columns.
 // price_usdt is always a JSON string (see ./price.ts), never a JS number.
-// Phase 9: providerDisplay names the provider (profile display_name preferred,
+// ProviderDisplay names the provider (profile display_name preferred,
 // truncated wallet fallback) — public-safe in both forms.
 import type { slots } from '../../../../db/schema';
 import { serializePriceUsdt } from './price';

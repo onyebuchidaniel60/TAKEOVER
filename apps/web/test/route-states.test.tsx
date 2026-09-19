@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Phase 11 state rendering: one suite per route proving loading, empty,
+// state rendering: one suite per route proving loading, empty,
 // error, not-found, and unavailable states render the right component for
 // mocked conditions. Titles and the admin robots tag are asserted alongside.
 // Case-B flake note: document.title and head meta are written by usePageMeta

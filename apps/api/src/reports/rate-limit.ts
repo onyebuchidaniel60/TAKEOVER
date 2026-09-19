@@ -1,4 +1,4 @@
-// Phase 10: per-user report creation budget — 5 reports per hour per user.
+// Per-user report creation budget — 5 reports per hour per user.
 // Exceeding yields 429 REPORT_RATE_LIMITED. In-memory (same single-region
 // standing note as the auth limiters). Only successful creations consume the
 // budget: validation failures do not lock a user out.

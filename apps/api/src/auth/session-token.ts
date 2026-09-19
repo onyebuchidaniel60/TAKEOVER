@@ -53,7 +53,7 @@ export function parseSessionToken(token: unknown): { sessionId: string; secret: 
 }
 
 /**
- * Phase 14c Bearer fallback: extracts the session token from an
+ * Bearer fallback: extracts the session token from an
  * `Authorization: Bearer <sessionId>.<secret>` header. The extracted value
  * flows through the same parseSessionToken validation (strict format) and the
  * same constant-time sessionHashMatches comparison as the cookie path — the

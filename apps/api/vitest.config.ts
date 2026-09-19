@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['test/**/*.test.ts'],
-    // Phase 14e P3 stability: the suite runs against a remote Supabase DB
+    // The suite runs against a remote Supabase DB
     // and the 5 s vitest default is too tight for login-bearing tests under
     // parallel load (proven: escrow-schema duplicate-hash needs ~13 s).
     // 30 s global; files with specific slower needs keep their own

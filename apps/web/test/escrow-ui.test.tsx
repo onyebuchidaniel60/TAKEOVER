@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Phase 14e P1: escrow buyer-loop component tests. window.ethereum is
+// Escrow buyer-loop component tests. window.ethereum is
 // mocked at the lib/evm module boundary; the backend is a stubbed fetch
 // serving ARCHITECTURE.md §13 envelopes. No network, no wallet.
 import { cleanup, render, screen, waitFor } from '@testing-library/react';

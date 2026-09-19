@@ -1,4 +1,4 @@
-// Phase 14a: deployment wiring — VITE_API_BASE_URL + VITE_DEBUG_PAYMENTS.
+// Deployment wiring — VITE_API_BASE_URL + VITE_DEBUG_PAYMENTS.
 // The production frontend (Vercel) must reach the production backend (Railway),
 // so apiFetch resolves every path against VITE_API_BASE_URL when set and keeps
 // same-origin relative paths when unset (local dev via the Vite /api proxy).

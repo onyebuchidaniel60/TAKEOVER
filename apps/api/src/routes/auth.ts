@@ -138,7 +138,7 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): 
         throw new AppError(401, 'UNAUTHENTICATED', 'Invalid or expired challenge.');
       }
 
-      // Admin promotion (Phase 10): an allowlisted wallet becomes admin on
+      // Admin promotion: an allowlisted wallet becomes admin on
       // verify. Never auto-demote — a non-listed wallet keeps its stored role.
       const allowlisted = isAdminWallet(walletAddress);
       const authResult = await db.transaction(async (tx) => {
@@ -190,7 +190,7 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): 
         expiresAt: new Date(Date.now() + SESSION_TTL_MS),
       });
       setSessionCookie(reply, token.token);
-      // Phase 14c Bearer fallback (owner approved): the raw session token is
+      // Bearer fallback (owner approved): the raw session token is
       // ALSO returned in the body for hosts that drop the third-party session
       // cookie (Nimiq Pay Android WebView). Same token, same session row, same
       // TTL/revocation as the cookie. Never logged; never returned anywhere

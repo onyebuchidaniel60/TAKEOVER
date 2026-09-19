@@ -1,7 +1,7 @@
-// Phase 10: admin moderation service. Every state change runs in ONE DB
+// Admin moderation service. Every state change runs in ONE DB
 // transaction that also writes its audit event — audit and action succeed or
 // fail together. Admin endpoints carry no additional per-IP rate limit (they
-// sit behind admin auth); the only rate-limited Phase 10 surface is
+// sit behind admin auth); the only rate-limited surface is
 // POST /reports (5/hour per user).
 import { and, count, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
@@ -637,7 +637,7 @@ export async function listAuditEvents(
 }
 
 // ---------------------------------------------------------------------------
-// USDT escrow dispute resolution (Phase 14d-3b)
+// USDT escrow dispute resolution
 // ---------------------------------------------------------------------------
 
 /** Full-context escrow row for admin eyes only: buyer wallet in full, tx hashes, resolution notes. */

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Phase 14c round 5 (Item 3): fixed category dropdowns. The filter and the
+// Fixed category dropdowns. The filter and the
 // form render exactly the six owner-approved options plus their empty
 // option; selection round-trips (filter: URL param -> select -> URL ->
 // fetch; form: select -> submit body); a pre-list custom draft value stays

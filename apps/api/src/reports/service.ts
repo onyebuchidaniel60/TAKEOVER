@@ -1,4 +1,4 @@
-// Phase 10: abuse-report creation. Any authenticated user may report a slot
+// Abuse-report creation. Any authenticated user may report a slot
 // or a user (at least one target required). Self-reports are rejected. Audit
 // report.created is written inside the same transaction as the report row.
 import { eq } from 'drizzle-orm';

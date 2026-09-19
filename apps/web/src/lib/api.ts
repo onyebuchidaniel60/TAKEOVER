@@ -3,7 +3,7 @@
 // into the bundle and every path below is resolved against it. Cookies
 // (takeover_session) ride along via credentials: 'include'.
 //
-// Phase 14c Bearer fallback (owner approved): hosts that drop the third-party
+// Bearer fallback (owner approved): hosts that drop the third-party
 // session cookie (Nimiq Pay Android WebView) authenticate with
 // `Authorization: Bearer <session-token>` instead. The token is the SAME
 // server session the cookie carries (same row, TTL, revocation). Storage is
@@ -66,7 +66,7 @@ export function setSessionToken(token: string | null): void {
 }
 
 /**
- * Phase 14a: production API base URL. Read lazily (per call, not at module
+ * Production API base URL. Read lazily (per call, not at module
  * load) so tests can stub the env per case. Unset or blank → '' (same-origin
  * relative paths, exactly the pre-14a behavior). A trailing slash is stripped
  * so `${base}/api/...` never gains a double slash.
@@ -120,20 +120,20 @@ function parseRetryAfterMs(res: Response): number | undefined {
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  // Phase 12 completion (F4): the server requires X-Takeover-Client on
-  // credentialed mutations. Send it on state-changing methods only — never
+  // Completion (F4): the server requires X-Takeover-Client on
+  // Credentialed mutations. Send it on state-changing methods only — never
   // on GET — so plain navigation and preflight-free reads stay untouched,
   // while any cross-origin mutation attempt forces a CORS-gated preflight.
   const method = (init?.method ?? 'GET').toUpperCase();
   const mutating = method === 'POST' || method === 'PATCH' || method === 'PUT' || method === 'DELETE';
-  // Phase 14c round 3 (Fix A2): only declare a JSON content type when the
+  // Only declare a JSON content type when the
   // caller actually provides a body. A bodyless POST under
   // content-type: application/json is rejected by Fastify before routing
   // (400) — this second layer keeps the whole class of bug from recurring
   // even if a future call site forgets the `{}` body. Explicit caller
   // headers still win.
   const hasBody = init?.body !== undefined && init?.body !== null;
-  // Phase 14c: attach the Bearer fallback token when the client holds one
+  // Attach the Bearer fallback token when the client holds one
   // (cookie path stays preferred server-side; the header is redundant there).
   // Explicit caller headers still win.
   const bearer = getSessionToken();

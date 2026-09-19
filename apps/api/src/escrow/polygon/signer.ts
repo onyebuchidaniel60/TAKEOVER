@@ -1,4 +1,4 @@
-// Phase 14d-3a: server-side Polygon escrow signer (USDT release path).
+// Server-side Polygon escrow signer (USDT release path).
 //
 // First server-side private key introduced in this project. Handling rules:
 // - Loaded lazily (only on the first release attempt), then cached.

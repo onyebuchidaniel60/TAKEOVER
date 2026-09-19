@@ -1,9 +1,9 @@
-// Phase 14d-2: USDT escrow deposit endpoints (no NIM, no release/refund).
-// Phase 14d-3a: delivery + release endpoints (mark-delivered, confirm-receipt;
+// USDT escrow deposit endpoints (no NIM, no release/refund).
+// Delivery + release endpoints (mark-delivered, confirm-receipt;
 // GET /escrow now buyer- or provider-scoped).
 // All responses use the { data, requestId } envelope; errors use
 // { error: { code, message }, requestId }. Rate limits are configuration per
-// ARCH §14, overridable via AppOptions for tests (Phase 12 pattern).
+// ARCH §14, overridable via AppOptions for tests (pattern).
 import type { FastifyInstance } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';

@@ -1,4 +1,4 @@
-// Phase 14d-2: USDT deposit ABI decoding (no network) + verification predicate.
+// USDT deposit ABI decoding (no network) + verification predicate.
 // Pure tests: hardcoded log vectors decoded via the viem-backed pure decoder,
 // and every assessDeposit branch including canonicalization.
 import { describe, expect, it } from 'vitest';

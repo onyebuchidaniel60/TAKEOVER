@@ -1,5 +1,5 @@
-// Phase 14g-1: NIM listing-fee verification predicate. Thin wrapper over the
-// Phase 8 assessTransaction predicate (which is NOT modified here) with
+// NIM listing-fee verification predicate. Thin wrapper over the
+// assessTransaction predicate (which is NOT modified here) with
 // fee-specific expected terms: the recipient is the receive-only TAKEOVER
 // fee wallet, the amount is the pinned LISTING_FEE_NIM converted to Luna,
 // and the data binds the slot id ("TAKEOVER:fee:v1:<slotId>" — note the

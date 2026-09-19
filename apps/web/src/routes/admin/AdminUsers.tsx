@@ -1,4 +1,4 @@
-// Phase 10: /admin/users — people surfaced through reports (reporters and
+// /Admin/users — people surfaced through reports (reporters and
 // reported users), plus disabling by user id. There is no dedicated admin
 // user directory endpoint in the locked API surface, so this page works from
 // report data and direct ids only. Disabling revokes sessions immediately;

@@ -1,4 +1,4 @@
-// Phase 9: holds grouped into collapsible status buckets (newest data from
+// Holds grouped into collapsible status buckets (newest data from
 // one unfiltered fetch). Reuses the shared claim components throughout.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';

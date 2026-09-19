@@ -1,7 +1,7 @@
-// Phase 14d-3b: buyer dispute + lazy auto-refund integration (live DB,
+// Buyer dispute + lazy auto-refund integration (live DB,
 // mocked Polygon client). Auth via the real challenge/verify flow with an
 // injected signature stub. Fresh claims per test keep limiters isolated;
-// budgets are disabled on the main app (Phase 13 sweep precedent).
+// Budgets are disabled on the main app (sweep precedent).
 // Time travel (past delivery deadlines / closed windows) is done with
 // direct escrow-row updates — the tests own their fixtures.
 import { afterAll, describe, expect, it, vi } from 'vitest';
@@ -32,7 +32,7 @@ import {
 
 const TEST_CONTRACT = '0x3333333333333333333333333333333333333333';
 process.env.USDT_ESCROW_CONTRACT_ADDRESS = TEST_CONTRACT;
-// Phase 14e P1 (D7 variant B): intent fail-closes without a token address.
+// Intent fail-closes without a token address.
 process.env.USDT_TOKEN_ADDRESS = '0x4444444444444444444444444444444444444444';
 
 const PAYOUT = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';

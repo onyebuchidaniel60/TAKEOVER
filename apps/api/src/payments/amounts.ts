@@ -1,7 +1,6 @@
-// Phase 7: exact unit math for payment amounts. Pure BigInt — never floats,
+// Exact unit math for payment amounts. Pure BigInt — never floats,
 // so large base-unit values stay precise. (The web sell form keeps its own
-// identical copy: apps/web has no test runner, so the tested reference lives
-// here. See AI_HANDOFF Phase 7.)
+// identical copy; the tested reference lives here.)
 
 const BASE_UNITS_PER_NIM = 100_000n;
 const MAX_NIM_DECIMALS = 5;
@@ -26,7 +25,7 @@ export function nimToBaseUnits(input: string): string {
 }
 
 /**
- * Phase 14g-1 (F2): reverse of nimToBaseUnits — exact base-unit string back
+ * Reverse of nimToBaseUnits — exact base-unit string back
  * to a trimmed decimal NIM string ("40000000" -> "400", "150000" -> "1.5").
  * Throws on garbage or non-positive values. Pure BigInt, never floats.
  */

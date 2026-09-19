@@ -1,4 +1,4 @@
-// Phase 9 unit tests — no database. Covers display_name validation and
+// unit tests — no database. Covers display_name validation and
 // wallet truncation for provider-facing displays.
 import { describe, expect, it } from 'vitest';
 import { deriveNimiqAddress, truncateWalletAddress } from '../src/auth/nimiq-address';

@@ -1,4 +1,4 @@
-// Phase 9 frontend tests — no backend, no wallet. Covers the auth
+// frontend tests — no backend, no wallet. Covers the auth
 // return-target helper, claim bucket grouping, and wallet truncation.
 import { describe, expect, it } from 'vitest';
 import { getReturnTo } from '../src/components/RequireAuth';

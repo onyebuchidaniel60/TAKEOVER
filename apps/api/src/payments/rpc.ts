@@ -1,4 +1,4 @@
-// Phase 8: Nimiq JSON-RPC read client (server-side payment verification).
+// Nimiq JSON-RPC read client (server-side payment verification).
 // Raw fetch against NIMIQ_RPC_URL — @nimiq/core stays a test-only oracle and
 // is never imported by production code.
 //
@@ -15,7 +15,7 @@
 //   (senderData is '' for basic→basic with-data payments).
 export const DEFAULT_NIMIQ_RPC_URL = 'https://rpc.nimiqwatch.com';
 
-/** RPC fetch timeout: 5 seconds per the locked Phase 8 decision. */
+/** RPC fetch timeout: 5 seconds per the locked decision. */
 export const NIMIQ_RPC_TIMEOUT_MS = 5_000;
 
 /** Confirmations required before a payment counts as verified. */

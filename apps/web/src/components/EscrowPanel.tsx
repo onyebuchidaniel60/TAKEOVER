@@ -1,4 +1,4 @@
-// Phase 14e P1: buyer-facing USDT escrow panel, sub-component dispatch by
+// Buyer-facing USDT escrow panel, sub-component dispatch by
 // escrow status. Fixed rail (D8 — no token selector; intent sends the
 // literal 'USDT_POLYGON'). Instruction step: exact amount/contract/token
 // from the server response (D7-B — nothing token-specific hardcoded),
@@ -72,7 +72,7 @@ export default function EscrowPanel({
           setLoad({ kind: 'no-escrow' });
           return;
         }
-        // Render-what-it-gets: the backend gates note visibility (14d-4);
+        // Render-what-it-gets: the backend gates note visibility;
         // a non-empty string renders, anything else hides.
         const contactNote =
           typeof escrowClaim?.provider_contact_note === 'string' &&
@@ -127,7 +127,7 @@ export default function EscrowPanel({
     return <InstructionStep claimId={claim.id} onSubmitted={handleUpdate} />;
   }
   const escrow = load.escrow;
-  // Buyer-side contact note (P2): the backend gates visibility (14d-4);
+  // Buyer-side contact note (P2): the backend gates visibility;
   // a non-null note renders under the status, null hides. No re-gating here.
   const noteBlock =
     load.contactNote !== null ? (

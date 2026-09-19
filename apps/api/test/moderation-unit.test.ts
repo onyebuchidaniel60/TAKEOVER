@@ -1,4 +1,4 @@
-// Phase 10 unit tests — no DB. Reason enum, notes bounds, report-target
+// unit tests — no DB. Reason enum, notes bounds, report-target
 // guard, and the admin allowlist parser.
 import { describe, expect, it } from 'vitest';
 import { deriveNimiqAddress } from '../src/auth/nimiq-address';

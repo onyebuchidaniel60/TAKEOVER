@@ -1,4 +1,4 @@
-// Phase 14l-2: notifications section (top-level Notifications page since
+// Notifications section (top-level Notifications page since
 // the nav-tab move). Own fetch (loading/error states local to the
 // section); newest first; unread rows carry a dot; tapping a row marks
 // it read and navigates to the related claim or slot.

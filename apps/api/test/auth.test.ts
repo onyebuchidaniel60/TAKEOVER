@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// Phase 13 determinism: live-DB chains (login + mutations + verification
+// Determinism: live-DB chains (login + mutations + verification
 // reads) measure 2-5s per test against remote Postgres with spikes past 5s;
 // observed failures were wall-clock timeouts only, scattered across tests
 // and runs, never wrong values. File-level budget per the claims.test.ts
@@ -16,7 +16,7 @@ import { auditEvents, authChallenges, sessions, users } from '../../../db/schema
 
 // Live integration + security suite for wallet authentication.
 // The signature verifier is injected (mutable stub) so every state transition
-// is deterministic. Production wires the real Nimiq verifier (see handoff);
+// is deterministic. Production wires the real Nimiq verifier (see ARCHITECTURE.md §4.5);
 // these tests prove the surrounding state machine, not cryptography
 // (cryptography is proven by test/crypto.test.ts against real vectors).
 describe.skipIf(!isDatabaseConfigured())('wallet auth (live)', () => {
@@ -35,7 +35,7 @@ describe.skipIf(!isDatabaseConfigured())('wallet auth (live)', () => {
 
   const wallets = new Set<string>();
 
-  // Phase 12 completion (F4): the CSRF guard requires an allowlisted Origin
+  // Completion (F4): the CSRF guard requires an allowlisted Origin
   // and the client header on every credentialed mutation. The test allowlist
   // is the dev default (CORS_ORIGINS unset here).
   const CSRF = { origin: 'http://localhost:5173', 'x-takeover-client': 'web' };
@@ -53,7 +53,7 @@ describe.skipIf(!isDatabaseConfigured())('wallet auth (live)', () => {
     for (const wallet of wallets) {
       const found = await db.select().from(users).where(eq(users.walletAddress, wallet)).limit(1);
       if (found[0]) {
-        // Phase 10 audit rows reference their actor: remove them first.
+        // Audit rows reference their actor: remove them first.
         await db.delete(auditEvents).where(eq(auditEvents.actorUserId, found[0].id));
         await db.delete(sessions).where(eq(sessions.userId, found[0].id));
         await db.delete(authChallenges).where(eq(authChallenges.walletAddress, wallet));

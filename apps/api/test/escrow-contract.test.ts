@@ -1,4 +1,4 @@
-// Phase 14d-1 escrow contract interface tests (no network, no chain).
+// 1 Escrow contract interface tests (no network, no chain).
 // Proves the shared ABI const parses as JSON and its function/event
 // signatures match docs/escrow-contract-interface.md exactly, so the
 // separate Solidity repo and this repo's future backend client agree.

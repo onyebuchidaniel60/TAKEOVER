@@ -1,4 +1,4 @@
-// Phase 7 unit tests — no database. Covers intent data formatting, exact
+// unit tests — no database. Covers intent data formatting, exact
 // NIM→base-unit math, and txHash shape validation.
 import { describe, expect, it } from 'vitest';
 import { nimToBaseUnits } from '../src/payments/amounts';

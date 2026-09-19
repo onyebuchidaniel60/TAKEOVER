@@ -6,7 +6,20 @@ import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
   {
-    ignores: ['**/node_modules/**', '**/dist/**', '**/coverage/**', 'db/migrations/**', 'contracts/lib/**'],
+    ignores: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/coverage/**',
+      'db/migrations/**',
+      'contracts/lib/**',
+      // Local-only agent/assistant artifacts (gitignored, not repo code).
+      '.opencode/**',
+      '.claude/**',
+      '.agents/**',
+      'agent/**',
+      'docs/phases/**',
+      'docs/reports/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -41,7 +54,7 @@ export default tseslint.config(
     // F2 guard (accepted drizzle-orm CVE risk, GHSA-gpj5-g38j-94v9): the CVE
     // is unreachable only while no dynamic identifiers reach SQL. These
     // selectors forbid the sinks outright in shipped server code and DB
-    // tooling (migrations are generated DDL and already ignored above).
+    // Tooling (migrations are generated DDL and already ignored above).
     // Legitimate static uses keep working: sql`` tagged templates (values
     // stay parameterized) and db.execute(sql`SELECT 1`) in db/verify.ts.
     files: ['apps/api/src/**/*.ts', 'db/*.ts'],

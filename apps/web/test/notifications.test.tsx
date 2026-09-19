@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Phase 14l-2: notifications UI — badge visibility, newest-first list,
+// Notifications UI — badge visibility, newest-first list,
 // mark-all-read clearing the badge, tap-to-read navigation.
 // Hamburger-drawer move: the badge lives on the Notifications item
 // inside the drawer (plus a numberless dot on the menu button); the

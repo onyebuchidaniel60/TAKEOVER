@@ -1,4 +1,4 @@
-// Phase 12 adversarial security suite — live DB, one test per
+// Adversarial security suite — live DB, one test per
 // ARCHITECTURE.md s16 threat-matrix row. Auth goes through the real
 // challenge/verify flow with an injected signature stub (cryptography itself
 // is proven by crypto.test.ts + the @nimiq/core oracle); chain reads use a
@@ -29,7 +29,7 @@ import {
 } from '../../../db/schema';
 
 // Remote-Postgres latency: every test in this file gets a 60s budget
-// (Phase 10 precedent — sequential live round trips exceed the 5s default;
+// (established precedent — sequential live round trips exceed the 5s default;
 // raised 30s → 60s in 14e P3 after the brute-force budget test timed out
 // at 30s under parallel load — the rate-limit windows it sleeps through
 // are wall-clock by design).
@@ -40,7 +40,7 @@ vi.setConfig({ testTimeout: 60000 });
 const API_SRC = resolve(process.cwd(), 'src');
 const WEB_DIST = resolve(process.cwd(), '../../web/dist');
 
-describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (live)', () => {
+describe.skipIf(!isDatabaseConfigured())('adversarial security pass (live)', () => {
   const stubVerifier: VerifySignatureFn = () => true;
 
   const fake: {
@@ -87,7 +87,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
   const reportIds: string[] = [];
   const HOUR = 3_600_000;
 
-  // Phase 12 completion (F4): the CSRF guard requires an allowlisted Origin
+  // Completion (F4): the CSRF guard requires an allowlisted Origin
   // and the client header on every credentialed mutation. The test allowlist
   // is the dev default (CORS_ORIGINS unset here).
   const CSRF = { origin: 'http://localhost:5173', 'x-takeover-client': 'web' };
@@ -728,7 +728,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 adversarial security pass (li
     expect(slot?.availableQuantity).toBe((slot?.totalQuantity ?? 0) - 1);
   });
 
-  // -- CSRF guard (Phase 12 completion, F4) ---------------------------------------------
+  // -- CSRF guard (F4) ---------------------------------------------
 
   it('csrf guard: credentialed POST with no Origin is rejected', async () => {
     const cookie = await loginAs(randomWallet());

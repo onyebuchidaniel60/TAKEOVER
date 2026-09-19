@@ -56,7 +56,7 @@ export const useAuth = create<AuthState>()((set) => ({
         method: 'POST',
         body: JSON.stringify({ walletAddress, nonce: challenge.nonce, signature, publicKey }),
       });
-      // Phase 14c Bearer fallback: keep the session token for cookie-blocking
+      // Bearer fallback: keep the session token for cookie-blocking
       // hosts. Stored in sessionStorage only (see lib/api); ignored when the
       // backend predates the field.
       if (typeof verified.sessionToken === 'string' && verified.sessionToken.length > 0) {
@@ -70,13 +70,13 @@ export const useAuth = create<AuthState>()((set) => ({
 
   logout: async () => {
     try {
-      // Phase 14c round 3 (Fix A1): send a JSON body — a bodyless POST under
+      // Send a JSON body — a bodyless POST under
       // content-type: application/json is rejected before it revokes anything.
       await apiFetch('/api/v1/auth/logout', { method: 'POST', body: JSON.stringify({}) });
     } catch {
       // Server already forgot us or unreachable: still reset local state.
     }
-    // Phase 14c: dropping the Bearer token is part of logout — the server
+    // Dropping the Bearer token is part of logout — the server
     // revokes the single underlying session, killing both credential paths.
     setSessionToken(null);
     set({ status: 'unauthenticated', user: null, error: null, initialized: true });

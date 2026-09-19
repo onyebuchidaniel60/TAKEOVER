@@ -1,4 +1,4 @@
-// Phase 4: public read-only marketplace endpoints. Phase 5: authenticated
+// Public read-only marketplace endpoints. Authenticated
 // provider lifecycle (create / edit draft / publish / cancel / my slots).
 // All responses use the { data, requestId } envelope; errors use
 // { error: { code, message }, requestId }.
@@ -175,7 +175,7 @@ export async function slotRoutes(app: FastifyInstance, opts: SlotRouteOptions = 
     if (!params.success) {
       throw new AppError(400, 'INVALID_INPUT', 'Invalid slot id.');
     }
-    // Phase 14g-1: optional fee body. {} stays valid (no-fee path); unknown
+    // Optional fee body. {} stays valid (no-fee path); unknown
     // fields → 400. Hash well-formedness is the lifecycle's PAYMENT_INVALID_TX.
     const body = publishBodySchema.safeParse(request.body);
     if (!body.success) {
@@ -220,7 +220,7 @@ export async function slotRoutes(app: FastifyInstance, opts: SlotRouteOptions = 
     });
   });
 
-  // Phase 14d-4: one-way provider contact note. Write gate is open (any
+  // One-way provider contact note. Write gate is open (any
   // owned status); the buyer read gate lives on the claim/escrow views.
   // Owner-only (non-owner or missing slot → 404, never 403), same shape as
   // the existing PATCH response ({ slot } owner projection).

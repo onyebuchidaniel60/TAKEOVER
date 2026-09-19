@@ -1,4 +1,4 @@
-// Phase 6: atomic buyer claims. No money moves here — holds only.
+// Atomic buyer claims. No money moves here — holds only.
 // All responses use the { data, requestId } envelope; errors use
 // { error: { code, message }, requestId }.
 import type { FastifyInstance } from 'fastify';

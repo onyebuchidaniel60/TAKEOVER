@@ -1,4 +1,4 @@
-// Phase 9: provider display-name profiles. One row per user at most
+// Provider display-name profiles. One row per user at most
 // (user_id UNIQUE); only display_name is editable — verified stays
 // server/admin-controlled and is never written here. No new columns.
 import { getDb } from '../../../../db/client';

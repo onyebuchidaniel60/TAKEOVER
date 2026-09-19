@@ -56,7 +56,7 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
       cb(null, false);
     },
     // Explicit method list: the @fastify/cors default is only GET,HEAD,POST,
-    // which blocks PATCH preflights (Phase 14b). Keep all methods the API
+    // which blocks PATCH preflights. Keep all methods the API
     // uses plus near-term verbs; origin allowlist + credentials unchanged.
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,

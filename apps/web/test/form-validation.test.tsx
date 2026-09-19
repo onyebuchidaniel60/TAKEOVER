@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Phase 14c round 3 — form-level validation DOM tests (fix C + guardrail 7).
+// Form-level validation DOM tests (fix C + guardrail 7).
 // Pure validator matrices live in request-bodies.test.ts; these prove the
 // wiring: invalid input blocks submit with an inline reason, valid input
 // submits, and server rejections still surface the server's reason.
@@ -39,7 +39,7 @@ describe('SlotForm client validation', () => {
     total_quantity: '',
   };
 
-  it('labels the price input in USDT (Phase 14h)', async () => {
+  it('labels the price input in USDT', async () => {
     const onSubmit = vi.fn();
     const { unmount } = render(
       <SlotForm initial={emptyInitial} submitLabel="Save draft" submitting={false} serverError={null} onSubmit={onSubmit} />,
@@ -135,7 +135,7 @@ describe('SlotForm client validation', () => {
   });
 
   it('submits a valid future start with no end and omits ends_at', async () => {
-    // Phase 14c round 5 (Item 4, case c): ends_at stays optional — a valid
+    // Ends_at stays optional — a valid
     // future start with no end must submit, with no ends_at key in the body.
     // Cases a/b/d are covered by the tests above and the validator matrix in
     // request-bodies.test.ts.

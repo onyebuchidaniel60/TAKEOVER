@@ -1,4 +1,4 @@
-// Phase 6: claim input validation. Bodies carry no claim fields — claiming
+// Claim input validation. Bodies carry no claim fields — claiming
 // takes no input — but unknown fields are still rejected per the envelope rule.
 import { z } from 'zod';
 import type { ClaimStatusValue } from './service';

@@ -1,4 +1,4 @@
-// Phase 10: admin-only route guard. Authenticated AND role='admin' passes.
+// Admin-only route guard. Authenticated AND role='admin' passes.
 // Guests fall back to the marketplace (preserving the return target like
 // RequireAuth); signed-in non-admins go to "/" with a notice instead.
 import { Navigate, useLocation } from 'react-router-dom';

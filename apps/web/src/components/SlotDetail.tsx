@@ -3,7 +3,7 @@ import AvailabilityBadge from './AvailabilityBadge';
 import PriceDisplay from './PriceDisplay';
 import TimeBadge from './TimeBadge';
 
-// WHAT / WHEN / WHERE / HOW MUCH / HOW MANY LEFT. No claim action (Phase 6).
+// WHAT / WHEN / WHERE / HOW MUCH / HOW MANY LEFT. No claim action.
 export default function SlotDetail({ slot }: { slot: PublicSlot }) {
   const when = new Date(slot.starts_at).toLocaleString(undefined, {
     weekday: 'long',

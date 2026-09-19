@@ -1,7 +1,7 @@
-// Phase 14d-4: provider contact-note endpoint + buyer visibility gate (live
+// Provider contact-note endpoint + buyer visibility gate (live
 // DB, mocked Polygon client). Auth via the real challenge/verify flow with
 // an injected signature stub. Fresh claims per test keep limiters isolated;
-// budgets are disabled on the main app (Phase 13 sweep precedent). Escrow
+// Budgets are disabled on the main app (sweep precedent). Escrow
 // statuses past `disputed` are set with direct row updates — the gate reads
 // the status only, and the tests own their fixtures (dispute-refund
 // precedent for time travel via direct updates).
@@ -33,7 +33,7 @@ import {
 
 const TEST_CONTRACT = '0x3333333333333333333333333333333333333333';
 process.env.USDT_ESCROW_CONTRACT_ADDRESS = TEST_CONTRACT;
-// Phase 14e P1 (D7 variant B): intent fail-closes without a token address.
+// Intent fail-closes without a token address.
 process.env.USDT_TOKEN_ADDRESS = '0x4444444444444444444444444444444444444444';
 
 const PAYOUT = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';

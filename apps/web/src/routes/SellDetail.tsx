@@ -1,4 +1,4 @@
-// Phase 5: manage one owned opening. Drafts are editable + publishable;
+// Manage one owned opening. Drafts are editable + publishable;
 // drafts and published openings are cancellable. Auth-guarded.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -47,7 +47,7 @@ export default function SellDetail() {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  // Phase 14g-1: NIM listing-fee state. feeConfig null = not loaded (or the
+  // NIM listing-fee state. feeConfig null = not loaded (or the
   // config read failed — then plain publish is attempted and the backend,
   // which is authoritative, enforces the fee). feeHash preserves the
   // broadcast hash for the D6 same-hash retry (never auto-retried).
@@ -303,7 +303,7 @@ function ManageSlot({
 }) {
   const isDraft = slot.status === 'draft';
   const canCancel = slot.status === 'draft' || slot.status === 'published';
-  // Phase 14g-1: fee disclosure. Rendered only when the config says a fee is
+  // Fee disclosure. Rendered only when the config says a fee is
   // required (never Luna, never on the no-fee path). Misconfigured → publish
   // is disabled with a support banner instead.
   const feeRequired = feeConfig?.required === true;
@@ -437,7 +437,7 @@ function ManageSlot({
   );
 }
 
-// Phase 14e P2: provider demand list (D5 — per-claim rows on SellDetail).
+// Provider demand list (D5 — per-claim rows on SellDetail).
 // Claim rows come from the existing provider endpoint (truncated buyer
 // identifiers server-side); each row resolves its own escrow state for
 // the mark-delivered gate. Drafts have no demand section.

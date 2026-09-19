@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Phase 14g-1 component tests — SellDetail publish flow with a mocked wallet
+// 1 Component tests — SellDetail publish flow with a mocked wallet
 // and fetch layer (a11y-helpers harness). Proves: fee disclosure + approve
 // button when required; plain publish when not; D6 same-hash retry banner
 // after a verify failure; broadcast failure distinct from verify failure;

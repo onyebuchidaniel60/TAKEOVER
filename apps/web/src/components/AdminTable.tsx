@@ -1,4 +1,4 @@
-// Phase 10: shared admin table shell (horizontal scroll on mobile, text
+// Shared admin table shell (horizontal scroll on mobile, text
 // labels alongside any status color so color is never the only indicator).
 import type { ReactNode } from 'react';
 

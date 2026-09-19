@@ -1,6 +1,6 @@
-// Phase 7: payment intent + submission service. Recording only — NO chain
-// reads, NO verification here (Phase 8). The tx_hash UNIQUE constraint from
-// Phase 2 is the replay guard; the DB enforces it, this layer maps it.
+// Payment intent + submission service. Recording only — NO chain
+// reads, NO verification here. The tx_hash UNIQUE constraint from
+// The tx_hash UNIQUE constraint is the replay guard; the DB enforces it, this layer maps it.
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
 import { claims, paymentIntents, slots, users } from '../../../../db/schema';

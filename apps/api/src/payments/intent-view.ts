@@ -1,4 +1,4 @@
-// Phase 7: buyer-facing payment-intent projection. Field names are the locked
+// Buyer-facing payment-intent projection. Field names are the locked
 // camelCase contract. expected_sender is DELIBERATELY absent — it is
 // server-side reconciliation data, never shown to the buyer.
 import type { paymentIntents } from '../../../../db/schema';

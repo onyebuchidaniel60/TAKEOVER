@@ -1,4 +1,4 @@
-// Phase 5: provider slot lifecycle service. Server is authoritative: every
+// Provider slot lifecycle service. Server is authoritative: every
 // mutation loads the slot, enforces owner + state, and writes atomically.
 // State-changing updates use conditional WHERE clauses so concurrent
 // transitions fail closed instead of silently overwriting each other.
@@ -139,7 +139,7 @@ export async function updateDraftSlot(
 }
 
 /**
- * Phase 14d-4: set or clear the provider contact note. The write gate is
+ * Set or clear the provider contact note. The write gate is
  * deliberately open — any status the caller owns — the restriction lives on
  * the buyer read gate (claim/escrow views). The row lock serializes
  * concurrent PATCHes so a same-value re-set is a true no-op (no write, no
@@ -287,7 +287,7 @@ async function publishSlotUnpaid(
 }
 
 /**
- * Phase 14g-1: fee-gated publish. Verifies the seller's on-chain NIM fee
+ * Fee-gated publish. Verifies the seller's on-chain NIM fee
  * transfer before flipping draft → published. Stateless across attempts:
  * nothing is stored until verification succeeds, so a failed attempt leaves
  * the slot draft and the client retries with the same hash (D6); the
@@ -495,7 +495,7 @@ export async function cancelSlot(
   audit?: { requestId?: string | null },
 ): Promise<OwnerSlot> {
   const row = await db.transaction(async (tx) => {
-    // Row lock (Phase 13 race fix): without it a concurrent claim can commit
+    // Row lock (race fix): without it a concurrent claim can commit
     // between the hold-release UPDATE below and the slot-cancel UPDATE,
     // leaving live holds on a cancelled slot. createClaim and admin
     // disableSlot already lock the same way; same lock order (slot first),

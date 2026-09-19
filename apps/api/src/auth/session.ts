@@ -36,7 +36,7 @@ export function sessionCookieOptions(): {
   // (Vite proxy, first-party) keeps working.
   // Production: SameSite=None, Secure=true so the browser sends the session
   // cookie on cross-site HTTPS requests with credentials:'include'.
-  // HttpOnly is always true. No bearer-token fallback (per Phase 3 completion).
+  // HttpOnly is always true.
   if (isProduction()) {
     return { path: '/', httpOnly: true, secure: true, sameSite: 'none' };
   }
@@ -45,7 +45,7 @@ export function sessionCookieOptions(): {
 
 /**
  * Resolves the session into req.user from the takeover_session cookie
- * (preferred) or — Phase 14c Bearer fallback for cookie-blocking WebViews —
+ * (preferred) or — Bearer fallback for cookie-blocking WebViews —
  * from `Authorization: Bearer <sessionId>.<secret>`. Never throws for
  * missing/invalid sessions — it just leaves req.user undefined. Both
  * presentations resolve to the SAME session row with the SAME constant-time

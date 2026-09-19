@@ -4,7 +4,7 @@ import { escrowEntryType, escrowStatus, paymentToken } from './enums';
 import { claims } from './claims';
 import { users } from './users';
 
-// Phase 14d-1 escrow tables. The escrow row is created at escrow-intent time
+// 1 Escrow tables. The escrow row is created at escrow-intent time
 // (status 'created', before any deposit), so the funded fields are nullable
 // and guarded by a CHECK: every non-created row must carry the full funded
 // tuple. NIM movements are mirrored here as double-entry rows; USDT movements
@@ -33,7 +33,7 @@ export const escrows = pgTable(
     refundTxHash: text('refund_tx_hash').unique(),
     contractAddress: text('contract_address'),
     onChainEscrowId: text('on_chain_escrow_id'),
-    // Phase 14d-3a: provider EVM payout address, supplied in the
+    // Provider EVM payout address, supplied in the
     // mark-delivered body on first call and stored immutably (later calls
     // must match). Plain TEXT at DB level; hex shape enforced at the API
     // boundary and service layer.

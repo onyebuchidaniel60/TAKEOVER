@@ -1,4 +1,4 @@
-// Phase 14l-2: notifications — unit validation plus live-DB integration
+// Notifications — unit validation plus live-DB integration
 // (writers fire exactly once inside the funding/delivery transactions;
 // endpoints are owner-scoped and idempotent).
 import { afterAll, describe, expect, it, vi } from 'vitest';

@@ -2,7 +2,7 @@ import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { users } from './users';
 
-// Phase 14l-2: in-app notifications. Two events only: a funded escrow
+// In-app notifications. Two events only: a funded escrow
 // (provider is told to deliver) and a delivered escrow (buyer is told to
 // confirm). Rows are written INSIDE the same DB transaction as the state
 // change they describe — notification and action succeed or fail together.

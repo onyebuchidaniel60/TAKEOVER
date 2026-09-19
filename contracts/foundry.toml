@@ -4,9 +4,9 @@ out = "out"
 libs = ["lib"]
 test = "test"
 
-# Pinned toolchain version (Phase 14e-1). OZ v5 needs ^0.8.20; 0.8.28 is a
+# Pinned toolchain version. OZ v5 needs ^0.8.20; 0.8.28 is a
 # recent 0.8.x with Cancun+ EVM support for OZ v5's transient
-# ReentrancyGuard. Deployment target for 14e-2 is Polygon Amoy (80002).
+# ReentrancyGuard. Deployment target for the testnet runs was Polygon Amoy (80002).
 solc = "0.8.28"
 
 # Optimizer: the escrow entry points run a few times per escrow, so

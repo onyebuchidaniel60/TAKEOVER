@@ -1,4 +1,4 @@
-// Phase 14l-2: in-app notifications. Two events only: a funded escrow
+// In-app notifications. Two events only: a funded escrow
 // (the provider is told to deliver) and a delivered escrow (the buyer is
 // told to confirm). Rows are written INSIDE the same DB transaction as the
 // state change they describe — notification and action succeed or fail

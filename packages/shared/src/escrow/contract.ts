@@ -1,9 +1,9 @@
-// Phase 14d-1: TypeScript-side binding for the Polygon USDT escrow contract.
+// TypeScript-side binding for the Polygon USDT escrow contract.
 // Interface + types + ABI const ONLY — no implementation, no network, no
 // signing. The Solidity contract is a separate deliverable (its own repo)
 // implementing docs/escrow-contract-interface.md; this module is the shape
 // that repo implements against and that this repo's backend will call in
-// 14d-2+. Reachable by apps/api (and later apps/web) via direct import.
+// +. Reachable by apps/api (and later apps/web) via direct import.
 
 // USDT uses 6 decimals on Polygon. Amounts are exact base-unit bigints here;
 // never floats, never Javascript numbers (see baseUnitsToSafeNumber at the
@@ -55,7 +55,7 @@ export interface DisputedEvent {
   blockNumber: number;
 }
 
-// -- Backend-facing client (implemented in 14d-2, extended in 14d-3a) --------
+// -- Backend-facing client (deposit and release paths) --------
 
 export interface EscrowContractClient {
   getDepositEvent(escrowId: string): Promise<DepositedEvent | null>;

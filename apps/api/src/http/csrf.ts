@@ -1,4 +1,4 @@
-// Phase 12 completion (F4): CSRF guard for credentialed mutations. One place
+// Completion (F4): CSRF guard for credentialed mutations. One place
 // to audit — Origin allowlist validation and the required custom header live
 // together in createCsrfGuard, wired once in app.ts for every /api/v1 route.
 import type { FastifyRequest } from 'fastify';
@@ -19,8 +19,8 @@ export function isMutatingMethod(method: string): boolean {
 /**
  * Rejects cross-site mutations that would otherwise ride the session cookie:
  * - skipped when the method is idempotent or no session cookie is present
- *   (no auto-attached credential means nothing to steal). Phase 14c (owner
- *   approved): this skip explicitly covers requests authenticated SOLELY via
+ *   (no auto-attached credential means nothing to steal). This skip
+ *   explicitly covers requests authenticated SOLELY via
  *   `Authorization: Bearer <session-token>` — a Bearer token is never
  *   auto-attached by the browser, and sending it cross-origin forces a
  *   CORS-preflight-gated custom header while preflight itself is already

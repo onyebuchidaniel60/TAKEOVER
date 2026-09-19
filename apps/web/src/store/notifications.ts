@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { fetchNotifications } from '../lib/slots';
 
-// Phase 14l-2: unread-notification count shared by the TopBar badge and the
+// Unread-notification count shared by the TopBar badge and the
 // Profile notifications section. Refreshed on route change (TopBar) and
 // after read mutations (section) — no polling loop, no realtime channel.
 interface NotificationsState {

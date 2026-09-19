@@ -1,4 +1,4 @@
-// Phase 6: atomic claim service. The row lock (SELECT … FOR UPDATE) is what
+// Atomic claim service. The row lock (SELECT … FOR UPDATE) is what
 // serializes concurrent claims — no advisory locks, no external mechanisms.
 // Quantity is fixed at 1; the schema supports more, the feature is deferred.
 import { and, count, desc, eq, inArray, lt, sql } from 'drizzle-orm';
@@ -20,7 +20,7 @@ import {
 
 type Db = ReturnType<typeof getDb>;
 
-/** Claim quantity is fixed at 1 in Phase 6. */
+/** Claim quantity is fixed at 1. */
 export const CLAIM_QUANTITY = 1;
 
 /** Claim states that count as "live" — mirrors the partial unique index. */
@@ -53,7 +53,7 @@ export function isHoldExpired(
   return claim.status === 'active_hold' && claim.holdExpiresAt.getTime() < now.getTime();
 }
 
-/** Postgres unique-violation code — shared replay-guard detector (Phase 7 reuses it). */
+/** Postgres unique-violation code — shared replay-guard detector (reused by payments). */
 export function isUniqueViolation(err: unknown): boolean {
   return (
     typeof err === 'object' &&
@@ -258,7 +258,7 @@ export async function getClaimForBuyer(
   if (!slot) {
     return null;
   }
-  // Phase 14d-4: gated contact note. No lazy transition runs here (plain
+  // Gated contact note. No lazy transition runs here (plain
   // read, like GET /me/claims) — the gate reads the escrow row as-is.
   const escrowRows = await db.select().from(escrows).where(eq(escrows.claimId, claim.id)).limit(1);
   const escrow = escrowRows[0];
@@ -315,7 +315,7 @@ const EMPTY_SLOT_CLAIM_COUNTS: SlotClaimCounts = {
 };
 
 /**
- * Phase 9: every claim on one provider-owned slot, newest first, with
+ * Every claim on one provider-owned slot, newest first, with
  * truncated buyer identifiers. Non-owned (or missing) slots map to 404 —
  * never 403, never an existence leak. The counts object is computed in the
  * same pass over the same rows as the array, so the two always agree.
@@ -342,7 +342,7 @@ export async function listSlotClaimsForProvider(
   const counts: SlotClaimCounts = { ...EMPTY_SLOT_CLAIM_COUNTS };
   for (const row of rows) {
     views.push(toProviderSlotClaimView(row.claim, truncateWalletAddress(row.buyerWallet)));
-    // Phase 14d-3a: all 12 claim_status values are bucketed (the 14d-1 shim
+    // All 12 claim_status values are bucketed (the shim
     // counted six and dropped escrow states — resolved now).
     counts[row.claim.status as keyof SlotClaimCounts] += 1;
   }

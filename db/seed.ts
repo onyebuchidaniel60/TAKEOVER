@@ -1,4 +1,4 @@
-// Phase 4 tooling: demo seed data for the public marketplace.
+// Tooling: demo seed data for the public marketplace.
 // Reads DATABASE_URL from the environment and never logs it.
 // Usage (value stays in your shell, never printed):
 //   npm.cmd run db:seed
@@ -7,7 +7,7 @@
 // `NQ00 SEEDPAYOUT000000000000X` (payout wallets). The `SEED…` marker breaks
 // the Nimiq IBAN checksum (mod97), so wallet-auth canonicalization ALWAYS
 // rejects these addresses — no seed user can ever authenticate, and no seed
-// row looks like a real wallet. No real PII anywhere. Phase 5+ must treat
+// row looks like a real wallet. No real PII anywhere. Treat
 // these rows as disposable fixtures (safe to delete/ignore).
 //
 // Idempotency: every row uses a FIXED UUID plus onConflictDoNothing, so

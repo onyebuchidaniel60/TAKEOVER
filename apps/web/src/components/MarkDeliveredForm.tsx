@@ -1,4 +1,4 @@
-// Phase 14e P2: provider payout-address form for one escrow_funded claim.
+// Provider payout-address form for one escrow_funded claim.
 // Submits POST mark-delivered with the provider's EVM payout address
 // (0x + 40 hex — validated client-side for UX, authoritatively server-side,
 // stored lowercased and immutably). Idempotent resubmits of the same address

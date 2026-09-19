@@ -30,6 +30,19 @@ Thumbs.db
 
 # Foundry (Solidity toolchain) — build outputs only. contracts/lib/ holds
 # git submodules (forge-std, openzeppelin-contracts) and must stay tracked.
-# contracts/broadcast/ is deliberately NOT ignored (14e-2 decides).
+# contracts/broadcast/ is deliberately NOT ignored (deploy logs stay reviewable).
 contracts/out/
 contracts/cache/
+
+# Agent / assistant artifacts — local-only, not for the remote
+AGENTS.md
+AI_HANDOFF.md
+IMPLEMENTATION_PLAN.md
+.opencode/
+.claude/
+.agents/
+agent/
+
+# Phase logs and agent-authored reports — local-only
+docs/phases/
+docs/reports/

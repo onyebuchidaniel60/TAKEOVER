@@ -1,4 +1,4 @@
-// Phase 10: /admin/reports — newest first, optional status filter,
+// /Admin/reports — newest first, optional status filter,
 // resolve dialog per row. Resolving records the outcome only; it takes no
 // automatic further action.
 import { useCallback, useEffect, useState } from 'react';

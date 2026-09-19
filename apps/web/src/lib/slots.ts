@@ -1,4 +1,4 @@
-// Phase 4: public marketplace API client. No wallet, no Nimiq SDK here —
+// Public marketplace API client. No wallet, no Nimiq SDK here —
 // discovery is public and read-only.
 import { apiFetch } from './api';
 
@@ -42,7 +42,7 @@ export interface SlotFilters {
 export const BASE_UNITS_PER_USDT = 1_000_000;
 
 /**
- * Phase 14c round 5: owner-approved fixed category list. UX layer ONLY —
+ * Owner-approved fixed category list. UX layer ONLY —
  * the server still accepts any string for category, so values outside this
  * list (older rows, direct URLs) keep working and must never crash a form.
  */
@@ -91,10 +91,10 @@ export function fetchSlot(slotId: string): Promise<{ slot: PublicSlot }> {
   return apiFetch<{ slot: PublicSlot }>(`/api/v1/slots/${encodeURIComponent(slotId)}`);
 }
 
-// Phase 5: owner projection — everything public plus the provider contact
+// Owner projection — everything public plus the provider contact
 // note. (The NIM-era payout_wallet field was removed: the USDT escrow flow
 // collects the provider payout address at mark-delivered time instead.)
-// Phase 14e P2: plus the provider contact note (14d-4 owner projection;
+// Plus the provider contact note ( owner projection;
 // may be absent on stale mocks — callers treat undefined as null).
 export interface OwnerSlot extends PublicSlot {
   provider_contact_note?: string | null;
@@ -118,7 +118,7 @@ export interface SlotWrite {
   total_quantity: number;
 }
 
-// Phase 14c round 3 (Fix C): client-side mirrors of the server validation
+// Client-side mirrors of the server validation
 // rules. UX layer ONLY — the server remains authoritative: every rule below
 // has a server-side twin (slots/validation.ts, provider-profiles/
 // validation.ts), and anything the server still rejects surfaces the
@@ -261,11 +261,11 @@ export function updateSlot(slotId: string, body: Partial<SlotWrite>): Promise<{ 
 }
 
 export function publishSlot(slotId: string, transactionHash?: string): Promise<{ slot: OwnerSlot }> {
-  // Phase 14c round 3 (Fix A1): always send a JSON body — Fastify rejects an
+  // Always send a JSON body — Fastify rejects an
   // empty body under content-type: application/json (400), which broke
   // bodyless mutations on real browsers while inject-based tests (no
   // content-type header) stayed green.
-  // Phase 14g-1: optional fee hash. Omitted (not null) on the no-fee path so
+  // Optional fee hash. Omitted (not null) on the no-fee path so
   // the wire shape stays exactly {} as before.
   const body = transactionHash === undefined ? {} : { transactionHash };
   return apiFetch<{ slot: OwnerSlot }>(`/api/v1/slots/${encodeURIComponent(slotId)}/publish`, {
@@ -274,7 +274,7 @@ export function publishSlot(slotId: string, transactionHash?: string): Promise<{
   });
 }
 
-// Phase 14g-1: NIM listing-fee terms served by GET /api/v1/config (public).
+// NIM listing-fee terms served by GET /api/v1/config (public).
 // amountNim is a decimal NIM string ("400") — Luna never reaches the UI.
 export interface ListingFeeConfig {
   required: boolean;
@@ -295,7 +295,7 @@ export function cancelSlot(slotId: string): Promise<{ slot: OwnerSlot }> {
   });
 }
 
-// Phase 14e P2: one-way provider contact note (14d-4). Body shape mirrors
+// One-way provider contact note. Body shape mirrors
 // the server schema exactly ({ provider_contact_note: string | null } —
 // null clears). Client-side length/URL checks live in ContactNoteForm (UX
 // only); the server stays authoritative.
@@ -309,17 +309,17 @@ export function updateSlotContactNote(
   });
 }
 
-// Phase 7: buyer payment-intent projection. Mirrors the locked backend shape:
+// Buyer payment-intent projection. Mirrors the locked backend shape:
 // expectedAmountNim is a STRING; expected_sender is never exposed.
 //
-// Phase 14e P1 (partial deprecation): PaymentPanel is deleted and the USDT
+// PaymentPanel is deleted and the USDT
 // escrow loop replaces it as the active_hold writer, so the direct-payment
 // submission path is dead — submitPayment and the NIM-SDK-only
 // baseUnitsToSafeNumber go with it. createPaymentIntent + verifyPayment +
 // the poll helpers STAY: the kept payment_pending branch (VerifyPollBox in
 // ClaimDetailPage) still serves live legacy rows (5 payment_pending at the
-// 14e-P3 recount, 2026-09-18). Full removal in a later phase once zero
-// payment_pending rows remain (§5 gates).
+// 2026-09-18 recount). Full removal later once zero
+// payment_pending rows remain.
 export interface PaymentIntent {
   id: string;
   claimId: string;
@@ -343,7 +343,7 @@ export function createPaymentIntent(claimId: string): Promise<{
   });
 }
 
-// Phase 8: verification result projection. Mirrors the locked backend shape:
+// Verification result projection. Mirrors the locked backend shape:
 // status is verified|pending|review; confirmations appears when the chain
 // reported it; reason is a client-generic code (sender/recipient/amount/data
 // mismatch or timeout) — specifics stay server-side.
@@ -364,7 +364,7 @@ export function verifyPayment(claimId: string): Promise<{
   });
 }
 
-// Phase 8: pure poll-scheduling helper for the payment_pending screen.
+// Pure poll-scheduling helper for the payment_pending screen.
 // Returns the next auto-poll delay in ms, or null to stop polling.
 export const VERIFY_POLL_INTERVAL_MS = 5_000;
 export const VERIFY_POLL_MAX_ATTEMPTS = 60;
@@ -392,7 +392,7 @@ export function nextVerifyPollDelayMs(
   }
 }
 
-// Phase 6: buyer claim views (snake_case). No payment fields in this phase.
+// Buyer claim views (snake_case). No payment fields here.
 export interface ClaimView {
   id: string;
   slot_id: string;
@@ -451,7 +451,7 @@ export function fetchMyClaims(
   return apiFetch<MyClaimsResponse>(`/api/v1/me/claims${suffix ? `?${suffix}` : ''}`);
 }
 
-// Phase 9: provider demand view for one owned slot. Mirrors the locked
+// Provider demand view for one owned slot. Mirrors the locked
 // backend shape: truncated buyer identifiers only, plus exact per-status
 // counts (the counts always sum to claims.length — enforced server-side).
 export interface ProviderSlotClaim {
@@ -480,7 +480,7 @@ export function fetchSlotClaims(slotId: string): Promise<{
   return apiFetch(`/api/v1/me/slots/${encodeURIComponent(slotId)}/claims`);
 }
 
-// Phase 9: own profile (GET /me). providerProfile is null until the user
+// Own profile (GET /me). providerProfile is null until the user
 // sets a display name.
 export interface MeUser {
   id: string;
@@ -517,7 +517,7 @@ export function truncateWalletAddress(address: string): string {
   return `${compact.slice(0, 4)}…${compact.slice(-4)}`;
 }
 
-// Phase 14l-2: in-app notifications (provider demand, buyer delivery).
+// In-app notifications (provider demand, buyer delivery).
 export interface NotificationView {
   id: string;
   type: string;
@@ -547,10 +547,10 @@ export function markAllNotificationsRead(): Promise<{ marked: number }> {
   });
 }
 
-// Phase 9: buyer claim buckets for /claims, in display order. Pure grouping
+// Buyer claim buckets for /claims, in display order. Pure grouping
 // over an already-fetched list (kept out of the component per the
 // keep-logic-out-of-UI rule).
-// Phase 14e P1: escrow statuses land in exactly one bucket — a dedicated
+// Escrow statuses land in exactly one bucket — a dedicated
 // 'escrow' bucket for live escrow claims; terminal released/refunded join
 // 'ended'. Legacy buckets unchanged.
 export interface ClaimBucket {

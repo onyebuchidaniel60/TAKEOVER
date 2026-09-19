@@ -1,4 +1,4 @@
-// Phase 14l-3: type-scale snapshot — the locked scale from tailwind.config.js.
+// Type-scale snapshot — the locked scale from tailwind.config.js.
 // display 30/36/-0.02 · h1 24/32/-0.02 · h2 20/28/-0.01 · h3 16/24/-0.01 ·
 // body 14/20/0 · small 12/16/+0.01. No surface may use a size outside this
 // scale; figures pair a scale size with font-mono + tabular-nums.

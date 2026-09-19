@@ -1,4 +1,4 @@
-// Phase 14a: opt-in payment diagnostics for the Phase 14b Nimiq Pay round-trip.
+// Opt-in payment diagnostics for the Nimiq Pay round-trip.
 // Enabled only when the build-time flag VITE_DEBUG_PAYMENTS is exactly 'true'
 // (unset or anything else → disabled). When enabled, the payment flow logs:
 //   - the intent received from the backend (amount + recipient shown, tx hash

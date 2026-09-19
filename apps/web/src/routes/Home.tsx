@@ -1,4 +1,4 @@
-// Phase 4: marketplace feed. Filters live in the URL query params so any
+// Marketplace feed. Filters live in the URL query params so any
 // filtered view is deep-linkable. Public and read-only.
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';

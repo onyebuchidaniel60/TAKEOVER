@@ -1,8 +1,8 @@
-// Phase 8: server-side payment verification against the Nimiq chain. The
+// Server-side payment verification against the Nimiq chain. The
 // blockchain is authoritative here — client-supplied state stops being
-// trusted. Three outcomes: verified (paid), review (human looks, Phase 10),
+// trusted. Three outcomes: verified (paid), review (human review),
 // pending (tx still propagating or under-confirmed — never rejected here).
-// 'rejected' is an admin-only terminal state owned by Phase 10 and is NEVER
+// 'rejected' is an admin-only terminal state admin-owned and is NEVER
 // emitted by this module. Inventory is NEVER restored here (not on review,
 // not on timeout): the buyer might have paid.
 import { and, eq } from 'drizzle-orm';
@@ -340,7 +340,7 @@ export async function verifyPayment(
       };
     }
     // Review (mismatch or timeout): intent → review, claim → payment_review.
-    // Inventory is NOT restored — the buyer might have paid. Phase 10 decides.
+    // Inventory is NOT restored — the buyer might have paid. An admin decides.
     const updatedIntent = await tx
       .update(paymentIntents)
       .set({ status: 'review', updatedAt: now })

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Phase 11 keyboard + focus tests: semantic controls everywhere, Enter
+// keyboard + focus tests: semantic controls everywhere, Enter
 // activates, Escape closes every dialog, focus traps inside dialogs and
 // returns to the trigger on close.
 import { render, screen, waitFor } from '@testing-library/react';

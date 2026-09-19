@@ -51,7 +51,7 @@ const envSchema = z.object({
   // (strict 32-byte-hex validation lives in the signer module, which fails
   // closed at first release attempt, never at boot).
   ESCROW_SIGNER_PRIVATE_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
-  // Phase 14g-1: NIM listing fee. Decimal NIM string (e.g. "400") — users
+  // NIM listing fee. Decimal NIM string (e.g. "400") — users
   // never see Luna; the backend converts via nimToBaseUnits. Receive-only
   // fee wallet (never signs; no private key exists server-side).
   LISTING_FEE_NIM: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
@@ -66,7 +66,7 @@ export function parseEnv(input: Record<string, string | undefined>): Env {
 }
 
 /**
- * Optional broadcast-only Polygon RPC endpoint (Phase 14e-2e read/write
+ * Optional broadcast-only Polygon RPC endpoint (read/write
  * split). When set, server-signed broadcasts (release/refund wallet
  * client) use it, while reads (event scans, receipts, chain-id probes)
  * keep using POLYGON_RPC_URL. Unset/blank → undefined, and callers fall
@@ -112,7 +112,7 @@ export const DEFAULT_PAYMENT_REVIEW_TIMEOUT_SECONDS = 1800;
  * Payment_pending → payment_review timeout in seconds. Tolerant by design:
  * missing, blank, or invalid values fall back to the 1800s default instead of
  * crashing the verify path. Inventory is NEVER restored on this transition
- * (Phase 10 decides); the buyer might have paid.
+ * (an admin decides); the buyer might have paid.
  */
 export function getPaymentReviewTimeoutSeconds(
   env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
@@ -153,8 +153,8 @@ export function getEscrowDepositVerificationSeconds(
  * Delivery window in seconds: funded → delivery deadline. Tolerant by design:
  * missing, blank, or invalid values fall back to the 86400s (24h) default
  * instead of crashing the escrow path. Declared in .env.example alongside the
- * existing escrow vars. Phase 14d-2 only sets delivery_deadline on verified
- * deposit; enforcement (release/refund) is 14d-3+.
+ * existing escrow vars. 2 only sets delivery_deadline on verified
+ * deposit; enforcement (release/refund) is handled by release/refund.
  */
 export const DEFAULT_ESCROW_DELIVERY_WINDOW_SECONDS = 86400;
 
@@ -175,7 +175,7 @@ export function getEscrowDeliveryWindowSeconds(
  * Dispute window in seconds: delivered → dispute deadline. Tolerant by
  * design: missing, blank, or invalid values fall back to the 86400s (24h)
  * default. Set as dispute_window_ends on mark-delivered; no dispute logic
- * yet (14d-3b), just the deadline.
+ * yet, just the deadline.
  */
 export const DEFAULT_ESCROW_DISPUTE_WINDOW_SECONDS = 86400;
 
@@ -234,7 +234,7 @@ export function getEscrowRefundConfirmations(
 }
 
 /**
- * Phase 14g-1: NIM listing-fee amount as a normalized decimal NIM string
+ * NIM listing-fee amount as a normalized decimal NIM string
  * (e.g. "400"). Tolerant by design: missing, blank, or invalid values
  * (garbage, non-positive, >5 decimals — validated via nimToBaseUnits) fall
  * back to undefined (fee not configured) instead of crashing boot.
@@ -254,7 +254,7 @@ export function getListingFeeNim(
 }
 
 /**
- * Phase 14g-1: receive-only NIM listing-fee wallet (canonical form).
+ * Receive-only NIM listing-fee wallet (canonical form).
  * Tolerant by design: missing or malformed values (validated via the
  * existing canonicalization helper) fall back to undefined — the fee state
  * then reports misconfigured and publish fails closed (F4).
@@ -288,7 +288,7 @@ export interface ListingFeeState {
 }
 
 /**
- * Phase 14g-1: single source of truth for the fee gate, shared by the
+ * Single source of truth for the fee gate, shared by the
  * config endpoint and the publish flow. Pure and tolerant — never throws.
  */
 export function getListingFeeState(
@@ -325,7 +325,7 @@ export function parseCorsOrigins(input: NodeJS.ProcessEnv | Record<string, strin
   return [DEV_CORS_ORIGIN];
 }
 
-// Phase 1 policy: warn but never hard-fail the API when optional
+// Startup policy: warn but never hard-fail the API when optional
 // configuration is missing or invalid. Stricter requirements arrive
 // with the phases that actually need each value.
 export function loadEnv(input: NodeJS.ProcessEnv = process.env): Env {  const result = envSchema.safeParse(input);

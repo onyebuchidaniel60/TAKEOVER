@@ -1,7 +1,7 @@
-// Phase 6: one held opening. Live countdown while the hold is live.
-// Phase 7: real payment panel for active holds; submitted/expired/paid states.
-// Phase 8: payment_pending polls verify-payment until the chain confirms.
-// Phase 14e P1: USDT escrow buyer loop replaces the deprecated direct-payment
+// One held opening. Live countdown while the hold is live.
+// Real payment panel for active holds; submitted/expired/paid states.
+// Payment_pending polls verify-payment until the chain confirms.
+// USDT escrow buyer loop replaces the deprecated direct-payment
 // panel for escrow-active states; legacy payment_pending/review branches stay
 // until zero legacy rows remain (§5 deprecation gates).
 import { useEffect, useRef, useState } from 'react';
@@ -98,7 +98,7 @@ export default function ClaimDetailPage() {
   );
 }
 
-// Phase 14e P1: claim-side escrow statuses render the EscrowPanel. The
+// Claim-side escrow statuses render the EscrowPanel. The
 // escrow-internal transitional states (releasing/refunding) never appear
 // on the claim row itself — the panel reads them from GET /escrow.
 const ESCROW_CLAIM_STATUSES = [
@@ -186,7 +186,7 @@ function ClaimBody({
   );
 }
 
-// Phase 8: status-only polling for a submitted payment. Polls POST
+// Status-only polling for a submitted payment. Polls POST
 // verify-payment every 5s (up to 60 auto attempts) and backs off on RPC
 // outages (15s) and rate limits (Retry-After, else 10s). Never retries the
 // payment broadcast itself — the buyer already paid; this is status only.

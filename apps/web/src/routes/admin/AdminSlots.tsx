@@ -1,4 +1,4 @@
-// Phase 10: /admin/slots — listings surfaced through reports and payment
+// /Admin/slots — listings surfaced through reports and payment
 // reviews, plus disabling by listing id. There is no dedicated admin listing
 // directory endpoint in the locked API surface, so this page works from
 // moderation data and direct ids only. Disabling cancels live holds, moves

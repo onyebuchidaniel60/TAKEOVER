@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Phase 14k-1: brand mark + homepage sections. Structural asserts only.
+// Brand mark + homepage sections. Structural asserts only.
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';

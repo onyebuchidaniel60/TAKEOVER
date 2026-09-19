@@ -1,6 +1,6 @@
-// Phase 6: claim status is always text, never color alone.
-// Phase 11: labels follow the locked status copy.
-// Phase 14e P1: escrow states added (same text+color discipline).
+// Claim status is always text, never color alone.
+// Labels follow the locked status copy.
+// Escrow states added (same text+color discipline).
 const STYLES: Record<string, string> = {
   active_hold: 'bg-sagewash text-sage dark:bg-sagewashd dark:text-saged',
   expired: 'bg-sand text-taupe dark:bg-umber dark:text-parchment',

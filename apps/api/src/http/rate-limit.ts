@@ -11,7 +11,7 @@ export interface RateLimitOptions {
 export const DEFAULT_CHALLENGE_RATE_LIMIT: RateLimitOptions = { windowMs: 60_000, max: 10 };
 export const DEFAULT_VERIFY_RATE_LIMIT: RateLimitOptions = { windowMs: 60_000, max: 10 };
 
-// Phase 12: every other mutating endpoint gets a budget (exact values are
+// Every other mutating endpoint gets a budget (exact values are
 // configuration per ARCHITECTURE.md s14, not business rules).
 // Claim creation is per-IP: it bounds availability-probing bursts from one origin.
 // Slot creation is per-USER (see createUserRateLimiter): it bounds spam listings

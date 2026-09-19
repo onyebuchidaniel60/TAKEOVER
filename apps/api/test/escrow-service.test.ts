@@ -1,9 +1,9 @@
-// Phase 14d-2: USDT escrow deposit integration (live DB, mocked Polygon client).
+// USDT escrow deposit integration (live DB, mocked Polygon client).
 // Auth goes through the real challenge/verify flow with an injected signature
 // stub. The Polygon client is a test-double implementing EscrowContractClient;
 // ABI wire shape is pinned separately by escrow-deposit.test.ts (no network).
 // Fresh claims per test keep the per-claim verify limiter isolated; the main
-// app disables it (windowMs 0, Phase 13 sweep precedent) so concurrency races
+// app disables it (windowMs 0, sweep precedent) so concurrency races
 // reach the service, while the 429 path is proven on a separate default-
 // limiter app in the rate-limit test.
 import { afterAll, describe, expect, it, vi } from 'vitest';
@@ -34,7 +34,7 @@ import {
 
 const TEST_CONTRACT = '0x3333333333333333333333333333333333333333';
 process.env.USDT_ESCROW_CONTRACT_ADDRESS = TEST_CONTRACT;
-// Phase 14e P1 (D7 variant B): intent serves the token address for approve().
+// Intent serves the token address for approve().
 const TEST_TOKEN = '0x4444444444444444444444444444444444444444';
 process.env.USDT_TOKEN_ADDRESS = TEST_TOKEN;
 
@@ -62,10 +62,10 @@ describe.skipIf(!isDatabaseConfigured())('USDT escrow deposit (live DB, mocked P
       return null;
     },
     async release() {
-      throw new Error('Phase 14d-3');
+      throw new Error('not implemented in this fake');
     },
     async refund() {
-      throw new Error('Phase 14d-3');
+      throw new Error('not implemented in this fake');
     },
   };
 
@@ -548,10 +548,10 @@ describe.skipIf(!isDatabaseConfigured())('verify-deposit rate limit (live DB, de
       return null;
     },
     async release() {
-      throw new Error('Phase 14d-3');
+      throw new Error('not implemented in this fake');
     },
     async refund() {
-      throw new Error('Phase 14d-3');
+      throw new Error('not implemented in this fake');
     },
   };
   const limited = buildApp({

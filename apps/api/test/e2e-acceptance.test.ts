@@ -1,12 +1,12 @@
-// Phase 13 end-to-end acceptance journey — live DB, ONE continuous test
+// End-to-end acceptance journey — live DB, ONE continuous test
 // covering the PROJECT_SPEC.md s6 acceptance baseline through the real API:
 // provider publishes → anonymous browses → buyer claims → pays (mocked RPC
-// with a structurally correct tx; real chain verification is Phase 14) →
+// with a structurally correct tx; no live chain verification) →
 // paid → provider sees it → audit trail in order.
 //
 // Programmatic E2E by locked decision (no browser automation; browser E2E is
-// Phase 14): real HTTP against the real app + real DB. Authentication uses
-// REAL @nimiq/core signatures (the Phase 3 oracle pattern — no stub here),
+// out of scope): real HTTP against the real app + real DB. Authentication uses
+// REAL @nimiq/core signatures (the oracle pattern — no stub here),
 // so this test also proves the production verifier inside the full journey.
 // The CSRF Origin/header pair is sent on every credentialed mutation, exactly
 // as the web client does.
@@ -31,14 +31,14 @@ import {
 } from '../../../db/schema';
 
 // Journey budget: ~20 sequential live round trips against remote Postgres.
-// Proportional to the workload (Phase 10 precedent), not a flake fix.
+// Proportional to the workload (established precedent), not a flake fix.
 vi.setConfig({ testTimeout: 180000 });
 
 // Official Hub envelope prefix, 0x16 + 'Nimiq Signed Message:\n' (23 bytes,
 // pinned byte-for-byte in test/nimiq-oracle.test.ts).
 const HUB_PREFIX = `${String.fromCharCode(0x16)}Nimiq Signed Message:\n`;
 
-describe.skipIf(!isDatabaseConfigured())('phase 13 acceptance journey (live, real signatures)', () => {
+describe.skipIf(!isDatabaseConfigured())('acceptance journey (live, real signatures)', () => {
   const fake: { txByHash: Map<string, TxRecord> } = { txByHash: new Map() };
 
   const rpcClient: NimiqRpcClient = {
@@ -70,7 +70,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 13 acceptance journey (live, rea
   const slotIds: string[] = [];
   const HOUR = 3_600_000;
 
-  // Phase 12 completion (F4): credentialed mutations carry both signals.
+  // Completion (F4): credentialed mutations carry both signals.
   const CSRF = { origin: 'http://localhost:5173', 'x-takeover-client': 'web' };
 
   type InjectResponse = Awaited<ReturnType<FastifyInstance['inject']>>;
@@ -331,7 +331,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 13 acceptance journey (live, rea
     expect(serialized).not.toContain('expectedRecipient');
 
     // 13. Counts show exactly one paid claim and zeros elsewhere.
-    // (14d-3a: the demand view buckets all 12 claim_status values.)
+    // (the demand view buckets all 12 claim_status values.)
     expect(demandBody.data.counts).toEqual({
       active_hold: 0,
       expired: 0,

@@ -1,4 +1,4 @@
-// Phase 10: generic admin resolve dialog (reports + payment reviews).
+// Generic admin resolve dialog (reports + payment reviews).
 // Resolution notes are required (5–1000 chars, enforced server-side).
 import { useState } from 'react';
 import { ApiError } from '../lib/api';

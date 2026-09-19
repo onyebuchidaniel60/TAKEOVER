@@ -1,4 +1,4 @@
-// Phase 14e P1: confirm-receipt + dispute box for a delivered escrow.
+// Confirm-receipt + dispute box for a delivered escrow.
 // Confirm: POST confirm-receipt broadcasts the server-signed release, then
 // the box polls GET /escrow on the plan cadence (15 s, cap 24) until the
 // rows flip to released. Dispute (USDT): POST dispute returns the

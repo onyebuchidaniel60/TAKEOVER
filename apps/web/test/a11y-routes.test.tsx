@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-// Phase 11 automated a11y: axe-core over every route in a loaded state.
-// Zero critical/serious violations allowed; moderate/minor are printed for
-// triage (see AI_HANDOFF.md). color-contrast is excluded here (jsdom cannot
+// Automated a11y: axe-core over every route in a loaded state.
+// Zero critical/serious violations allowed; moderate/minor are printed.
+// Color-contrast is excluded here (jsdom cannot
 // compute styles) and measured separately with exact palette math.
-// Phase 13 flake fix: readiness waits for the loading skeleton to LEAVE the
+// Readiness waits for the loading skeleton to LEAVE the
 // DOM (MutationObserver-driven) instead of sleeping a fixed 50ms — no
 // elapsed-time assumption, so CPU contention can no longer beat the wait.
 import { render, screen, waitFor } from '@testing-library/react';
@@ -519,7 +519,7 @@ describe('axe on the nav drawer', () => {
   });
 });
 
-// Phase 14l-3: the same route coverage with dark mode forced (the `dark`
+// The same route coverage with dark mode forced (the `dark`
 // class Tailwind's class strategy reads). Dark variants are class-only, so
 // forcing the class is the full theme switch — no matchMedia stub needed.
 // color-contrast stays palette-math (see the phase report); axe asserts the

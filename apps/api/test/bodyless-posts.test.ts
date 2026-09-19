@@ -1,4 +1,4 @@
-// Phase 14c round 3 — bodyless-mutation regression suite (live DB).
+// Bodyless-mutation regression suite (live DB).
 // Round-2 Bug 1: the frontend sent bodyless POSTs under
 // content-type: application/json, which Fastify rejects before routing
 // (FST_ERR_CTP_EMPTY_JSON_BODY → 400 'Invalid request.'). The approved fix
@@ -14,10 +14,10 @@ import type { VerifySignatureFn } from '../src/auth/nimiq-verify';
 import { getDb, isDatabaseConfigured } from '../../../db/client';
 import { auditEvents, authChallenges, sessions, slots, users } from '../../../db/schema';
 
-// Remote-Postgres latency: 30s budget per test (Phase 10 precedent).
+// Remote-Postgres latency: 30s budget per test (established precedent).
 vi.setConfig({ testTimeout: 30000 });
 
-describe.skipIf(!isDatabaseConfigured())('phase 14c round 3 bodyless mutations (live)', () => {
+describe.skipIf(!isDatabaseConfigured())('bodyless mutations (live)', () => {
   const stubVerifier: VerifySignatureFn = () => true;
 
   const app = buildApp({

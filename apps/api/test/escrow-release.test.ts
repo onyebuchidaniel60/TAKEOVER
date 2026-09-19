@@ -1,10 +1,10 @@
-// Phase 14d-3a: delivery + USDT release integration (live DB, mocked client).
+// Delivery + USDT release integration (live DB, mocked client).
 // Auth via the real challenge/verify flow with an injected signature stub.
 // The Polygon client is a test-double implementing EscrowContractClient
 // (release broadcast + receipt polling); real signing is never exercised here
 // (no live contract exists yet) and is covered by escrow-signer.test.ts.
 // Fresh claims per test keep limiters isolated; budgets are disabled on the
-// main app (Phase 13 sweep precedent).
+// main app (sweep precedent).
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
 vi.setConfig({ testTimeout: 60_000 });
@@ -36,7 +36,7 @@ import {
 
 const TEST_CONTRACT = '0x3333333333333333333333333333333333333333';
 process.env.USDT_ESCROW_CONTRACT_ADDRESS = TEST_CONTRACT;
-// Phase 14e P1 (D7 variant B): intent fail-closes without a token address.
+// Intent fail-closes without a token address.
 process.env.USDT_TOKEN_ADDRESS = '0x4444444444444444444444444444444444444444';
 
 const PAYOUT = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -77,7 +77,7 @@ describe.skipIf(!isDatabaseConfigured())('escrow delivery and USDT release (live
       return { txHash: fake.releaseTxHash };
     },
     async refund() {
-      throw new Error('Phase 14d-3b');
+      throw new Error('not implemented in this fake');
     },
   };
 

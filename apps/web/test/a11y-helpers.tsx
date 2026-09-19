@@ -1,4 +1,4 @@
-// Phase 11 shared DOM-test harness (jsdom). Renders routes with a stubbed
+// Shared DOM-test harness (jsdom). Renders routes with a stubbed
 // fetch layer and a directly-set auth store — no backend, no wallet.
 // a11y tool choice: axe-core run directly (NOT @axe-core/playwright,
 // NOT vitest-axe). vitest-axe resolves vitest 5, which conflicts with this
@@ -6,7 +6,7 @@
 // browsers, unavailable here. axe-core in jsdom gives the same engine
 // deterministically inside `npm run test`. color-contrast is excluded from
 // the jsdom run (jsdom cannot compute styles) and measured separately with
-// exact palette math — see AI_HANDOFF.md.
+// exact palette math — see the palette table in apps/web/tailwind.config.js.
 import axe from 'axe-core';
 import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
@@ -186,7 +186,7 @@ export async function runAxe(element: Element): Promise<AxeTriage> {
   const results = await axe.run(element, {
     rules: {
       // jsdom cannot compute styles; contrast is measured separately with
-      // exact palette math (documented in AI_HANDOFF.md).
+      // exact palette math (see the palette table in apps/web/tailwind.config.js).
       'color-contrast': { enabled: false },
     },
   });

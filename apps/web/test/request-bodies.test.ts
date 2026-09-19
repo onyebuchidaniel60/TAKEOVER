@@ -1,4 +1,4 @@
-// Phase 14c round 3 — request-shape + client-validation unit tests (node).
+// Request-shape + client-validation unit tests (node).
 // Round-2 Bug 1 class: mutations must always carry a JSON body, and apiFetch
 // must only declare a JSON content type when a body exists.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

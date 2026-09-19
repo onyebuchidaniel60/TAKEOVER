@@ -1,4 +1,4 @@
-// Phase 5: provider slot form (create + draft edit). Consumer language only.
+// Provider slot form (create + draft edit). Consumer language only.
 // Price is entered in USDT ("1.5"); the parent converts nothing — this form
 // emits exact base units via parseUsdtToBaseUnits.
 import { useState } from 'react';
@@ -88,7 +88,7 @@ export default function SlotForm({
   onSubmit: (body: SlotWrite) => void;
 }) {
   const [values, setValues] = useState<SlotFormValues>(initial);
-  // Phase 14c round 3 (Fix C2): per-field inline reasons mirroring the
+  // Per-field inline reasons mirroring the
   // server rules publish enforces. The server stays authoritative — these
   // only block the request early with a clearer message.
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof SlotFormValues, string>>>({});

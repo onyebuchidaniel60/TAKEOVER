@@ -1,4 +1,4 @@
-// Phase 12 concurrency attacks beyond Phase 6 — live DB. Each test races two
+// Concurrency attacks beyond the claim race — live DB. Each test races two
 // state-changing paths with Promise.all and then asserts exactly one clean
 // outcome plus DB invariants (no partial writes, no double transitions, no
 // lost hashes, no double inventory restoration). Auth uses the injected stub;
@@ -7,7 +7,7 @@
 // Method limit, stated plainly: inject requests interleave on one Node event
 // loop against real Postgres row locks — this proves serialization and
 // fail-closed conditional writes, not multi-process timing. The deeper proof
-// for the final-unit race remains the Phase 6 8-way race plus the partial
+// for the final-unit race remains the 8-way claim race plus the partial
 // unique index (still passing, untouched).
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
@@ -21,10 +21,10 @@ import { getDb, isDatabaseConfigured } from '../../../db/client';
 import { auditEvents, authChallenges, claims, paymentIntents, sessions, slots, users } from '../../../db/schema';
 
 // Remote-Postgres latency: every test in this file gets a 30s budget
-// (Phase 10 precedent — sequential live round trips exceed the 5s default).
+// (established precedent — sequential live round trips exceed the 5s default).
 vi.setConfig({ testTimeout: 30000 });
 
-describe.skipIf(!isDatabaseConfigured())('phase 12 concurrency attacks (live)', () => {
+describe.skipIf(!isDatabaseConfigured())('concurrency attacks (live)', () => {
   const stubVerifier: VerifySignatureFn = () => true;
 
   const fake: { txByHash: Map<string, TxRecord>; delayMs: number } = { txByHash: new Map(), delayMs: 0 };
@@ -63,7 +63,7 @@ describe.skipIf(!isDatabaseConfigured())('phase 12 concurrency attacks (live)', 
   const slotIds: string[] = [];
   const HOUR = 3_600_000;
 
-  // Phase 12 completion (F4): the CSRF guard requires an allowlisted Origin
+  // Completion (F4): the CSRF guard requires an allowlisted Origin
   // and the client header on every credentialed mutation. The test allowlist
   // is the dev default (CORS_ORIGINS unset here).
   const CSRF = { origin: 'http://localhost:5173', 'x-takeover-client': 'web' };

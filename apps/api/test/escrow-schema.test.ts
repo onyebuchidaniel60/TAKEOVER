@@ -1,4 +1,4 @@
-// Phase 14d-1 escrow schema constraint tests (live DB, direct inserts — no
+// 1 Escrow schema constraint tests (live DB, direct inserts — no
 // app, no auth, no network). Fixtures use unique per-run tags; everything
 // created here is deleted afterwards in FK order.
 import { afterAll, describe, expect, it } from 'vitest';
@@ -285,7 +285,7 @@ describe.skipIf(!isDatabaseConfigured())('escrow schema constraints (live)', () 
     expect(second[0].id).not.toBe(first);
   });
 
-  it('escrow_status carries the 14d-3b transitional states refunding and releasing', async () => {
+  it('escrow_status carries the transitional states refunding and releasing', async () => {
     const db = getDb();
     const providerId = await makeUser();
     const slotId = await makeSlot(providerId);
@@ -315,7 +315,7 @@ describe.skipIf(!isDatabaseConfigured())('escrow schema constraints (live)', () 
     }
   });
 
-  it('slots carries a nullable 14d-4 provider_contact_note', async () => {
+  it('slots carries a nullable provider_contact_note', async () => {
     const db = getDb();
     const providerId = await makeUser();
     const slotId = await makeSlot(providerId);

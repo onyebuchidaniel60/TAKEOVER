@@ -1,4 +1,4 @@
-// Phase 14e P1: evm.ts unit tests (node env, no DOM, no network).
+// Evm.ts unit tests (node env, no DOM, no network).
 // Calldata vectors were generated with the backend's viem (2.56.5) at
 // authoring time — the web hand-encoder (D1, zero new deps) must match
 // viem byte-for-byte.

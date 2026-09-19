@@ -1,4 +1,4 @@
-// Phase 14l-2: in-app notifications (list, mark read, mark all read).
+// In-app notifications (list, mark read, mark all read).
 // All responses use the { data, requestId } envelope; errors use
 // { error: { code, message }, requestId }. Owner-scoped: foreign rows
 // read as 404 (never an existence leak), anonymous callers 401.

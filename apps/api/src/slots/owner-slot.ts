@@ -1,9 +1,9 @@
-// Phase 5: owner slot projection. The provider's own slots expose everything
+// Owner slot projection. The provider's own slots expose everything
 // the public projection has, plus the provider contact note they set. Still
 // never provider_id or other internal columns.
 // (The NIM-era payout_wallet field was removed here: the USDT escrow flow
 // collects the provider payout address at mark-delivered time instead.)
-// Phase 14d-4: plus provider_contact_note, so the provider can see the note
+// Plus provider_contact_note, so the provider can see the note
 // they set. The public projection never carries it.
 import type { slots } from '../../../../db/schema';
 import { toPublicSlot, type PublicSlot } from './public-slot';

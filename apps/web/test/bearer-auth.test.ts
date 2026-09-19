@@ -1,4 +1,4 @@
-// Phase 14c Bearer fallback — client storage and header wiring (node env,
+// Bearer fallback — client storage and header wiring (node env,
 // no DOM needed: sessionStorage is stubbed explicitly, including absence).
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -151,7 +151,7 @@ describe('bearer fallback client wiring', () => {
     it('source posture: no localStorage reference anywhere in web src except the theme store', () => {
       const offenders: string[] = [];
       const src = resolve(process.cwd(), 'src');
-      // Phase 14l-3: store/theme.ts is the single sanctioned localStorage
+      // Store/theme.ts is the single sanctioned localStorage
       // user (key 'takeover-theme': a non-credential Light/Dark/Auto UI
       // choice — never a token, never a wallet, never a session). Session
       // material stays in sessionStorage (asserted above); anything else

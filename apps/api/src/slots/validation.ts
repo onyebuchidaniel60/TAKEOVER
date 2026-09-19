@@ -1,4 +1,4 @@
-// Phase 5: provider slot input validation. Zod guards shapes at the API
+// Provider slot input validation. Zod guards shapes at the API
 // boundary; the pure helpers below guard lifecycle semantics and are unit
 // tested without a database.
 import { z } from 'zod';
@@ -64,7 +64,7 @@ export const meSlotsQuerySchema = z
 
 export const slotIdParamsSchema = z.object({ slotId: z.string().uuid() }).strict();
 
-// Phase 14g-1: publish body. Wire-optional ({} stays valid for the no-fee
+// Publish body. Wire-optional ({} stays valid for the no-fee
 // path); required-by-policy when the fee is configured (the lifecycle throws
 // PAYMENT_INVALID_TX then). Shape-only here — hash well-formedness is the
 // service's normalizeFeeHash check. Strict: unknown fields → 400.
@@ -75,7 +75,7 @@ export const publishBodySchema = z.preprocess(
 
 export type PublishBody = z.infer<typeof publishBodySchema>;
 
-// Phase 14d-4: one-way provider contact note. Free-form text, 1–500 chars
+// One-way provider contact note. Free-form text, 1–500 chars
 // after trimming; null clears the note. The no-URLs rule (any scheme `://`
 // or `www.`, case-insensitive) keeps the note from becoming an off-platform
 // payment channel — chat/messaging was declined for the same reason. Length
@@ -146,7 +146,7 @@ type SlotStatus = SlotStatusValue;
 
 /**
  * MVP restriction (stricter than "commercial fields immutable"): published
- * slots cannot be edited at all — only drafts. Documented in AI_HANDOFF.
+ * slots cannot be edited at all — only drafts. See ARCHITECTURE.md §8.
  */
 export function requireDraftForEdit(status: SlotStatus): void {
   if (status !== 'draft') {

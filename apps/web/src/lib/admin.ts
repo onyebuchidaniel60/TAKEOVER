@@ -1,4 +1,4 @@
-// Phase 10: admin + report API client. No wallet SDK usage here — all reads
+// Admin + report API client. No wallet SDK usage here — all reads
 // and writes ride the session cookie. Admin-only endpoints 403 for non-admin
 // (never 404) and 401 for anonymous; the RequireAdmin guard keeps guests out
 // of these pages, the server still enforces it.

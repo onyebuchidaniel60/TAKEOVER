@@ -1,4 +1,4 @@
-// Phase 10: /admin overview tiles. Counts come from the locked admin reads:
+// /Admin overview tiles. Counts come from the locked admin reads:
 // open reports and payment-review totals are live totals; disabled counts
 // are audit-event totals (there are no re-enable endpoints, so each event
 // maps to one disabled account/listing).

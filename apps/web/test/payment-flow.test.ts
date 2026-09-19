@@ -1,11 +1,11 @@
-// Phase 7 completion — SDK return-value resolution (Case A) + frontend payment
-// flow test. The SDK path was never exercised in Phase 7 (the manual test used
+// Completion — SDK return-value resolution (Case A) + frontend payment
+// flow test. The SDK path was never exercised at intake (the manual test used
 // a fake hash and never called the wallet). This suite mocks the wallet
 // provider and the backend fetch layer to prove the exact bytes flow:
 //
 //   intent (server) → SDK call (wallet) → submission POST (server)
 //
-// Authoritative citations (see AI_HANDOFF checkpoint):
+// Authoritative citations:
 // - Installed types:
 //   node_modules/@nimiq/mini-app-sdk/dist/provider.d.ts:187-193 —
 //   sendBasicTransactionWithData(tx: { recipient: string; value: number;
@@ -27,7 +27,7 @@
 // Resolution: Case A — the wallet returns a transaction hash; the frontend
 // passes it through unchanged as txHash. No schema change, no endpoint change.
 //
-// Phase 14e P1 (partial deprecation): the intent → SDK → submission block
+// The intent → SDK → submission block
 // below is deleted with PaymentPanel (direct-payment submission path dead).
 // The SDK passthrough block STAYS: sendBasicTransactionWithData is retained
 // in lib/nimiq.ts for the future NIM listing-fee phase (§12 seam).

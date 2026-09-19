@@ -1,5 +1,5 @@
-// Phase 4: public slot detail. Handles loading, error, not-found, and
-// sold-out states. Phase 6: authenticated buyers can claim a live opening.
+// Public slot detail. Handles loading, error, not-found, and
+// sold-out states. Authenticated buyers can claim a live opening.
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import ClaimButton from '../components/ClaimButton';

@@ -1,4 +1,4 @@
-// Phase 12 completion (F2): accepted drizzle-orm CVE risk
+// Completion (F2): accepted drizzle-orm CVE risk
 // (GHSA-gpj5-g38j-94v9), guarded. The CVE is unreachable only while no
 // dynamic identifiers reach SQL, so this test fails the suite if any of the
 // forbidden sinks appear in shipped server code or DB tooling. The primary

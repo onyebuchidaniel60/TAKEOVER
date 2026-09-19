@@ -1,4 +1,4 @@
-// Phase 10 frontend tests — no backend, no wallet. Covers the admin role
+// frontend tests — no backend, no wallet. Covers the admin role
 // check (single place both the guard and the nav read) and the locked
 // report-reason set mirrored from the API contract.
 import { describe, expect, it } from 'vitest';
@@ -40,7 +40,7 @@ describe('REPORT_REASONS', () => {
 });
 
 describe('KNOWN_EVENT_TYPES', () => {
-  it('covers every Phase 10 audit event type', () => {
+  it('covers every audit event type', () => {
     for (const type of [
       'user.created',
       'slot.published',

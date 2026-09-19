@@ -1,4 +1,4 @@
-// Phase 1 placeholder: shared contract surface only, no business logic yet.
+// placeholder: shared contract surface only, no business logic yet.
 // Later phases will add the stable API envelope, error codes, and shared
 // validation schemas here (see ARCHITECTURE.md sections 12 and 15).
 

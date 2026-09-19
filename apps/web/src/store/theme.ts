@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 
-// Phase 14l-3: color-theme store. Automatic by default (follows the OS
+// Color-theme store. Automatic by default (follows the OS
 // prefers-color-scheme query); the Profile toggle persists a manual
 // Light / Dark / Auto choice in localStorage under THEME_STORAGE_KEY
 // (the same key the pre-paint script in index.html reads, so reloads
 // never flash the wrong theme). Applying the theme is class-only —
-// instant, no transition: dark mode adds no motion (14i-1 table stands).
+// instant, no transition: dark mode adds no motion ( table stands).
 export type ThemeMode = 'light' | 'dark' | 'auto';
 
 export const THEME_STORAGE_KEY = 'takeover-theme';

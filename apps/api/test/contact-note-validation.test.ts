@@ -1,4 +1,4 @@
-// Phase 14d-4: contact-note validator unit tests (no DB). The schema is the
+// Contact-note validator unit tests (no DB). The schema is the
 // API boundary: strict shape, trimmed 1–500 chars, null clears, and the
 // no-URLs rule (any scheme `://` or `www.`, case-insensitive).
 import { describe, expect, it } from 'vitest';

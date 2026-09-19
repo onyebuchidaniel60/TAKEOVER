@@ -1,4 +1,4 @@
-// Phase 10: dashboard count tile (label + value + link to the section).
+// Dashboard count tile (label + value + link to the section).
 import { Link } from 'react-router-dom';
 
 export default function AdminTile({

@@ -1,4 +1,4 @@
-// Phase 14d-2 completion: pure deposit-verification predicate. No DB, no network.
+// 2 Completion: pure deposit-verification predicate. No DB, no network.
 //
 // Compares a decoded on-chain Deposited event against the server's expected
 // terms: escrowId and exact amount only. Never verifies on incomplete data:

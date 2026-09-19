@@ -1,4 +1,4 @@
-// Phase 6 integration tests — live DB. Auth goes through the real
+// Integration tests — live DB. Auth goes through the real
 // challenge/verify flow with an injected signature stub (cryptography itself
 // is proven by crypto.test.ts + the @nimiq/core oracle). Fixtures use unique
 // per-run tags; everything created here is deleted afterwards in batches.
@@ -19,7 +19,7 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
     rateLimit: {
       challenge: { windowMs: 60_000, max: 1000 },
       verify: { windowMs: 60_000, max: 1000 },
-      // Phase 12 budgets disabled here (proven separately in security.test.ts).
+      // Budgets disabled here (proven separately in security.test.ts).
       claimCreate: { windowMs: 60_000, max: 1000 },
       slotCreate: { windowMs: 3_600_000, max: 1000 },
       slotMutate: { windowMs: 60_000, max: 1000 },
@@ -32,7 +32,7 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
   const slotIds: string[] = [];
   const HOUR = 3_600_000;
 
-  // Phase 12 completion (F4): the CSRF guard requires an allowlisted Origin
+  // Completion (F4): the CSRF guard requires an allowlisted Origin
   // and the client header on every credentialed mutation. The test allowlist
   // is the dev default (CORS_ORIGINS unset here).
   const CSRF = { origin: 'http://localhost:5173', 'x-takeover-client': 'web' };
@@ -158,7 +158,7 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
         .where(inArray(users.walletAddress, wallets));
       const userIds = found.map((u) => u.id);
       if (userIds.length > 0) {
-        // Phase 10 audit rows reference their actor: remove them first.
+        // Audit rows reference their actor: remove them first.
         await db.delete(auditEvents).where(inArray(auditEvents.actorUserId, userIds));
         await db.delete(sessions).where(inArray(sessions.userId, userIds));
         await db.delete(users).where(inArray(users.id, userIds));
@@ -408,7 +408,7 @@ describe.skipIf(!isDatabaseConfigured())('atomic claims (live)', () => {
   });
 
   // Explicit timeout: claim + forced expiry + repeated detail sweeps against
-  // remote Postgres exceed the 5s default (plus the Phase 10 claim audit write).
+  // remote Postgres exceed the 5s default (plus the claim audit write).
   it('restores exactly once across repeated sweeps', { timeout: 30_000 }, async () => {
     const cookie = await loginAs(randomWallet());
     const slotId = await makeSlot({ total: 2, available: 2 });

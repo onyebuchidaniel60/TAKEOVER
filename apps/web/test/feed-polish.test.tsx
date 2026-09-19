@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Phase 14i-1 polish tests: token layer values, TopBar mobile alignment,
+// 1 Polish tests: token layer values, TopBar mobile alignment,
 // and feed badge rendering. Structural asserts only — no pixels.
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -11,7 +11,7 @@ import PriceDisplay from '../src/components/PriceDisplay';
 import TimeBadge from '../src/components/TimeBadge';
 import TopBar from '../src/components/TopBar';
 
-describe('14i-1 design tokens', () => {
+describe('design tokens', () => {
   it('pins the motion tokens (curves, sub-300ms durations, feed entrance)', () => {
     const theme = (
       tailwindConfig as unknown as {
@@ -36,7 +36,7 @@ describe('14i-1 design tokens', () => {
   });
 });
 
-describe('14i-1 chrome alignment', () => {
+describe('chrome alignment', () => {
   it('TopBar is sticky and matches page padding on mobile', () => {
     const { container } = render(
       <MemoryRouter>
@@ -51,7 +51,7 @@ describe('14i-1 chrome alignment', () => {
   });
 });
 
-describe('14i-1 feed badges', () => {
+describe('feed badges', () => {
   it('TimeBadge renders a clock icon instead of the dot glyph', () => {
     const { container } = render(<TimeBadge startsAt="2030-06-12T18:00:00.000Z" endsAt={null} />);
     expect(container.querySelector('svg')).toBeTruthy();

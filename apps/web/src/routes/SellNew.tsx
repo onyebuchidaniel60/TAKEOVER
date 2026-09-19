@@ -1,4 +1,4 @@
-// Phase 5: create a draft opening. Auth-guarded.
+// Create a draft opening. Auth-guarded.
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import SlotForm, { initialValues } from '../components/SlotForm';

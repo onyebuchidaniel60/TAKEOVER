@@ -1,4 +1,4 @@
-// Phase 8 frontend tests — no backend, no wallet. Covers the pure
+// frontend tests — no backend, no wallet. Covers the pure
 // poll-scheduling helper and the verify-payment client (fetch stubbed),
 // including Retry-After propagation for the 429 backoff path.
 import { afterEach, describe, expect, it, vi } from 'vitest';

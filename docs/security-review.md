@@ -1,9 +1,8 @@
-# TAKEOVER — Phase 12 Security Review
+# TAKEOVER — Security Review
 
 Date: 2026-09-12
 Scope: adversarial security testing and audit only. No features, no
 architecture changes, no refunds/fund movement, no provider verification.
-Phase 13 NOT started.
 
 ## 1. Scope and methodology
 
@@ -19,14 +18,14 @@ Proved the mitigations in ARCHITECTURE.md §16 work by attacking them:
 - Concurrency attacks via `Promise.all` interleaving against real Postgres
   row locks. Method limit, stated plainly: one Node event loop, not
   multi-process timing — this proves serialization and fail-closed
-  conditional writes; the deeper final-unit proof remains the Phase 6 8-way
+  conditional writes; the deeper final-unit proof remains the 8-way
   race plus the partial unique index (still passing, untouched).
 - New suites: `apps/api/test/security.test.ts` (35 tests),
   `apps/api/test/security-concurrency.test.ts` (5 tests),
   `apps/web/test/security.test.tsx` (6 tests). 46 adversarial tests, all
   passing. No product behavior changed except the rate-limit additions in §4
   (F1), which are config-scale and covered by the new 429 tests.
-- Phase 12 completion (F2/F4 resolutions, same brief scope — no new phase):
+- Completion (F2/F4 resolutions, same review scope):
   8 more tests (6 CSRF-guard server tests, 1 F2 identifier-guard test,
   1 web GET-header test) for 54 total, all passing. F2 guard: ESLint
   `no-restricted-syntax` block in `eslint.config.js` (proven with a planted
@@ -45,7 +44,7 @@ Proved the mitigations in ARCHITECTURE.md §16 work by attacking them:
 | Session theft — forged cookie | verified | Valid sessionId + wrong secret → 401 (constant-time hash compare) |
 | Session theft — expired session | verified | Forced-expired session → 401 |
 | Session theft — revoked session | verified | Logout → old cookie 401 |
-| Session theft — bearer fallback token (Phase 14c, owner approved) | verified | The `/auth/verify` body token IS the session token (same row/TTL/revocation; cookie preferred); forged/expired/revoked Bearer → 401, disabled → 401 `ACCOUNT_DISABLED`, cookie+Bearer logout matrix revokes both paths; Bearer-only mutations skip the CSRF guard (token never auto-attached; cross-origin send is CORS-preflight-gated) while any cookie-bearing request keeps the full guard (precedence tested). Accepted trade-off: token lives in JS-accessible `sessionStorage` (HttpOnly lost — any XSS becomes session theft), bounded by the 7-day TTL, single-session revoke-on-logout, sessionStorage-only scope (never localStorage/cookie/global), no logging, and the app's no-user-HTML posture |
+| Session theft — bearer fallback token | verified | The `/auth/verify` body token IS the session token (same row/TTL/revocation; cookie preferred); forged/expired/revoked Bearer → 401, disabled → 401 `ACCOUNT_DISABLED`, cookie+Bearer logout matrix revokes both paths; Bearer-only mutations skip the CSRF guard (token never auto-attached; cross-origin send is CORS-preflight-gated) while any cookie-bearing request keeps the full guard (precedence tested). Accepted trade-off: token lives in JS-accessible `sessionStorage` (HttpOnly lost — any XSS becomes session theft), bounded by the 7-day TTL, single-session revoke-on-logout, sessionStorage-only scope (never localStorage/cookie/global), no logging, and the app's no-user-HTML posture |
 | IDOR — foreign claim read | verified | Buyer B `GET /claims/:id` → 404 `CLAIM_NOT_FOUND`; anon → 401 |
 | IDOR — foreign payment actions | verified | B intent/submit/verify on A claim → 404 |
 | IDOR — foreign slot mutation | verified | B patch/publish/cancel on A draft → 404, row untouched |
@@ -67,7 +66,7 @@ Proved the mitigations in ARCHITECTURE.md §16 work by attacking them:
 | Brute force — verify-payment | verified | Second rapid call → 429 `VERIFY_RATE_LIMITED` + `retry-after` |
 | Brute force — reports | verified | 6th report in the hour → 429 `REPORT_RATE_LIMITED` |
 | Brute force — new budgets | verified | Claim-create, slot-create (per-user; second account unaffected), slot-mutate, profile, admin backstop each → 429 |
-| Payment replay | verified | Same hash on two claims → 409; second claim still payable with its own hash (Phase 7 guard intact) |
+| Payment replay | verified | Same hash on two claims → 409; second claim still payable with its own hash (guard intact) |
 | Amount manipulation | verified | Off-by-one amount → `review`/`amount_mismatch`, never paid |
 | Recipient manipulation | verified | Published payout immutable (PATCH → 409); intent recipient equals the published payout |
 | Sender spoofing | verified | Foreign sender → `review`/`sender_mismatch` |
@@ -154,7 +153,7 @@ Proved the mitigations in ARCHITECTURE.md §16 work by attacking them:
 
 54. GET requests carry no `X-Takeover-Client` header.
 
-`apps/api/test/bearer-auth.test.ts` (Phase 14c, 13 tests):
+`apps/api/test/bearer-auth.test.ts` (13 tests):
 
 55. Verify body carries `sessionToken` equal to the `Set-Cookie` value (cookie emitted unchanged).
 56. Bearer `GET /me` with no cookie → 200 with the right wallet.
@@ -167,7 +166,7 @@ Proved the mitigations in ARCHITECTURE.md §16 work by attacking them:
 63. Malformed Bearer values (5 shapes) → 401.
 64. Source scan: no `sessionToken`/`authorization`/`bearer` in any `request.log` call, no console output in `apps/api/src`.
 
-`apps/web/test/bearer-auth.test.ts` (Phase 14c, 7 tests):
+`apps/web/test/bearer-auth.test.ts` (7 tests):
 
 65. `apiFetch` attaches `Authorization: Bearer <token>` on GET and POST when set; sends none when unset.
 66. Token persists to `sessionStorage` (`takeover.sessionToken`); `localStorage` is never touched (throwing stub).
@@ -229,10 +228,10 @@ semantics.
   printed in outputs, logs, commits, or test assertions (presence
   booleans and filename-only failure output throughout).
 
-## 7. Residual risks and Phase 14 items
+## 7. Residual risks
 
 1. **Resolved (completion) — F2**: risk accepted with the ESLint + grep
-   guard described above; revisit the 0.36→0.45 upgrade in Phase 15 if time
+   guard described above; revisit the 0.36→0.45 upgrade if time
    permits (full regression: test suite + manual claim→pay→verify loop).
 2. **Resolved (completion) — F4**: Origin allowlist + required client
    header implemented, tested (47–52, 54), and demonstrated live; no token
@@ -241,11 +240,11 @@ semantics.
    client backoff, never a paid marking. Self-hosted fallback via
    `NIMIQ_RPC_URL` documented in `.env.example`.
 4. Real Nimiq Pay round-trip (live wallet broadcast + on-chain read) is
-   still a Phase 14 verification item; the SDK path is mock-covered only.
+   still an open verification item; the SDK path is mock-covered only.
 5. In-memory limiter state (F5) must move to shared storage if the backend
    ever runs multi-instance.
 6. Concurrency proof is single-process interleaving against real row locks;
    a multi-connection soak (e.g., parallel workers racing the final unit)
-   would strengthen Phase 6 further but found nothing here.
+   would strengthen the claim race further but found nothing here.
 7. No refunds, fund movement, provider verification, or payment-predicate
    changes were made — all out of scope and untouched.

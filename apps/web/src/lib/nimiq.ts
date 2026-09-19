@@ -5,8 +5,8 @@ import {
   type SignatureResult,
 } from '@nimiq/mini-app-sdk';
 
-// Phase 3 wallet surface: connect (listAccounts), address retrieval, and message
-// signing for the auth challenge. Phase 7 adds payment broadcast ONLY.
+// wallet surface: connect (listAccounts), address retrieval, and message
+// signing for the auth challenge. adds payment broadcast ONLY.
 
 function unwrap<T>(result: T | ErrorResponse, what: string): T {
   if (typeof result === 'object' && result !== null && 'error' in result) {
@@ -62,7 +62,7 @@ export interface PaymentSend {
 }
 
 /**
- * Phase 7: broadcast the intent's exact payment via Nimiq Pay. Returns the
+ * Broadcast the intent's exact payment via Nimiq Pay. Returns the
  * wallet's transaction hash (64 hex chars, no 0x prefix), recorded server-side
  * as tx_hash. Per the official Nimiq Provider API docs
  * (https://nimiq.dev/mini-apps/api-reference/nimiq-provider#sendbasictransactionwithdata
@@ -97,7 +97,7 @@ export interface ListingFeeSend {
 const LUNA_PER_NIM_FEE = 100_000;
 
 /**
- * Phase 14g-1: broadcast the NIM listing fee via Nimiq Pay. Wraps
+ * Broadcast the NIM listing fee via Nimiq Pay. Wraps
  * sendBasicTransactionWithData with fee-specific shaping: decimal-NIM →
  * exact Luna safe-number, data "TAKEOVER:fee:v1:<slotId>". Returns the
  * wallet's transaction hash for the publish call. Wallet rejections

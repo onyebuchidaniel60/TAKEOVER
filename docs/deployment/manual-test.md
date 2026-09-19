@@ -1,9 +1,9 @@
-# Phase 14b — Manual Nimiq Pay Round-Trip Script (human, real device)
+# Manual Nimiq Pay Round-Trip Script (human, real device)
 
-Preconditions: Phase 14a resume (§8 of `docs/phase-14-deployment.md`) is done. You have the
+Preconditions: the deployment resume (§8 of `docs/deployment/deployment.md`) is done. You have the
 Vercel URL and the backend allows it in `CORS_ORIGINS`. This script uses mainnet NIM —
 testnet payments will NOT verify (backend checks mainnet RPC). All quoted copy below is the
-actual app copy as of Phase 14a; if the app shows anything else, stop and record it verbatim.
+actual app copy; if the app shows anything else, stop and record it verbatim.
 
 - Vercel URL: `https://takeover-web-gamma.vercel.app` (production alias, deployed 2026-09-12)
 - Backend: `https://takeover-api-production-1511.up.railway.app`
@@ -22,7 +22,7 @@ before, accept and continue.
 2. In the top bar press **Connect Wallet** and approve Wallet A in the native dialog.
 3. Open **/profile** (top bar). Confirm it shows Wallet A's truncated address with tap-to-copy.
 4. Go to **/sell/new**. Fill every field:
-   - Title: `Phase 14 test slot`
+   - Title: `Test slot`
    - Description: any short text
     - Category: pick one from the dropdown (e.g. `Restaurant / food`)
    - Area: any (e.g. `Mitte`)
@@ -37,7 +37,7 @@ before, accept and continue.
 6. On **/profile** press **Log out**. On device B (or after clearing the app's cookies/data and
    reopening via the Custom URL), continue.
 7. Press **Connect Wallet** and approve Wallet B.
-8. Open the feed at **/**. Confirm the card `Phase 14 test slot` appears.
+8. Open the feed at **/**. Confirm the card `Test slot` appears.
 9. Open the slot (`/slot/:slotId`). Confirm visible: title, **When**, **Where**, **Price**
    (`1 NIM`), **Spots left** (`1 of 1`).
 10. Press **Claim this opening**. You land on **/claim/:claimId**: badge **On hold** plus

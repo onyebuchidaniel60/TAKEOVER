@@ -1,4 +1,4 @@
-// Phase 11: per-route document metadata (title, description, robots, Open
+// Per-route document metadata (title, description, robots, Open
 // Graph). Every call fully reconciles its tags: values it does not set are
 // removed, so navigating from an admin page (noindex) back to the
 // marketplace cannot leak the robots tag, and stale slot previews cannot

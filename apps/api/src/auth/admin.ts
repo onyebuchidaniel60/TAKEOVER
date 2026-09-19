@@ -1,4 +1,4 @@
-// Phase 10: admin identity. ADMIN_WALLET_ADDRESSES (comma-separated canonical
+// Admin identity. ADMIN_WALLET_ADDRESSES (comma-separated canonical
 // Nimiq addresses) is the source of truth. Role is persisted in users.role;
 // updating the env requires the admin to re-authenticate (promotion happens
 // on POST /auth/verify). Never auto-demote: a wallet absent from the list

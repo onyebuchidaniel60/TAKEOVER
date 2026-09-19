@@ -1,4 +1,4 @@
-# Phase 14a — Deployment and Nimiq Pay Preparation
+# Deployment and Nimiq Pay Preparation
 
 Date: 2026-09-12. Status: **FRONTEND DEPLOYED to Vercel; CORS pass 2 BLOCKED on Railway
 token scope (dashboard fallback documented in §8).**
@@ -54,7 +54,7 @@ Verified via key-only listing (13 keys: the 6 above + 7 `RAILWAY_*`-injected). V
 ## 4. Deviations from the brief (all documented, none silent)
 
 1. **Secrets live in `.env.txt`, not `.env`.** No root `.env` exists. Same loading mechanism
-   (shell exports; no dotenv dependency — the established Phase 1 policy).
+   (shell exports; no dotenv dependency).
 2. **`railway link` / `railway add` do not work with the project token** ("Unauthorized" for
    `link` in all forms; `add` requires linked context). Resolved within the token's grants:
    `railway up --ci --project <id> --environment production --service takeover-api` created
@@ -96,12 +96,12 @@ Verified via key-only listing (13 keys: the 6 above + 7 `RAILWAY_*`-injected). V
   (PanoramicRum/nimiq-simple-faucet `docs/mini-apps-integration.md`) lists exactly this as an
   open question (their issue #121): candidates are absent/`null`, the app URL, or a
   `chrome-extension://`-style URL.
-- **Origin risk for the Phase 12 CSRF guard (unresolved until 14b):** `createCsrfGuard`
+- **Origin risk for the CSRF guard (unresolved):** `createCsrfGuard`
   (`apps/api/src/http/csrf.ts`) rejects credentialed mutations with a missing/unlisted Origin
   (403 `FORBIDDEN_ORIGIN`). If the WebView sends no Origin, or anything other than the exact
   Vercel URL, every authenticated POST/PATCH/PUT/DELETE from inside Nimiq Pay fails. The guard
   is **not weakened** and no Nimiq Pay origin is pre-added to `CORS_ORIGINS` (per the brief).
-  Phase 14b must record the actual Origin (Railway logs show the rejected value; the
+  Record the actual Origin (Railway logs show the rejected value; the
   `FORBIDDEN_ORIGIN` envelope carries a requestId for correlation).
 - **Cookie note (adjacent, no action):** the WebView has its own cookie jar; our prod session
   cookie is `HttpOnly; Secure; SameSite=None` (already implemented for the Vercel→Railway
@@ -135,9 +135,9 @@ Verified via key-only listing (13 keys: the 6 above + 7 `RAILWAY_*`-injected). V
   (or dashboard → project → Settings → Delete), which removes all deployments and env vars.
 - **Production database reset** (shared Supabase per §3 — coordinate, this also wipes dev data):
   drop all tables, re-run `npm run db:migrate`, do NOT seed (`db:seed` is dev-only and stays so).
-- **Token rotation/removal (after Phase 15):** rotate both tokens in the Vercel/Railway
+- **Token rotation/removal (after submission):** rotate both tokens in the Vercel/Railway
   dashboards, delete the `VERCEL_TOKEN` / `RAILWAY_TOKEN` lines from root `.env.txt`, verify with
-  a key-only listing. Never commit `.env.txt` (gitignored since Phase 2).
+  a key-only listing. Never commit `.env.txt` (gitignored).
 
 ## 8. Resume steps (human unblock → finish 14a)
 
@@ -153,7 +153,7 @@ Verified via key-only listing (13 keys: the 6 above + 7 `RAILWAY_*`-injected). V
 4. Railway pass 2: set `CORS_ORIGINS` to the exact Vercel URL (no trailing slash, no wildcard),
    redeploy (`railway up --ci -p <id> -e production -s takeover-api`), run the OPTIONS preflight
    from Part 5c; on failure report headers verbatim and stop.
-5. Fill the `<vercel-url>` placeholder in `docs/phase-14-manual-test.md`, then run Phase 14b.
+5. Fill the `<vercel-url>` placeholder in `docs/deployment/manual-test.md`, then run the round-trip below.
 
 ## 9. Resume lessons learned 2026-09-12 (second resume — token worked)
 

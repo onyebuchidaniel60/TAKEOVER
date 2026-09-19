@@ -1,4 +1,4 @@
-// Phase 14k-1: Contact — how to reach TAKEOVER. Email link plus a
+// Contact — how to reach TAKEOVER. Email link plus a
 // pointer at the existing in-app report flow. No contact form: there is
 // no backend endpoint for one, and the report flow already carries full
 // slot/claim context to the team.

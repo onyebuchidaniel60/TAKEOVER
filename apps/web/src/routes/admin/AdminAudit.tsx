@@ -1,4 +1,4 @@
-// Phase 10: /admin/audit — immutable audit trail, newest first. Filters for
+// /Admin/audit — immutable audit trail, newest first. Filters for
 // event type, entity type, and date range; pagination below the table.
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';

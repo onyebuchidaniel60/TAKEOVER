@@ -1,4 +1,4 @@
-// Phase 10: buyer report dialog (opened from the slot detail page). Reports
+// Buyer report dialog (opened from the slot detail page). Reports
 // never notify the reported party and trigger no automatic action — an admin
 // reviews them later.
 import { useState } from 'react';

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Phase 12 frontend security suite — no backend, no wallet. Proves user
+// frontend security suite — no backend, no wallet. Proves user
 // content renders as inert text (React escapes by default): hostile slot
 // fields, a hostile provider display name, and a hostile server error message
 // never become live markup. Plus a source scan proving no
@@ -40,7 +40,7 @@ function hostileSlot(): PublicSlot {
 function expectInertHtml(container: HTMLElement): void {
   expect(container.querySelector('script')).toBeNull();
   expect(container.querySelector('img')).toBeNull();
-  // Phase 14i-1: lucide-react icons are first-party elements (every one
+  // Lucide-react icons are first-party elements (every one
   // carries class "lucide"). Hostile field values render as escaped text via
   // React and can never produce elements at all — so any svg WITHOUT the
   // lucide class is still a hard failure, exactly as before.
@@ -48,7 +48,7 @@ function expectInertHtml(container: HTMLElement): void {
   expect(container.querySelector('iframe')).toBeNull();
 }
 
-describe('phase 12 frontend security pass', () => {
+describe('frontend security pass', () => {
   it('xss: SlotCard renders hostile fields as inert text', () => {
     const { container } = render(
       <MemoryRouter>
@@ -155,8 +155,8 @@ describe('phase 12 frontend security pass', () => {
     expect(seen[0]?.credentials).toBe('include');
     const headers = seen[0]?.headers as Record<string, string>;
     expect(headers['content-type']).toBe('application/json');
-    // Phase 12 completion (F4): the CSRF guard requires this header on
-    // credentialed mutations; the browser then forces a CORS-gated preflight.
+    // Completion (F4): the CSRF guard requires this header on
+    // Credentialed mutations; the browser then forces a CORS-gated preflight.
     expect(headers['X-Takeover-Client']).toBe('web');
   });
 

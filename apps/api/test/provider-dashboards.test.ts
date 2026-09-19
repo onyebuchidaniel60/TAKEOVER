@@ -1,11 +1,11 @@
-// Phase 9 integration tests — live DB. Provider demand views (truncated
+// Integration tests — live DB. Provider demand views (truncated
 // buyer identifiers only), display-name profiles, and providerDisplay on
 // slot detail. Auth via the real challenge/verify flow with an injected
 // signature stub. No payment_intent or tx data is ever asserted here beyond
 // proving its absence from provider responses.
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
-// Phase 13 determinism: live-DB chains (login + mutations + verification
+// Determinism: live-DB chains (login + mutations + verification
 // reads) measure 2-5s per test against remote Postgres with spikes past 5s;
 // observed failures were wall-clock timeouts only, scattered across tests
 // and runs, never wrong values. File-level budget per the claims.test.ts
@@ -29,7 +29,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
       verify: { windowMs: 60_000, max: 1000 },
       intent: { windowMs: 60_000, max: 1000 },
       submission: { windowMs: 60_000, max: 1000 },
-      // Phase 12 budgets disabled here (proven separately in security.test.ts).
+      // Budgets disabled here (proven separately in security.test.ts).
       claimCreate: { windowMs: 60_000, max: 1000 },
       slotMutate: { windowMs: 60_000, max: 1000 },
       providerProfile: { windowMs: 60_000, max: 1000 },
@@ -40,7 +40,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
   const tag = randomUUID().slice(0, 8);
   const wallets: string[] = [];
 
-  // Phase 12 completion (F4): the CSRF guard requires an allowlisted Origin
+  // Completion (F4): the CSRF guard requires an allowlisted Origin
   // and the client header on every credentialed mutation. The test allowlist
   // is the dev default (CORS_ORIGINS unset here).
   const CSRF = { origin: 'http://localhost:5173', 'x-takeover-client': 'web' };
@@ -191,7 +191,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
         .where(inArray(users.walletAddress, wallets));
       const userIds = found.map((u) => u.id);
       if (userIds.length > 0) {
-        // Phase 10 audit rows reference their actor: remove them first.
+        // Audit rows reference their actor: remove them first.
         await db.delete(auditEvents).where(inArray(auditEvents.actorUserId, userIds));
         await db.delete(providerProfiles).where(inArray(providerProfiles.userId, userIds));
         await db.delete(sessions).where(inArray(sessions.userId, userIds));

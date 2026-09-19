@@ -1,4 +1,4 @@
-// Phase 4 unit tests — no database. Covers price serialization, the filter
+// unit tests — no database. Covers price serialization, the filter
 // builder, and the future-start boundary rule.
 import { describe, expect, it } from 'vitest';
 import { serializePriceUsdt } from '../src/slots/price';
