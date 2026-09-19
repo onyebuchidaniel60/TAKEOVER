@@ -475,17 +475,19 @@ describe('axe on error states', () => {
   });
 });
 
-// Hamburger drawer: the header is axe-clean with the drawer closed and
-// with it open (badge pill + backdrop included — the drawer mounts
-// inside the header element, so scoping to the header covers all of it).
-function renderShell(): void {
+// Hamburger drawer: the shell (header + drawer + page) is axe-clean with
+// the drawer closed and with it open (badge pill + backdrop included).
+// The drawer is a sibling of the header (never a child — see the
+// layering rule in NavDrawer.tsx), so the axe scope is the whole render
+// container, not the header element.
+function renderShell(): HTMLElement {
   useNotifications.setState({ unread: null });
   setBuyer();
   mockFetch((url) => {
     if (url === '/api/v1/me/notifications') return { notifications: [], unreadCount: 3 };
     return undefined;
   });
-  render(
+  const { container } = render(
     <MemoryRouter initialEntries={['/']}>
       <TopBar />
       <main>
@@ -493,28 +495,27 @@ function renderShell(): void {
       </main>
     </MemoryRouter>,
   );
+  return container;
 }
 
 describe('axe on the nav drawer', () => {
-  it('header with closed drawer has no critical/serious violations', async () => {
-    renderShell();
+  it('shell with closed drawer has no critical/serious violations', async () => {
+    const container = renderShell();
     await waitFor(() => {
       expect(useNotifications.getState().unread).toBe(3);
     });
-    const header = document.querySelector('header') as HTMLElement;
-    await checkAxe('header drawer closed', header);
+    await checkAxe('shell drawer closed', container);
   });
 
-  it('header with open drawer has no critical/serious violations', async () => {
+  it('shell with open drawer has no critical/serious violations', async () => {
     const user = userEvent.setup();
-    renderShell();
+    const container = renderShell();
     await waitFor(() => {
       expect(useNotifications.getState().unread).toBe(3);
     });
     await user.click(screen.getByRole('button', { name: /open menu/i }));
     await screen.findByRole('navigation', { name: 'Site menu' });
-    const header = document.querySelector('header') as HTMLElement;
-    await checkAxe('header drawer open', header);
+    await checkAxe('shell drawer open', container);
   });
 });
 
@@ -881,24 +882,22 @@ describe('axe on the nav drawer with dark mode forced', () => {
     useNotifications.setState({ unread: null });
   });
 
-  it('header with closed drawer has no critical/serious violations (dark)', async () => {
-    renderShell();
+  it('shell with closed drawer has no critical/serious violations (dark)', async () => {
+    const container = renderShell();
     await waitFor(() => {
       expect(useNotifications.getState().unread).toBe(3);
     });
-    const header = document.querySelector('header') as HTMLElement;
-    await checkAxe('header drawer closed (dark)', header);
+    await checkAxe('shell drawer closed (dark)', container);
   });
 
-  it('header with open drawer has no critical/serious violations (dark)', async () => {
+  it('shell with open drawer has no critical/serious violations (dark)', async () => {
     const user = userEvent.setup();
-    renderShell();
+    const container = renderShell();
     await waitFor(() => {
       expect(useNotifications.getState().unread).toBe(3);
     });
     await user.click(screen.getByRole('button', { name: /open menu/i }));
     await screen.findByRole('navigation', { name: 'Site menu' });
-    const header = document.querySelector('header') as HTMLElement;
-    await checkAxe('header drawer open (dark)', header);
+    await checkAxe('shell drawer open (dark)', container);
   });
 });

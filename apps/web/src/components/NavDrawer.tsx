@@ -7,6 +7,15 @@
 // reduced-motion blanket in index.css). Accessibility reuses the
 // dialog-focus discipline (focus trap, Escape close, focus return to
 // the hamburger) with a nav landmark instead of a dialog role.
+//
+// Layering rule: this drawer MUST stay a sibling of the header, never
+// a child. The header's backdrop-blur makes it the containing block
+// for fixed descendants, so a fixed drawer rendered inside it sizes to
+// the header strip instead of the viewport — the panel paints only a
+// header-tall strip while the item list overflows below it with no
+// background (the "transparent drawer" bug), and the scrim never
+// covers the page. The panel itself is fully opaque (bg-cream /
+// dark:bg-cocoa); translucency here would be a bug, not a style.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { X } from 'lucide-react';
@@ -80,7 +89,7 @@ export default function NavDrawer({
         data-testid="nav-backdrop"
         aria-hidden="true"
         onClick={onClose}
-        className={`absolute inset-0 bg-coal/60 transition-opacity duration-ui ease-out-strong motion-reduce:transition-none ${
+        className={`absolute inset-0 bg-bark/40 transition-opacity duration-ui ease-out-strong motion-reduce:transition-none dark:bg-coal/60 ${
           visible ? 'opacity-100' : 'opacity-0'
         }`}
       />
@@ -88,7 +97,7 @@ export default function NavDrawer({
         ref={panelRef}
         id="site-nav"
         aria-label="Site menu"
-        className={`absolute bottom-0 left-0 top-0 w-[280px] max-w-[85vw] bg-cream shadow-card transition-transform duration-panel ease-drawer motion-reduce:transition-none dark:bg-cocoa ${
+        className={`absolute bottom-0 left-0 top-0 w-[280px] max-w-[85vw] border-r border-hairline bg-cream shadow-card transition-transform duration-panel ease-drawer motion-reduce:transition-none dark:border-rootline dark:bg-cocoa dark:shadow-none ${
           visible ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

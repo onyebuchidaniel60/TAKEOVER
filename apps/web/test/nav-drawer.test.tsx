@@ -88,6 +88,27 @@ describe('nav drawer chrome', () => {
     expect(nav.className).toContain('max-w-[85vw]');
     expect(nav.className).toContain('ease-drawer');
     expect(nav.className).toContain('duration-panel');
+    // Opaque elevated panel in both modes — never translucent.
+    expect(nav.className).toContain('bg-cream');
+    expect(nav.className).toContain('border-r');
+    expect(nav.className).not.toMatch(/bg-cream\/|bg-opacity|backdrop-blur/);
+  });
+
+  it('renders the drawer outside the header so fixed positioning hits the viewport', async () => {
+    // Regression: the header's backdrop-blur makes it the containing
+    // block for fixed descendants. A fixed drawer inside the header
+    // sizes to the header strip — panel paints header-tall while the
+    // items overflow below it with no background (transparent drawer).
+    const user = userEvent.setup();
+    authAs('buyer');
+    stubFetch(0);
+    renderShell();
+    await openDrawer(user);
+    const header = document.querySelector('header') as HTMLElement;
+    const nav = screen.getByRole('navigation', { name: 'Site menu' });
+    expect(header.contains(nav)).toBe(false);
+    expect(nav.parentElement?.className).toContain('fixed');
+    expect(nav.parentElement?.className).toContain('inset-0');
   });
 
   it('tapping an item closes the drawer and navigates', async () => {
@@ -130,6 +151,7 @@ describe('nav drawer chrome', () => {
     await openDrawer(user);
     const backdrop = container.querySelector('[data-testid="nav-backdrop"]');
     expect(backdrop).toBeTruthy();
+    expect(backdrop?.className).toContain('bg-bark/40');
     await user.click(backdrop as HTMLElement);
     await waitFor(() => {
       expect(screen.queryByRole('navigation', { name: 'Site menu' })).toBeNull();
