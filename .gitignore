@@ -46,3 +46,4 @@ agent/
 # Phase logs and agent-authored reports — local-only
 docs/phases/
 docs/reports/
+docs/redesign/
