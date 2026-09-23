@@ -80,7 +80,8 @@ describe('feed badges', () => {
     const { container } = render(<PriceDisplay priceUsdt="1500000" large />);
     const span = container.querySelector('span');
     expect(span?.className).toContain('tabular-nums');
-    expect(screen.getByLabelText(/price/i)).toBeTruthy();
+    // The exposed text is the accessible name (no aria-label wrapper).
+    expect(screen.getByText('1.5 USDT')).toBeTruthy();
   });
 });
 
@@ -125,7 +126,7 @@ describe('feed card', () => {
     const card = within(link);
     expect(card.getByRole('img', { name: 'dining' })).toBeTruthy();
     expect(card.getByRole('heading', { level: 2, name: 'Table for two — tonight' })).toBeTruthy();
-    expect(card.getByLabelText(/price/i)).toBeTruthy();
+    expect(card.getByText('1.5 USDT')).toBeTruthy();
     expect(card.getByText('Only 3 left')).toBeTruthy();
   });
 

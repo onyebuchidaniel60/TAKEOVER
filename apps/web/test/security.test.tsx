@@ -74,7 +74,11 @@ describe('frontend security pass', () => {
     expect(text).toContain(EVIL_TITLE);
     expect(text).toContain(EVIL_DESC);
     expect(text).toContain(EVIL_LOCATION);
-    expect(text).toContain(EVIL_CATEGORY);
+    // Category rides the icon chip (Phase 4, like the feed card): the
+    // hostile value survives only as the escaped accessible label —
+    // never as markup, never as visible text.
+    const chip = container.querySelector('[role="img"]');
+    expect(chip?.getAttribute('aria-label')).toBe(EVIL_CATEGORY);
   });
 
   it('xss: Profile renders a hostile provider display name as inert text', async () => {

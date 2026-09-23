@@ -117,7 +117,7 @@ describe('keyboard activation', () => {
         </Routes>
       </MemoryRouter>,
     );
-    const button = await screen.findByRole('button', { name: /claim this opening/i });
+    const button = await screen.findByRole('button', { name: /claim this slot/i });
     button.focus();
     expect(document.activeElement).toBe(button);
     await user.keyboard('{Enter}');
@@ -138,7 +138,7 @@ describe('keyboard activation', () => {
         </Routes>
       </MemoryRouter>,
     );
-    await screen.findByRole('button', { name: /claim this opening/i });
+    await screen.findByRole('button', { name: /claim this slot/i });
     const order = [...container.querySelectorAll(FOCUSABLE)].map((el) => el.tagName);
     expect(order).toContain('A');
     expect(order).toContain('BUTTON');

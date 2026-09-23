@@ -86,7 +86,7 @@ describe('owner claim-button gate', () => {
     renderDetail();
     expect(await screen.findByText('Table for two — tonight')).toBeTruthy();
     expect(await screen.findByText('This is your opening.')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /claim this opening/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /claim this slot/i })).toBeNull();
     expect(seen.some((u) => u.endsWith('/slots/slot-1/ownership'))).toBe(true);
   });
 
@@ -102,7 +102,7 @@ describe('owner claim-button gate', () => {
       return { status: 200, body: { data: {}, requestId: 't' } };
     });
     renderDetail();
-    expect(await screen.findByRole('button', { name: /claim this opening/i })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /claim this slot/i })).toBeTruthy();
     expect(screen.queryByText('This is your opening.')).toBeNull();
   });
 
@@ -118,7 +118,7 @@ describe('owner claim-button gate', () => {
       return { status: 200, body: { data: {}, requestId: 't' } };
     });
     renderDetail();
-    expect(await screen.findByRole('button', { name: /claim this opening/i })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /claim this slot/i })).toBeTruthy();
   });
 
   it('offers no claim action while ownership is still resolving', async () => {
@@ -144,7 +144,7 @@ describe('owner claim-button gate', () => {
     expect(await screen.findByText('Table for two — tonight')).toBeTruthy();
     // Slot loaded, ownership pending: neither the button nor the note.
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: /claim this opening/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /claim this slot/i })).toBeNull();
     });
     expect(screen.queryByText('This is your opening.')).toBeNull();
   });

@@ -39,6 +39,7 @@ import {
   intentFixture,
   meFixture,
   mockFetch,
+  pendingForever,
   runAxe,
   setAdmin,
   setBuyer,
@@ -473,6 +474,52 @@ describe('axe on error states', () => {
     const reportButton = screen.getByRole('button', { name: /report this opening/i });
     await user.click(reportButton);
     await checkAxe('report dialog', container);
+  });
+});
+
+describe('axe on slot detail states', () => {
+  it('/slot/:id loading skeleton has no critical/serious violations', async () => {
+    setBuyer();
+    mockFetch(() => pendingForever());
+    const container = renderAt('/slot/slot-1', '/slot/:slotId', <SlotDetailPage />);
+    await screen.findByLabelText(/loading slot details/i);
+    await checkAxe('/slot/:id loading', container);
+  });
+
+  it('/slot/:id not-found has no critical/serious violations', async () => {
+    setGuest();
+    mockFetch(() => err(404, 'NOT_FOUND', 'Slot not found.'));
+    const container = renderAt('/slot/slot-1', '/slot/:slotId', <SlotDetailPage />);
+    await screen.findByText(/no longer available/i);
+    await screen.findByRole('link', { name: /back to feed/i });
+    await checkAxe('/slot/:id not-found', container);
+  });
+
+  it('/slot/:id own-slot view has no critical/serious violations', async () => {
+    setBuyer();
+    mockFetch((url) => {
+      if (url.endsWith('/ownership')) return { isOwner: true };
+      if (url.startsWith('/api/v1/slots/')) return { slot: slotFixture() };
+      return undefined;
+    });
+    const container = renderAt('/slot/slot-1', '/slot/:slotId', <SlotDetailPage />);
+    await screen.findByText('This is your opening.');
+    expect(screen.queryByRole('button', { name: /claim this slot/i })).toBeNull();
+    await checkAxe('/slot/:id own-slot', container);
+  });
+
+  it('/slot/:id sticky CTA sits in a fixed above-nav container', async () => {
+    setBuyer();
+    mockFetch((url) => {
+      if (url.endsWith('/ownership')) return { isOwner: false };
+      if (url.startsWith('/api/v1/slots/')) return { slot: slotFixture() };
+      return undefined;
+    });
+    renderAt('/slot/slot-1', '/slot/:slotId', <SlotDetailPage />);
+    const button = await screen.findByRole('button', { name: /claim this slot/i });
+    const fixed = button.closest('div.fixed');
+    expect(fixed?.className).toContain('bottom-[calc(env(safe-area-inset-bottom,0px)+90px)]');
+    expect(fixed?.className).toContain('z-30');
   });
 });
 
