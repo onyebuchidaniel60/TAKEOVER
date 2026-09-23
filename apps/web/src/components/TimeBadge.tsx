@@ -17,7 +17,7 @@ export default function TimeBadge({ startsAt, endsAt }: { startsAt: string; ends
     ? new Date(endsAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
     : null;
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 font-mono text-small font-medium tabular-nums text-warning">
+    <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 font-mono text-small font-medium tabular-nums text-muted">
       <Clock size={12} aria-hidden="true" />
       {dayLabel(when, new Date())} · {time}
       {end ? ` – ${end}` : ''}

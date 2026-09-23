@@ -9,8 +9,13 @@ export interface FilterValues {
   to: string;
 }
 
+// Inset inputs: surface-2 fill, radius-control, no border (the value
+// shift off the surface card carries the affordance), global focus ring.
 const inputClass =
-  'min-h-touch w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-body text-text placeholder:text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-accent placeholder:text-muted focus-visible:ring-accent';
+  'min-h-touch w-full rounded-control bg-surface-2 px-3 py-2 text-body text-text placeholder:text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+
+const chipBase =
+  'min-h-touch shrink-0 whitespace-nowrap rounded-pill px-4 py-2 text-body font-medium transition-[background-color,color,transform] duration-ui ease-out-strong active:scale-[0.97] motion-reduce:transition-none';
 
 export default function SearchFilters({
   values,
@@ -23,57 +28,72 @@ export default function SearchFilters({
 }) {
   const set =
     (key: keyof FilterValues) =>
-    (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    (event: React.ChangeEvent<HTMLInputElement>) => {
       onChange({ ...values, [key]: event.target.value });
     };
 
+  const setCategory = (category: string): void => {
+    onChange({ ...values, category });
+  };
+
   return (
     <form
-      className="rounded-2xl border border-border bg-surface p-4 shadow-card"
+      className="rounded-card border border-border bg-surface p-4"
       role="search"
       aria-label="Search available slots"
       onSubmit={(event) => event.preventDefault()}
     >
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>
-          <label htmlFor="slot-search" className="mb-1 block text-small font-medium text-muted">
-            Search
-          </label>
-          <div className="relative">
-            <Search
-              size={16}
-              aria-hidden="true"
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-            />
-            <input
-              id="slot-search"
-              type="search"
-              autoComplete="off"
-              className={`${inputClass} pl-9`}
-              placeholder="Dinner, yoga, court…"
-              value={values.q}
-              onChange={set('q')}
-            />
-          </div>
+      <div>
+        <label htmlFor="slot-search" className="mb-1 block text-small font-medium text-muted">
+          Search
+        </label>
+        <div className="relative">
+          <Search
+            size={16}
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+          />
+          <input
+            id="slot-search"
+            type="search"
+            autoComplete="off"
+            className={`${inputClass} pl-9`}
+            placeholder="Dinner, yoga, court…"
+            value={values.q}
+            onChange={set('q')}
+          />
         </div>
-        <div>
-          <label htmlFor="slot-category" className="mb-1 block text-small font-medium text-muted">
-            Category
-          </label>
-          <select
-            id="slot-category"
-            className={inputClass}
-            value={values.category}
-            onChange={set('category')}
-          >
-            <option value="">All categories</option>
-            {SLOT_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
-          </select>
+      </div>
+      <div className="mt-3">
+        <p id="slot-category-label" className="mb-1 block text-small font-medium text-muted">
+          Category
+        </p>
+        <div
+          role="group"
+          aria-labelledby="slot-category-label"
+          className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1"
+        >
+          {['', ...SLOT_CATEGORIES].map((category) => {
+            const active = values.category === category;
+            return (
+              <button
+                key={category || 'all'}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setCategory(category)}
+                className={
+                  active
+                    ? `${chipBase} bg-accent text-accent-ink`
+                    : `${chipBase} bg-surface-2 text-muted`
+                }
+              >
+                {category || 'All'}
+              </button>
+            );
+          })}
         </div>
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label htmlFor="slot-location" className="mb-1 block text-small font-medium text-muted">
             Area
@@ -118,7 +138,7 @@ export default function SearchFilters({
       <button
         type="button"
         onClick={onClear}
-        className="mt-3 min-h-touch rounded-lg border border-border-strong px-4 py-2 text-body font-medium text-muted transition-transform duration-press ease-out-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.97] bg-surface focus-visible:ring-accent"
+        className="mt-3 min-h-touch rounded-pill border border-border-strong bg-transparent px-4 py-2 text-body font-medium text-text transition-transform duration-press ease-out-strong active:scale-[0.97] motion-reduce:transition-none"
       >
         Clear filters
       </button>

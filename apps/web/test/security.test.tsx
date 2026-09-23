@@ -59,8 +59,12 @@ describe('frontend security pass', () => {
     const text = container.textContent ?? '';
     expect(text).toContain(EVIL_TITLE);
     expect(text).toContain(EVIL_DESC);
-    expect(text).toContain(EVIL_CATEGORY);
     expect(text).toContain(EVIL_LOCATION);
+    // Category rides the icon chip (Phase 3): the hostile value survives
+    // only as the escaped accessible label — never as markup, never as
+    // visible text.
+    const chip = container.querySelector('[role="img"]');
+    expect(chip?.getAttribute('aria-label')).toBe(EVIL_CATEGORY);
   });
 
   it('xss: SlotDetail renders hostile fields as inert text', () => {

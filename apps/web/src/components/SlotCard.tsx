@@ -1,41 +1,44 @@
 import { Link } from 'react-router-dom';
-import { MapPin, Tag } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import type { PublicSlot } from '../lib/slots';
 import AvailabilityBadge from './AvailabilityBadge';
+import CategoryIcon from './CategoryIcon';
 import PriceDisplay from './PriceDisplay';
 import TimeBadge from './TimeBadge';
 
+// Feed card (design.md §7): surface, radius-card, 16px padding, no
+// shadow, no hover-lift. The whole card is a link, so press feedback
+// is scale(0.99). Category identity rides the icon chip (D5); title in
+// h2; time + location meta; price left, availability right — every
+// figure in mono + tabular-nums.
 export default function SlotCard({ slot }: { slot: PublicSlot }) {
   return (
     <Link
       to={`/slot/${slot.id}`}
-      className="block rounded-2xl border border-border bg-surface p-5 shadow-card transition-[box-shadow,transform] duration-ui ease-out-strong hover:shadow-card-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.99] focus-visible:ring-accent"
+      className="block rounded-card border border-border bg-surface p-4 transition-transform duration-press ease-out-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.99] motion-reduce:transition-none"
     >
-      <div className="flex items-start justify-between gap-3">
-        <h2 className="text-h3 font-semibold text-text">{slot.title}</h2>
-        <PriceDisplay priceUsdt={slot.price_usdt} />
+      <div className="flex items-start gap-3">
+        <CategoryIcon category={slot.category} />
+        <div className="min-w-0">
+          <h2 className="text-h2 font-semibold text-text">{slot.title}</h2>
+          <p className="mt-0.5 truncate text-small text-muted">By {slot.providerDisplay}</p>
+        </div>
       </div>
-      <p className="mt-0.5 text-small text-muted">By {slot.providerDisplay}</p>
       {slot.description ? (
-        <p className="mt-1 line-clamp-2 text-body leading-relaxed text-muted">{slot.description}</p>
+        <p className="mt-3 line-clamp-2 text-body leading-relaxed text-muted">{slot.description}</p>
       ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <TimeBadge startsAt={slot.starts_at} endsAt={slot.ends_at} />
-        <AvailabilityBadge available={slot.available_quantity} />
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-small font-medium text-muted">
-        {slot.category ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1">
-            <Tag size={12} aria-hidden="true" />
-            {slot.category}
-          </span>
-        ) : null}
         {slot.location_label ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1">
+          <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-small font-medium text-muted">
             <MapPin size={12} aria-hidden="true" />
             {slot.location_label}
           </span>
         ) : null}
+      </div>
+      <div className="mt-3 flex flex-wrap items-end justify-between gap-2 border-t border-border pt-3">
+        <PriceDisplay priceUsdt={slot.price_usdt} />
+        <AvailabilityBadge available={slot.available_quantity} />
       </div>
     </Link>
   );

@@ -2,8 +2,9 @@
 //
 // Usage:
 //   node scripts/audit/audit.mjs --route / --viewports 320,375,768,1280 \
-//     --states default,empty,loading,error --out docs/redesign/audits/phase-0 \
-//     [--base http://localhost:5173] [--scrollY 600]
+//     --states default,loading,empty,error --out docs/redesign/audits/phase-0 \
+//     [--base http://localhost:5173] [--scrollY 600] \
+//     [--ready 'main li a,div[role=alert]'] [--readyEmpty text:Nothing] [--readyError div[role=alert]]
 //
 // Output:
 //   <out>/<width>x<height>-<state>.png   screenshots per viewport x state
@@ -53,6 +54,18 @@ const base = (arg('base', 'http://localhost:5173') || '').replace(/\/$/, '');
 // Optional post-load scroll (px) before screenshot + measure — used to
 // exercise scroll-dependent chrome (e.g. the header hairline).
 const scrollY = Number(arg('scrollY', '0')) || 0;
+// Optional readiness selectors, waited for after load and before
+// screenshot + measure. Cold dev backends can answer after Playwright's
+// networkidle window closes but before React fires its fetch, so
+// navigation alone proves nothing — this waits for app state.
+// --ready applies to the default state; --readyEmpty/--readyError to
+// those states (loading always captures promptly, so it skips).
+// A value starting with "text:" waits for body text instead of a
+// selector (e.g. text:Nothing for an empty-state copy line).
+// Keep values free of spaces and quotes (shell-safe).
+const readyDefault = arg('ready', '');
+const readyEmpty = arg('readyEmpty', '');
+const readyError = arg('readyError', '');
 
 if (viewports.length === 0 || states.length === 0) {
   console.error('audit: --viewports and --states must be non-empty');
@@ -148,6 +161,17 @@ async function measure(page) {
 const browser = await chromium.launch();
 const report = { base, route, at: new Date().toISOString(), results: [] };
 
+// Deep-empty every array in a JSON body: list endpoints nest their rows
+// (e.g. { data: { slots: [...] } }), so only a recursive rewrite
+// guarantees an empty view. Totals/scalars pass through untouched.
+function deepEmpty(v) {
+  if (Array.isArray(v)) return [];
+  if (v && typeof v === 'object') {
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, deepEmpty(x)]));
+  }
+  return v;
+}
+
 try {
   for (const width of viewports) {
     const height = HEIGHTS[width] ?? 800;
@@ -156,6 +180,10 @@ try {
       const page = await context.newPage();
       const notes = [];
       let effectiveState = state;
+      // Whether the empty-state rewrite actually changed a response body.
+      // Checked after measurement: fetches fire after load, so an
+      // on-load check would always report unsupported.
+      let rewrote = false;
       try {
         if (state === 'error') {
           await page.route('**/api/**', (r) => r.abort('failed'));
@@ -165,20 +193,13 @@ try {
             await r.continue();
           });
         } else if (state === 'empty') {
-          let rewrote = false;
           await page.route('**/api/**', async (r) => {
             const resp = await r.fetch();
             const ct = resp.headers()['content-type'] || '';
             if (ct.includes('application/json')) {
               try {
                 const json = await resp.json();
-                const emptied = Array.isArray(json)
-                  ? []
-                  : json && typeof json === 'object'
-                    ? Object.fromEntries(
-                        Object.entries(json).map(([k, v]) => [k, Array.isArray(v) ? [] : v]),
-                      )
-                    : json;
+                const emptied = deepEmpty(json);
                 if (JSON.stringify(emptied) !== JSON.stringify(json)) rewrote = true;
                 await r.fulfill({ response: resp, body: JSON.stringify(emptied) });
                 return;
@@ -187,9 +208,6 @@ try {
               }
             }
             await r.fulfill({ response: resp });
-          });
-          page.on('load', () => {
-            if (!rewrote) notes.push('empty-unsupported: no JSON list body recognized; treated as default');
           });
         } else if (state !== 'default') {
           notes.push(`unknown-state: "${state}" treated as default`);
@@ -211,6 +229,28 @@ try {
           await page.evaluate((y) => window.scrollTo(0, y), scrollY);
           await page.waitForTimeout(400);
           notes.push(`scrolled: ${scrollY}px`);
+        }
+
+        // The loading state must capture the pending UI promptly, so it
+        // skips the readiness wait; every other state waits for settled
+        // content (cards, the empty copy, or the error panel).
+        const readyFor =
+          state === 'empty' ? readyEmpty : state === 'error' ? readyError : state === 'loading' ? '' : readyDefault;
+        if (readyFor) {
+          try {
+            if (readyFor.startsWith('text:')) {
+              await page.waitForFunction(
+                (needle) => (document.body.textContent || '').includes(needle),
+                readyFor.slice(5),
+                { timeout: 30000 },
+              );
+            } else {
+              await page.waitForSelector(readyFor, { timeout: 30000 });
+            }
+            notes.push(`ready: ${readyFor}`);
+          } catch {
+            notes.push(`ready-timeout (30s): ${readyFor}`);
+          }
         }
 
         const file = `${width}x${height}-${state}.png`;
@@ -240,6 +280,9 @@ try {
         }
 
         const m = await measure(page);
+        if (state === 'empty' && !rewrote) {
+          notes.push('empty-unsupported: no JSON list body recognized; treated as default');
+        }
         const failures = {
           contrast: m.pairs.filter((p) => p.ratio < 4.5),
           touch: m.touch,
@@ -274,6 +317,10 @@ try {
         });
         console.error(`audit: ${width}x${height} [${state}] FAILED: ${e.message}`);
       } finally {
+        // Drain in-flight route handlers before closing: delayed API
+        // responses (loading/empty states) can otherwise outlive the
+        // context and crash with TargetClosedError.
+        await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => undefined);
         await context.close();
       }
     }

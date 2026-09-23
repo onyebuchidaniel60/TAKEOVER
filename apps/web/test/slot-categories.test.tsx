@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-// Fixed category dropdowns. The filter and the
-// form render exactly the six owner-approved options plus their empty
-// option; selection round-trips (filter: URL param -> select -> URL ->
-// fetch; form: select -> submit body); a pre-list custom draft value stays
-// visible as a disabled "Custom:" option and submits unchanged.
+// Fixed category filters. The feed filter renders All plus the six
+// owner-approved categories as pill chips (aria-pressed); selection
+// round-trips (chip -> URL param -> fetch). The sell form keeps its
+// select (behavior preserved there); a pre-list custom draft value
+// stays visible as a disabled "Custom:" option and submits unchanged.
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
@@ -50,31 +50,39 @@ const validForm: SlotFormValues = {
   total_quantity: '2',
 };
 
+function categoryChips(): { label: string; pressed: boolean }[] {
+  return screen
+    .getAllByRole('button', { name: (name) => [...EXPECTED, 'All'].includes(name) })
+    .map((b) => ({ label: b.textContent ?? '', pressed: b.getAttribute('aria-pressed') === 'true' }));
+}
+
+// The sell form keeps its native select (unchanged behavior there).
 function categoryOptions(): { label: string; value: string }[] {
   return screen
     .getAllByRole('option')
     .map((o) => ({ label: o.textContent ?? '', value: (o as HTMLOptionElement).value }));
 }
 
-describe('category filter dropdown', () => {
-  it('renders exactly the six approved options plus All categories', () => {
+describe('category filter chips', () => {
+  it('renders All plus the six approved categories, none pressed when empty', () => {
     const { unmount } = render(<SearchFilters values={emptyFilters} onChange={() => {}} onClear={() => {}} />);
     try {
       expect(SLOT_CATEGORIES).toEqual(EXPECTED);
-      expect(categoryOptions()).toEqual([
-        { label: 'All categories', value: '' },
-        ...EXPECTED.map((c) => ({ label: c, value: c })),
+      expect(categoryChips()).toEqual([
+        { label: 'All', pressed: true },
+        ...EXPECTED.map((c) => ({ label: c, pressed: false })),
       ]);
     } finally {
       unmount();
     }
   });
 
-  it('emits the picked category through onChange', () => {
+  it('emits the picked category through onChange', async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     const { unmount } = render(<SearchFilters values={emptyFilters} onChange={onChange} onClear={() => {}} />);
     try {
-      fireEvent.change(screen.getByLabelText('Category'), { target: { value: 'Event' } });
+      await user.click(screen.getByRole('button', { name: 'Event' }));
       expect(onChange).toHaveBeenCalledWith({ ...emptyFilters, category: 'Event' });
     } finally {
       unmount();
@@ -87,6 +95,7 @@ describe('category filter dropdown', () => {
       seen.push(url);
       return { slots: [], total: 0, limit: 20, offset: 0 };
     });
+    const user = userEvent.setup();
     const { unmount } = render(
       <MemoryRouter initialEntries={['/?category=Event']}>
         <Routes>
@@ -95,12 +104,14 @@ describe('category filter dropdown', () => {
       </MemoryRouter>,
     );
     try {
-      // URL param -> select shows the value, and the fetch carries it.
-      const select = (await screen.findByLabelText('Category')) as HTMLSelectElement;
-      expect(select.value).toBe('Event');
+      // URL param -> Event chip pressed, and the fetch carries it.
+      expect(await screen.findByRole('button', { name: 'Event' })).toBeTruthy();
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Event' }).getAttribute('aria-pressed')).toBe('true'),
+      );
       await waitFor(() => expect(seen.some((u) => u.includes('category=Event'))).toBe(true));
-      // Select -> URL -> fetch carries the new value.
-      fireEvent.change(select, { target: { value: 'Other' } });
+      // Chip -> URL -> fetch carries the new value.
+      await user.click(screen.getByRole('button', { name: 'Other' }));
       await waitFor(() => expect(seen.some((u) => u.includes('category=Other'))).toBe(true));
     } finally {
       unmount();
