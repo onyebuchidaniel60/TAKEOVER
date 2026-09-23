@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
-// Notifications UI — badge visibility, newest-first list,
-// mark-all-read clearing the badge, tap-to-read navigation.
-// Hamburger-drawer move: the badge lives on the Notifications item
-// inside the drawer (plus a numberless dot on the menu button); the
-// list renders at /notifications via NotificationsPage; the top row
-// holds only brand + menu button + wallet.
+// Notifications UI — dot visibility, list, mark-all-read clearing the
+// dot, tap-to-read navigation. Pill-nav move: the unread signal is a
+// numberless lime dot on the Notifications pill item (plus a count in
+// its accessible label); the list renders at /notifications via
+// NotificationsPage; the top row holds only brand + wallet.
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import BottomNav from '../src/components/BottomNav';
 import NotificationsSection from '../src/components/NotificationsSection';
 import TopBar from '../src/components/TopBar';
 import type { NotificationView } from '../src/lib/slots';
@@ -68,9 +68,8 @@ function authAsBuyer(): void {
   });
 }
 
-describe('TopBar navigation drawer', () => {
-  it('keeps the top row to brand + menu; the four links live in the drawer', async () => {
-    const user = userEvent.setup();
+describe('pill nav notifications item', () => {
+  it('keeps the top row to brand + wallet; the four sections live in the pill', async () => {
     authAsBuyer();
     stubFetch((url) => {
       if (url.includes('/api/v1/me/notifications')) {
@@ -81,24 +80,19 @@ describe('TopBar navigation drawer', () => {
     render(
       <MemoryRouter initialEntries={['/']}>
         <TopBar />
+        <BottomNav />
       </MemoryRouter>,
     );
     expect(screen.getByRole('link', { name: 'TAKEOVER home' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Open menu' })).toBeTruthy();
-    // No inline nav links on the top row (Profile overflow fix).
-    expect(screen.queryByRole('link', { name: 'Sell' })).toBeNull();
-    expect(screen.queryByRole('link', { name: 'Claims' })).toBeNull();
-    expect(screen.queryByRole('link', { name: 'Notifications' })).toBeNull();
-    expect(screen.queryByRole('link', { name: 'Profile' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Open menu' }));
-    expect(await screen.findByRole('link', { name: 'Sell' })).toBeTruthy();
+    // No menu button, no drawer, no inline nav links on the top row.
+    expect(screen.queryByRole('button', { name: /menu/i })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Sell' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Claims' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Notifications' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Profile' })).toBeTruthy();
   });
 
-  it('shows the count on the drawer item plus a dot on the menu button when unread > 0', async () => {
-    const user = userEvent.setup();
+  it('shows the count in the accessible label plus a numberless dot when unread > 0', async () => {
     authAsBuyer();
     stubFetch((url) => {
       if (url.includes('/api/v1/me/notifications')) {
@@ -108,18 +102,17 @@ describe('TopBar navigation drawer', () => {
     });
     const { container } = render(
       <MemoryRouter initialEntries={['/']}>
-        <TopBar />
+        <BottomNav />
       </MemoryRouter>,
     );
-    expect(await screen.findByLabelText('Open menu, 3 unread notifications')).toBeTruthy();
-    // Terracotta dot on the hamburger, no number while the drawer is closed.
-    expect(container.querySelector('button span.rounded-full')).toBeTruthy();
-    await user.click(screen.getByLabelText('Open menu, 3 unread notifications'));
     expect(await screen.findByLabelText('Notifications, 3 unread')).toBeTruthy();
+    // Lime dot on the pill item, no number.
+    const dot = container.querySelector('a span span.rounded-full');
+    expect(dot).toBeTruthy();
+    expect(dot?.textContent).toBe('');
   });
 
   it('hides the count and the dot when unread is 0', async () => {
-    const user = userEvent.setup();
     authAsBuyer();
     stubFetch((url) => {
       if (url.includes('/api/v1/me/notifications')) {
@@ -129,18 +122,16 @@ describe('TopBar navigation drawer', () => {
     });
     const { container } = render(
       <MemoryRouter initialEntries={['/']}>
-        <TopBar />
+        <BottomNav />
       </MemoryRouter>,
     );
     await waitFor(() => expect(useNotifications.getState().unread).toBe(0));
-    expect(screen.getByRole('button', { name: 'Open menu' })).toBeTruthy();
-    expect(container.querySelector('button span.rounded-full')).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Open menu' }));
-    expect(await screen.findByRole('link', { name: 'Notifications' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Notifications' })).toBeTruthy();
     expect(screen.queryByLabelText(/unread/)).toBeNull();
+    expect(container.querySelector('a span span.rounded-full')).toBeNull();
   });
 
-  it('tapping the drawer link navigates to /notifications', async () => {
+  it('tapping the pill item navigates to /notifications', async () => {
     const user = userEvent.setup();
     authAsBuyer();
     stubFetch((url) => {
@@ -152,12 +143,11 @@ describe('TopBar navigation drawer', () => {
     render(
       <MemoryRouter initialEntries={['/']}>
         <Routes>
-          <Route path="/" element={<TopBar />} />
+          <Route path="/" element={<BottomNav />} />
           <Route path="/notifications" element={<NotificationsPage />} />
         </Routes>
       </MemoryRouter>,
     );
-    await user.click(await screen.findByRole('button', { name: 'Open menu' }));
     await user.click(await screen.findByRole('link', { name: 'Notifications' }));
     expect(await screen.findByRole('heading', { name: 'Notifications' })).toBeTruthy();
   });
@@ -267,6 +257,7 @@ describe('NotificationsSection', () => {
     render(
       <MemoryRouter initialEntries={['/profile']}>
         <TopBar />
+        <BottomNav />
         <NotificationsSection />
       </MemoryRouter>,
     );
@@ -274,7 +265,8 @@ describe('NotificationsSection', () => {
     await user.click(screen.getByRole('button', { name: /mark all read/i }));
     await waitFor(() => expect(useNotifications.getState().unread).toBe(0));
     expect(seen.some((s) => s.url.includes('/read-all') && s.init?.method === 'POST')).toBe(true);
-    expect(screen.queryByLabelText(/unread notifications/)).toBeNull();
+    // The pill dot clears with the count.
+    expect(screen.queryByLabelText(/unread/)).toBeNull();
   });
 
   it('tapping a notification fires the read call and navigates to the claim', async () => {

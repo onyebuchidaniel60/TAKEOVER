@@ -12,6 +12,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import RequireAdmin from '../src/components/RequireAdmin';
 import RequireAuth from '../src/components/RequireAuth';
+import BottomNav from '../src/components/BottomNav';
 import TopBar from '../src/components/TopBar';
 import AdminAudit from '../src/routes/admin/AdminAudit';
 import AdminDashboard from '../src/routes/admin/AdminDashboard';
@@ -475,12 +476,9 @@ describe('axe on error states', () => {
   });
 });
 
-// Hamburger drawer: the shell (header + drawer + page) is axe-clean with
-// the drawer closed and with it open (badge pill + backdrop included).
-// The drawer is a sibling of the header (never a child — see the
-// layering rule in NavDrawer.tsx), so the axe scope is the whole render
-// container, not the header element.
-function renderShell(): HTMLElement {
+// Pill nav shell: header + pill + page is axe-clean with the unread dot
+// showing and with each nav item active in turn.
+function renderShell(path = '/'): HTMLElement {
   useNotifications.setState({ unread: null });
   setBuyer();
   mockFetch((url) => {
@@ -488,35 +486,53 @@ function renderShell(): HTMLElement {
     return undefined;
   });
   const { container } = render(
-    <MemoryRouter initialEntries={['/']}>
+    <MemoryRouter initialEntries={[path]}>
       <TopBar />
       <main>
         <h1>Shell page</h1>
       </main>
+      <BottomNav />
     </MemoryRouter>,
   );
   return container;
 }
 
-describe('axe on the nav drawer', () => {
-  it('shell with closed drawer has no critical/serious violations', async () => {
+async function awaitUnread(): Promise<void> {
+  await waitFor(() => {
+    expect(useNotifications.getState().unread).toBe(3);
+  });
+}
+
+describe('axe on the pill nav shell', () => {
+  it('shell chrome has no critical/serious violations', async () => {
     const container = renderShell();
-    await waitFor(() => {
-      expect(useNotifications.getState().unread).toBe(3);
-    });
-    await checkAxe('shell drawer closed', container);
+    await awaitUnread();
+    await checkAxe('shell chrome', container);
   });
 
-  it('shell with open drawer has no critical/serious violations', async () => {
-    const user = userEvent.setup();
+  it('shell with the unread dot has no critical/serious violations', async () => {
     const container = renderShell();
-    await waitFor(() => {
-      expect(useNotifications.getState().unread).toBe(3);
-    });
-    await user.click(screen.getByRole('button', { name: /open menu/i }));
-    await screen.findByRole('navigation', { name: 'Site menu' });
-    await checkAxe('shell drawer open', container);
+    await awaitUnread();
+    expect(screen.getByLabelText('Notifications, 3 unread')).toBeTruthy();
+    await checkAxe('shell unread dot', container);
   });
+
+  for (const [path, name] of [
+    ['/sell', 'Sell'],
+    ['/claims', 'Claims'],
+    ['/notifications', 'Notifications'],
+    ['/profile', 'Profile'],
+  ]) {
+    it(`shell with ${name} active has no critical/serious violations`, async () => {
+      const container = renderShell(path);
+      await awaitUnread();
+      // Regex: the Notifications label carries the unread count suffix.
+      expect(screen.getByRole('link', { name: new RegExp(name, 'i') }).getAttribute('aria-current')).toBe(
+        'page',
+      );
+      await checkAxe(`shell ${name} active`, container);
+    });
+  }
 });
 
 // Dark-only since Phase 1: the `dark` class is inert (no darkMode
@@ -872,7 +888,7 @@ describe('axe on routes (dark-only re-assertion)', () => {
   });
 });
 
-describe('axe on the nav drawer with dark mode forced', () => {
+describe('axe on the pill nav shell with dark mode forced', () => {
   beforeEach(() => {
     document.documentElement.classList.add('dark');
   });
@@ -882,22 +898,25 @@ describe('axe on the nav drawer with dark mode forced', () => {
     useNotifications.setState({ unread: null });
   });
 
-  it('shell with closed drawer has no critical/serious violations (dark)', async () => {
+  it('shell chrome has no critical/serious violations (dark)', async () => {
     const container = renderShell();
-    await waitFor(() => {
-      expect(useNotifications.getState().unread).toBe(3);
-    });
-    await checkAxe('shell drawer closed (dark)', container);
+    await awaitUnread();
+    await checkAxe('shell chrome (dark)', container);
   });
 
-  it('shell with open drawer has no critical/serious violations (dark)', async () => {
-    const user = userEvent.setup();
-    const container = renderShell();
-    await waitFor(() => {
-      expect(useNotifications.getState().unread).toBe(3);
+  for (const [path, name] of [
+    ['/sell', 'Sell'],
+    ['/claims', 'Claims'],
+    ['/notifications', 'Notifications'],
+    ['/profile', 'Profile'],
+  ]) {
+    it(`shell with ${name} active has no critical/serious violations (dark)`, async () => {
+      const container = renderShell(path);
+      await awaitUnread();
+      expect(screen.getByRole('link', { name: new RegExp(name, 'i') }).getAttribute('aria-current')).toBe(
+        'page',
+      );
+      await checkAxe(`shell ${name} active (dark)`, container);
     });
-    await user.click(screen.getByRole('button', { name: /open menu/i }));
-    await screen.findByRole('navigation', { name: 'Site menu' });
-    await checkAxe('shell drawer open (dark)', container);
-  });
+  }
 });

@@ -3,7 +3,7 @@
 // Usage:
 //   node scripts/audit/audit.mjs --route / --viewports 320,375,768,1280 \
 //     --states default,empty,loading,error --out docs/redesign/audits/phase-0 \
-//     [--base http://localhost:5173]
+//     [--base http://localhost:5173] [--scrollY 600]
 //
 // Output:
 //   <out>/<width>x<height>-<state>.png   screenshots per viewport x state
@@ -50,6 +50,9 @@ const states = arg('states', 'default')
   .filter(Boolean);
 const outDir = resolve(arg('out', 'docs/redesign/audits/phase-0'));
 const base = (arg('base', 'http://localhost:5173') || '').replace(/\/$/, '');
+// Optional post-load scroll (px) before screenshot + measure — used to
+// exercise scroll-dependent chrome (e.g. the header hairline).
+const scrollY = Number(arg('scrollY', '0')) || 0;
 
 if (viewports.length === 0 || states.length === 0) {
   console.error('audit: --viewports and --states must be non-empty');
@@ -202,6 +205,12 @@ try {
             page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 }),
           );
           await page.waitForTimeout(400);
+        }
+
+        if (scrollY > 0) {
+          await page.evaluate((y) => window.scrollTo(0, y), scrollY);
+          await page.waitForTimeout(400);
+          notes.push(`scrolled: ${scrollY}px`);
         }
 
         const file = `${width}x${height}-${state}.png`;

@@ -16,15 +16,21 @@ afterEach(() => {
 });
 
 describe('BrandMark', () => {
-  it('renders an accessible single-color SVG mark', () => {
+  it('renders the D6 tile treatment: dark tile, light cradle, lime tab', () => {
     const { container } = render(<BrandMark size={24} />);
     const svg = container.querySelector('svg');
     expect(svg).toBeTruthy();
     expect(svg?.getAttribute('role')).toBe('img');
     expect(svg?.getAttribute('aria-label')).toBe('TAKEOVER');
     expect(svg?.querySelector('title')?.textContent).toBe('TAKEOVER');
-    expect(svg?.getAttribute('fill')).toBe('currentColor');
     expect(svg?.getAttribute('viewBox')).toBe('0 0 32 32');
+    const rects = [...(svg?.querySelectorAll('rect') ?? [])];
+    // Tile + 3 cradle rects + tab; geometry unchanged, fills per D6.
+    // The cradle inherits its fill from the wrapping <g>.
+    expect(rects).toHaveLength(5);
+    expect(rects[0]?.getAttribute('fill')).toBe('#0A0A0A');
+    expect(svg?.querySelector('g')?.getAttribute('fill')).toBe('#FAFAFA');
+    expect(rects[4]?.getAttribute('fill')).toBe('#C4F135');
   });
 });
 

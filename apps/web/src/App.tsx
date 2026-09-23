@@ -4,6 +4,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import LoadingSkeleton from './components/LoadingSkeleton';
 import RequireAdmin from './components/RequireAdmin';
 import RequireAuth, { getReturnTo } from './components/RequireAuth';
+import BottomNav from './components/BottomNav';
 import TopBar from './components/TopBar';
 import { useAuth } from './store/auth';
 
@@ -193,6 +194,13 @@ export default function App() {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
+          {/*
+            Pill-nav clearance (chrome, not screen content): the fixed nav
+            overlays page bottoms, so the shell reserves room for it here —
+            once — instead of every screen padding itself.
+          */}
+          <div aria-hidden="true" className="h-24 pb-[env(safe-area-inset-bottom)]" />
+          <BottomNav />
         </ErrorBoundary>
       </div>
     </BrowserRouter>
