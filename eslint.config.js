@@ -51,6 +51,15 @@ export default tseslint.config(
     },
   },
   {
+    // Repo tooling (committed scripts): Node runtime. Browser-context
+    // globals used inside Playwright page.evaluate() callbacks are
+    // declared per-file with /* global */ comments instead.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+  },
+  {
     // F2 guard (accepted drizzle-orm CVE risk, GHSA-gpj5-g38j-94v9): the CVE
     // is unreachable only while no dynamic identifiers reach SQL. These
     // selectors forbid the sinks outright in shipped server code and DB
