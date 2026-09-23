@@ -47,15 +47,15 @@ export default function AdminReports() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/admin" className="inline-block min-h-touch py-2 text-body font-medium text-taupe dark:text-drift">
+      <Link to="/admin" className="inline-block min-h-touch py-2 text-body font-medium text-muted">
         ← Moderation
       </Link>
-      <h1 className="mt-1 text-h1 font-bold text-bark dark:text-parchment">Reports</h1>
-      <p className="mt-1 font-mono text-body tabular-nums text-muted dark:text-drift">
+      <h1 className="mt-1 text-h1 font-bold text-text">Reports</h1>
+      <p className="mt-1 font-mono text-body tabular-nums text-muted">
         {total} report{total === 1 ? '' : 's'} · newest first
       </p>
       {notice ? (
-        <p role="status" className="mt-3 rounded-lg bg-sagewash p-3 text-body text-sage dark:bg-sagewashd dark:text-saged">
+        <p role="status" className="mt-3 rounded-lg bg-surface-2 p-3 text-body text-accent">
           {notice}
         </p>
       ) : null}
@@ -71,8 +71,8 @@ export default function AdminReports() {
             aria-pressed={status === f}
             className={`min-h-touch rounded-full px-4 py-2 text-body font-medium ${
               status === f
-                ? 'bg-terra text-ivory dark:bg-sandlight dark:text-coal'
-                : 'border border-borderwarm bg-cream text-taupe dark:border-rootedge dark:bg-cocoa dark:text-khaki'
+                ? 'bg-accent text-accent-ink'
+                : 'border border-border-strong bg-surface text-muted'
             }`}
           >
             {f || 'All'}
@@ -93,13 +93,13 @@ export default function AdminReports() {
               headers={['Report', 'Target', 'Reason', 'Status', 'Action']}
             >
               {reports.map((r) => (
-                <tr key={r.id} className="border-b border-hairline last:border-0 dark:border-rootline">
+                <tr key={r.id} className="border-b border-border last:border-0">
                   <td className="px-3 py-2 align-top">
                     <p className="font-mono font-medium">{r.reporter.walletDisplay}</p>
-                    <p className="font-mono text-small tabular-nums text-muted dark:text-drift">{new Date(r.created_at).toLocaleString()}</p>
-                    {r.details ? <p className="mt-1 text-small text-taupe dark:text-drift">{r.details}</p> : null}
+                    <p className="font-mono text-small tabular-nums text-muted">{new Date(r.created_at).toLocaleString()}</p>
+                    {r.details ? <p className="mt-1 text-small text-muted">{r.details}</p> : null}
                     {r.resolution_notes ? (
-                      <p className="mt-1 text-small text-muted dark:text-drift">Note: {r.resolution_notes}</p>
+                      <p className="mt-1 text-small text-muted">Note: {r.resolution_notes}</p>
                     ) : null}
                   </td>
                   <td className="px-3 py-2 align-top text-small">
@@ -116,7 +116,7 @@ export default function AdminReports() {
                     <button
                       type="button"
                       onClick={() => setResolving(r)}
-                      className="min-h-touch rounded-lg border border-borderwarm px-3 py-1 text-body font-medium text-taupe dark:border-rootedge dark:bg-cocoa dark:text-khaki"
+                      className="min-h-touch rounded-lg border border-border-strong px-3 py-1 text-body font-medium text-muted bg-surface"
                     >
                       Resolve
                     </button>
@@ -129,7 +129,7 @@ export default function AdminReports() {
                 type="button"
                 disabled={offset === 0}
                 onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-                className="min-h-touch rounded-lg border border-borderwarm px-4 py-2 text-body font-medium text-taupe disabled:opacity-50 dark:border-rootedge dark:bg-cocoa dark:text-khaki"
+                className="min-h-touch rounded-lg border border-border-strong px-4 py-2 text-body font-medium text-muted disabled:opacity-50 bg-surface"
               >
                 Previous
               </button>
@@ -137,7 +137,7 @@ export default function AdminReports() {
                 type="button"
                 disabled={offset + PAGE_SIZE >= total}
                 onClick={() => setOffset((o) => o + PAGE_SIZE)}
-                className="min-h-touch rounded-lg border border-borderwarm px-4 py-2 text-body font-medium text-taupe disabled:opacity-50 dark:border-rootedge dark:bg-cocoa dark:text-khaki"
+                className="min-h-touch rounded-lg border border-border-strong px-4 py-2 text-body font-medium text-muted disabled:opacity-50 bg-surface"
               >
                 Next
               </button>

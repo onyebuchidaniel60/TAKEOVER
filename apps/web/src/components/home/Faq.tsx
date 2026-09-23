@@ -39,19 +39,19 @@ const ITEMS = [
 export default function Faq() {
   return (
     <section aria-labelledby="faq-heading">
-      <h2 id="faq-heading" className="text-h2 font-bold text-bark dark:text-parchment">
+      <h2 id="faq-heading" className="text-h2 font-bold text-text">
         Questions, answered
       </h2>
       <div className="mt-4 flex flex-col gap-2">
         {ITEMS.map((item) => (
           <details
             key={item.question}
-            className="rounded-xl border border-hairline bg-cream px-4 py-3 shadow-card dark:border-rootline dark:bg-cocoa dark:shadow-none"
+            className="rounded-xl border border-border bg-surface px-4 py-3 shadow-card"
           >
-            <summary className="min-h-touch cursor-pointer list-none text-body font-semibold text-bark dark:text-parchment [&::-webkit-details-marker]:hidden">
+            <summary className="min-h-touch cursor-pointer list-none text-body font-semibold text-text [&::-webkit-details-marker]:hidden">
               {item.question}
             </summary>
-            <p className="mt-2 border-t border-hairline pt-2 text-body leading-relaxed text-taupe dark:border-rootline dark:text-drift">
+            <p className="mt-2 border-t border-border pt-2 text-body leading-relaxed text-muted">
               {item.answer}
             </p>
           </details>

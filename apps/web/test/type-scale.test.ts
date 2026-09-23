@@ -1,7 +1,9 @@
 // Type-scale snapshot — the locked scale from tailwind.config.js.
-// display 30/36/-0.02 · h1 24/32/-0.02 · h2 20/28/-0.01 · h3 16/24/-0.01 ·
-// body 14/20/0 · small 12/16/+0.01. No surface may use a size outside this
-// scale; figures pair a scale size with font-mono + tabular-nums.
+// display 30/1.2/-0.02 · h1 24/1.2/-0.02 · h2 20/1.3/-0.01 ·
+// h3 16/1.3/-0.01 · body 14/1.5/0 · small 12/1.5/+0.01. No surface may
+// use a size outside this scale; figures pair a scale size with
+// font-mono + tabular-nums. Line heights are unitless spec values
+// (design.md §3.3: 1.2 display/h1, 1.3 h2/h3, 1.5 body/small).
 //
 // The config is plain JS (no allowJs in this workspace), so the test reads
 // the file as text and asserts the scale verbatim — a representative read
@@ -14,8 +16,8 @@ import { describe, expect, it } from 'vitest';
 const CONFIG_TEXT = readFileSync(resolve(process.cwd(), 'tailwind.config.js'), 'utf8');
 
 describe('type scale (tailwind.config.js)', () => {
-  it('uses class-driven dark mode', () => {
-    expect(CONFIG_TEXT).toContain("darkMode: 'class'");
+  it('is dark-only: no darkMode switch', () => {
+    expect(CONFIG_TEXT).not.toContain('darkMode:');
   });
 
   it('pairs a system sans stack with a system mono stack for figures', () => {
@@ -33,12 +35,12 @@ describe('type scale (tailwind.config.js)', () => {
 
   it('locks the six-step scale verbatim', () => {
     for (const entry of [
-      "display: ['1.875rem', { lineHeight: '2.25rem', letterSpacing: '-0.02em' }]",
-      "h1: ['1.5rem', { lineHeight: '2rem', letterSpacing: '-0.02em' }]",
-      "h2: ['1.25rem', { lineHeight: '1.75rem', letterSpacing: '-0.01em' }]",
-      "h3: ['1rem', { lineHeight: '1.5rem', letterSpacing: '-0.01em' }]",
-      "body: ['0.875rem', { lineHeight: '1.25rem', letterSpacing: '0em' }]",
-      "small: ['0.75rem', { lineHeight: '1rem', letterSpacing: '0.01em' }]",
+      "display: ['1.875rem', { lineHeight: '1.2', letterSpacing: '-0.02em' }]",
+      "h1: ['1.5rem', { lineHeight: '1.2', letterSpacing: '-0.02em' }]",
+      "h2: ['1.25rem', { lineHeight: '1.3', letterSpacing: '-0.01em' }]",
+      "h3: ['1rem', { lineHeight: '1.3', letterSpacing: '-0.01em' }]",
+      "body: ['0.875rem', { lineHeight: '1.5', letterSpacing: '0em' }]",
+      "small: ['0.75rem', { lineHeight: '1.5', letterSpacing: '0.01em' }]",
     ]) {
       expect(CONFIG_TEXT).toContain(entry);
     }

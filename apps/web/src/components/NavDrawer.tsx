@@ -14,8 +14,8 @@
 // the header strip instead of the viewport — the panel paints only a
 // header-tall strip while the item list overflows below it with no
 // background (the "transparent drawer" bug), and the scrim never
-// covers the page. The panel itself is fully opaque (bg-cream /
-// dark:bg-cocoa); translucency here would be a bug, not a style.
+// covers the page. The panel itself is fully opaque (bg-surface);
+// translucency here would be a bug, not a style.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { X } from 'lucide-react';
@@ -81,7 +81,7 @@ export default function NavDrawer({
 
   const count = unread ?? 0;
   const linkClass =
-    'flex min-h-touch items-center justify-between gap-2 rounded-lg px-3 text-body text-taupe hover:bg-sand dark:text-drift dark:hover:bg-umber';
+    'flex min-h-touch items-center justify-between gap-2 rounded-lg px-3 text-body text-muted hover:bg-surface-2 hover:bg-surface-2';
 
   return (
     <div className="fixed inset-0 z-50">
@@ -89,7 +89,7 @@ export default function NavDrawer({
         data-testid="nav-backdrop"
         aria-hidden="true"
         onClick={onClose}
-        className={`absolute inset-0 bg-bark/40 transition-opacity duration-ui ease-out-strong motion-reduce:transition-none dark:bg-coal/60 ${
+        className={`absolute inset-0 transition-opacity duration-ui ease-out-strong motion-reduce:transition-none bg-bg/60${
           visible ? 'opacity-100' : 'opacity-0'
         }`}
       />
@@ -97,17 +97,17 @@ export default function NavDrawer({
         ref={panelRef}
         id="site-nav"
         aria-label="Site menu"
-        className={`absolute bottom-0 left-0 top-0 w-[280px] max-w-[85vw] border-r border-hairline bg-cream shadow-card transition-transform duration-panel ease-drawer motion-reduce:transition-none dark:border-rootline dark:bg-cocoa dark:shadow-none ${
+        className={`absolute bottom-0 left-0 top-0 w-[280px] max-w-[85vw] border-r border-border bg-surface shadow-card transition-transform duration-panel ease-drawer motion-reduce:transition-none${
           visible ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex items-center justify-between gap-2 border-b border-hairline/80 px-3 py-2 dark:border-rootline">
-          <span className="px-1 text-h3 font-bold text-bark dark:text-parchment">Menu</span>
+        <div className="flex items-center justify-between gap-2 border-b px-3 py-2 border-border">
+          <span className="px-1 text-h3 font-bold text-text">Menu</span>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close menu"
-            className="inline-flex min-h-touch min-w-[44px] items-center justify-center rounded-lg border border-borderwarm bg-cream px-3 py-1 text-body font-medium text-taupe transition-transform duration-press ease-out-strong active:scale-[0.97] dark:border-rootedge dark:bg-cocoa dark:text-khaki"
+            className="inline-flex min-h-touch min-w-[44px] items-center justify-center rounded-lg border border-border-strong bg-surface px-3 py-1 text-body font-medium text-muted transition-transform duration-press ease-out-strong active:scale-[0.97]"
           >
             <X size={18} aria-hidden="true" />
           </button>
@@ -134,7 +134,7 @@ export default function NavDrawer({
               {count > 0 ? (
                 <span
                   aria-hidden="true"
-                  className="inline-flex min-h-[20px] min-w-[20px] items-center justify-center rounded-full bg-terra px-1 font-mono text-small font-bold tabular-nums text-ivory"
+                  className="inline-flex min-h-[20px] min-w-[20px] items-center justify-center rounded-full bg-accent px-1 font-mono text-small font-bold tabular-nums text-accent-ink"
                 >
                   {count > 99 ? '99+' : count}
                 </span>
@@ -151,7 +151,7 @@ export default function NavDrawer({
               <Link
                 to="/admin"
                 onClick={onClose}
-                className="flex min-h-touch items-center justify-between gap-2 rounded-lg px-3 text-body font-medium text-bark dark:text-parchment"
+                className="flex min-h-touch items-center justify-between gap-2 rounded-lg px-3 text-body font-medium text-text"
               >
                 Admin
               </Link>

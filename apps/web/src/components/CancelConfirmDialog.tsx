@@ -15,12 +15,12 @@ export default function CancelConfirmDialog({
   return (
     <div
       ref={panelRef}
-      className="rounded-xl border border-clayline bg-claywash p-4 dark:border-clayd dark:bg-claywashd"
+      className="rounded-xl border bg-surface-2 p-4 border-danger"
       role="alertdialog"
       aria-label="Confirm cancellation"
     >
-      <p className="text-body font-semibold text-clay dark:text-clayd">Cancel this opening?</p>
-      <p className="mt-1 text-body text-clay dark:text-clayd">
+      <p className="text-body font-semibold text-danger">Cancel this opening?</p>
+      <p className="mt-1 text-body text-danger">
         It will disappear from the marketplace. This cannot be undone.
       </p>
       <div className="mt-3 flex gap-2">
@@ -28,7 +28,7 @@ export default function CancelConfirmDialog({
           type="button"
           onClick={onConfirm}
           disabled={cancelling}
-          className="min-h-touch rounded-lg bg-claydeep px-4 py-2 text-body font-medium text-ivory disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2 ring-offset-cream dark:bg-clayfilld dark:focus-visible:ring-clayd dark:focus-visible:ring-offset-cocoa"
+          className="min-h-touch rounded-lg bg-danger px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 ring-offset-surface focus-visible:ring-danger focus-visible:ring-offset-surface"
         >
           {cancelling ? 'Cancelling…' : 'Yes, cancel it'}
         </button>
@@ -36,7 +36,7 @@ export default function CancelConfirmDialog({
           type="button"
           onClick={onDismiss}
           disabled={cancelling}
-          className="min-h-touch rounded-lg border border-clay bg-cream px-4 py-2 text-body font-medium text-clay disabled:opacity-50 dark:border-clayd dark:bg-cocoa dark:text-clayd"
+          className="min-h-touch rounded-lg border border-danger bg-surface px-4 py-2 text-body font-medium text-danger disabled:opacity-50"
         >
           Keep it
         </button>

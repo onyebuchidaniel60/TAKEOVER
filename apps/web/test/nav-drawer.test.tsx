@@ -88,10 +88,10 @@ describe('nav drawer chrome', () => {
     expect(nav.className).toContain('max-w-[85vw]');
     expect(nav.className).toContain('ease-drawer');
     expect(nav.className).toContain('duration-panel');
-    // Opaque elevated panel in both modes — never translucent.
-    expect(nav.className).toContain('bg-cream');
+    // Opaque elevated panel — never translucent.
+    expect(nav.className).toContain('bg-surface');
     expect(nav.className).toContain('border-r');
-    expect(nav.className).not.toMatch(/bg-cream\/|bg-opacity|backdrop-blur/);
+    expect(nav.className).not.toMatch(/bg-surface\/|bg-opacity|backdrop-blur/);
   });
 
   it('renders the drawer outside the header so fixed positioning hits the viewport', async () => {
@@ -151,7 +151,7 @@ describe('nav drawer chrome', () => {
     await openDrawer(user);
     const backdrop = container.querySelector('[data-testid="nav-backdrop"]');
     expect(backdrop).toBeTruthy();
-    expect(backdrop?.className).toContain('bg-bark/40');
+    expect(backdrop?.className).toContain('bg-bg/60');
     await user.click(backdrop as HTMLElement);
     await waitFor(() => {
       expect(screen.queryByRole('navigation', { name: 'Site menu' })).toBeNull();

@@ -104,7 +104,7 @@ export default function SlotDetailPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/" className="inline-block min-h-touch py-2 text-body font-medium text-taupe dark:text-drift">
+      <Link to="/" className="inline-block min-h-touch py-2 text-body font-medium text-muted">
         ← Back to openings
       </Link>
       <div className="mt-2">
@@ -119,7 +119,7 @@ export default function SlotDetailPage() {
             action={
               <Link
                 to="/"
-                className="inline-block min-h-touch rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory dark:bg-sandlight dark:text-coal"
+                className="inline-block min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink"
               >
                 See available openings
               </Link>
@@ -133,10 +133,10 @@ export default function SlotDetailPage() {
                 <ClaimButton slotId={state.slot.id} />
               ) : null}
               {authenticated && isClaimable(state.slot) && isOwner === true ? (
-                <p className="text-body text-taupe dark:text-drift">This is your opening.</p>
+                <p className="text-body text-muted">This is your opening.</p>
               ) : null}
               {!authenticated ? (
-                <p className="rounded-lg border border-hairline bg-cream p-3 text-body text-taupe dark:border-rootline dark:bg-cocoa dark:text-drift">
+                <p className="rounded-lg border border-border bg-surface p-3 text-body text-muted">
                   Connect your wallet to claim this opening.
                 </p>
               ) : null}
@@ -146,14 +146,14 @@ export default function SlotDetailPage() {
             {authenticated && !isAdminUser(user) ? (
               <div className="mt-2">
                 {reported ? (
-                  <p role="status" className="text-body text-taupe dark:text-drift">
+                  <p role="status" className="text-body text-muted">
                     Thanks — an admin will review this opening.
                   </p>
                 ) : (
                   <button
                     type="button"
                     onClick={() => setReporting(true)}
-                    className="min-h-touch text-body font-medium text-muted underline dark:text-drift"
+                    className="min-h-touch text-body font-medium text-muted underline"
                   >
                     Report this opening
                   </button>

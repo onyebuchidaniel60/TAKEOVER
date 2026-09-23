@@ -72,20 +72,20 @@ export default function AdminUsers() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/admin" className="inline-block min-h-touch py-2 text-body font-medium text-taupe dark:text-drift">
+      <Link to="/admin" className="inline-block min-h-touch py-2 text-body font-medium text-muted">
         ← Moderation
       </Link>
-      <h1 className="mt-1 text-h1 font-bold text-bark dark:text-parchment">Users</h1>
-      <p className="mt-1 text-body text-muted dark:text-drift">
+      <h1 className="mt-1 text-h1 font-bold text-text">Users</h1>
+      <p className="mt-1 text-body text-muted">
         People seen in reports. Disabling signs them out everywhere; their listings and claims
         are left untouched.
       </p>
       {notice ? (
-        <p role="status" className="mt-3 rounded-lg bg-sagewash p-3 text-body text-sage dark:bg-sagewashd dark:text-saged">
+        <p role="status" className="mt-3 rounded-lg bg-surface-2 p-3 text-body text-accent">
           {notice}
         </p>
       ) : null}
-      <label className="mt-4 block text-body font-medium text-taupe dark:text-khaki" htmlFor="user-search">
+      <label className="mt-4 block text-body font-medium text-muted" htmlFor="user-search">
         Search by wallet prefix
       </label>
       <input
@@ -95,7 +95,7 @@ export default function AdminUsers() {
         placeholder="NQ32…"
         autoComplete="off"
         spellCheck={false}
-        className="mt-1 min-h-touch w-full rounded-lg border border-borderwarm bg-cream px-3 py-2 font-mono text-body text-bark placeholder:text-muted dark:border-rootedge dark:bg-cocoa dark:text-parchment dark:placeholder:text-drift"
+        className="mt-1 min-h-touch w-full rounded-lg border border-border-strong bg-surface px-3 py-2 font-mono text-body text-text placeholder:text-muted placeholder:text-muted"
       />
       <div className="mt-4" aria-live="polite">
         {loading ? (
@@ -110,14 +110,14 @@ export default function AdminUsers() {
         ) : (
           <AdminTable label="Users seen in reports" headers={['User', 'Seen as', 'Action']}>
             {visible.map((u) => (
-              <tr key={u.id} className="border-b border-hairline last:border-0 dark:border-rootline">
+              <tr key={u.id} className="border-b border-border last:border-0">
                 <td className="px-3 py-2 font-mono font-medium">{u.walletDisplay}</td>
                 <td className="px-3 py-2">{u.source}</td>
                 <td className="px-3 py-2">
                   <button
                     type="button"
                     onClick={() => setDisabling(u)}
-                    className="min-h-touch rounded-lg border border-clay px-3 py-1 text-body font-medium text-clay dark:border-clayd dark:bg-cocoa dark:text-clayd"
+                    className="min-h-touch rounded-lg border border-danger px-3 py-1 text-body font-medium text-danger bg-surface"
                   >
                     Disable
                   </button>
@@ -128,7 +128,7 @@ export default function AdminUsers() {
         )}
       </div>
       <form
-        className="mt-6 rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa"
+        className="mt-6 rounded-xl border border-border bg-surface p-4"
         onSubmit={(e) => {
           e.preventDefault();
           if (manualId.trim()) {
@@ -136,7 +136,7 @@ export default function AdminUsers() {
           }
         }}
       >
-        <label className="block text-body font-medium text-taupe dark:text-khaki" htmlFor="manual-user-id">
+        <label className="block text-body font-medium text-muted" htmlFor="manual-user-id">
           Disable an account by id
         </label>
         <div className="mt-1 flex gap-2">
@@ -147,11 +147,11 @@ export default function AdminUsers() {
             placeholder="User id (uuid)"
             autoComplete="off"
             spellCheck={false}
-            className="min-h-touch flex-1 rounded-lg border border-borderwarm bg-cream px-3 py-2 font-mono text-body text-bark placeholder:text-muted dark:border-rootedge dark:bg-cocoa dark:text-parchment dark:placeholder:text-drift"
+            className="min-h-touch flex-1 rounded-lg border border-border-strong bg-surface px-3 py-2 font-mono text-body text-text placeholder:text-muted placeholder:text-muted"
           />
           <button
             type="submit"
-            className="min-h-touch shrink-0 rounded-lg bg-claydeep px-4 py-2 text-body font-medium text-ivory dark:bg-clayfilld"
+            className="min-h-touch shrink-0 rounded-lg bg-danger px-4 py-2 text-body font-medium text-accent-ink"
           >
             Disable
           </button>

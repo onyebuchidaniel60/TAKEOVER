@@ -6,7 +6,6 @@ import RequireAdmin from './components/RequireAdmin';
 import RequireAuth, { getReturnTo } from './components/RequireAuth';
 import TopBar from './components/TopBar';
 import { useAuth } from './store/auth';
-import { initTheme } from './store/theme';
 
 // Route-level code splitting. Every route is its own chunk, so the
 // admin pages (and their heavier tables) never ship in the consumer entry.
@@ -77,13 +76,9 @@ export default function App() {
     void refresh();
   }, [refresh]);
 
-  // Apply the stored/OS theme on boot; follow the OS while
-  // the mode is Auto.
-  useEffect(() => initTheme(), []);
-
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-ivory font-sans text-bark dark:bg-coal dark:text-parchment">
+      <div className="min-h-screen bg-bg font-sans text-text">
         <ErrorBoundary section="TAKEOVER">
           <TopBar />
           <ReturnToHandler />

@@ -44,7 +44,7 @@ export default function ResolveDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-coal/60 p-4 dark:bg-coal/60"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/60 p-4 bg-bg/60"
       onClick={onClose}
     >
       <div
@@ -53,23 +53,23 @@ export default function ResolveDialog({
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl bg-cream p-5 shadow-xl dark:bg-cocoa"
+        className="w-full max-w-md rounded-2xl bg-surface p-5 shadow-xl"
       >
       <form onSubmit={(e) => void handleSubmit(e)}>
-        <h2 className="text-h2 font-bold text-bark dark:text-parchment">{title}</h2>
+        <h2 className="text-h2 font-bold text-text">{title}</h2>
         {warning ? (
-          <p role="note" className="mt-2 rounded-lg bg-ochrewash p-3 text-body text-ochre dark:bg-ochrewashd dark:text-ochred">
+          <p role="note" className="mt-2 rounded-lg bg-surface-2 p-3 text-body text-warning">
             {warning}
           </p>
         ) : null}
-        <label className="mt-4 block text-body font-medium text-taupe dark:text-khaki" htmlFor="resolve-action">
+        <label className="mt-4 block text-body font-medium text-muted" htmlFor="resolve-action">
           Outcome
         </label>
         <select
           id="resolve-action"
           value={action}
           onChange={(e) => setAction(e.target.value)}
-          className="mt-1 min-h-touch w-full rounded-lg border border-borderwarm bg-cream px-3 py-2 text-body text-bark focus:outline-none focus-visible:ring-2 focus-visible:ring-terra dark:border-rootedge dark:bg-cocoa dark:text-parchment dark:focus-visible:ring-terralight"
+          className="mt-1 min-h-touch w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-body text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-accent"
         >
           {actions.map((a) => (
             <option key={a.value} value={a.value}>
@@ -77,7 +77,7 @@ export default function ResolveDialog({
             </option>
           ))}
         </select>
-        <label className="mt-4 block text-body font-medium text-taupe dark:text-khaki" htmlFor="resolve-notes">
+        <label className="mt-4 block text-body font-medium text-muted" htmlFor="resolve-notes">
           Resolution note
         </label>
         <textarea
@@ -87,10 +87,10 @@ export default function ResolveDialog({
           rows={3}
           maxLength={1000}
           placeholder="What did you decide and why?"
-          className="mt-1 w-full rounded-lg border border-borderwarm bg-cream px-3 py-2 text-body text-bark placeholder:text-muted dark:border-rootedge dark:bg-cocoa dark:text-parchment dark:placeholder:text-drift"
+          className="mt-1 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-body text-text placeholder:text-muted placeholder:text-muted"
         />
         {error ? (
-          <p role="alert" className="mt-2 text-body text-clay dark:text-clayd">
+          <p role="alert" className="mt-2 text-body text-danger">
             {error}
           </p>
         ) : null}
@@ -99,14 +99,14 @@ export default function ResolveDialog({
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="min-h-touch rounded-lg border border-borderwarm px-4 py-2 text-body font-medium text-taupe disabled:opacity-50 dark:border-rootedge dark:bg-cocoa dark:text-khaki"
+            className="min-h-touch rounded-lg border border-border-strong px-4 py-2 text-body font-medium text-muted disabled:opacity-50 bg-surface"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={busy}
-            className="min-h-touch rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory disabled:opacity-50 dark:bg-sandlight dark:text-coal"
+            className="min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50"
           >
             {busy ? 'Saving…' : submitLabel}
           </button>

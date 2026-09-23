@@ -217,7 +217,7 @@ export default function SellDetail() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/sell" className="inline-block min-h-touch py-2 text-body font-medium text-taupe dark:text-drift">
+      <Link to="/sell" className="inline-block min-h-touch py-2 text-body font-medium text-muted">
         ← Back to my openings
       </Link>
       <div className="mt-2">
@@ -232,7 +232,7 @@ export default function SellDetail() {
             action={
               <Link
                 to="/sell"
-                className="inline-block min-h-touch rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory dark:bg-sandlight dark:text-coal"
+                className="inline-block min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink"
               >
                 Back to my openings
               </Link>
@@ -326,7 +326,7 @@ function ManageSlot({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-h1 font-bold text-bark dark:text-parchment">{slot.title}</h1>
+        <h1 className="text-h1 font-bold text-text">{slot.title}</h1>
         <StatusBadge status={slot.status} />
       </div>
       {isDraft ? (
@@ -352,25 +352,25 @@ function ManageSlot({
                 ref={cancelTriggerRef}
                 type="button"
                 onClick={onAskCancel}
-                className="min-h-touch rounded-lg border border-clay bg-cream px-4 py-2 text-body font-medium text-clay dark:border-clayd dark:bg-cocoa dark:text-clayd"
+                className="min-h-touch rounded-lg border border-danger bg-surface px-4 py-2 text-body font-medium text-danger"
               >
                 Cancel opening
               </button>
             ) : null}
           </div>
           {feeRequired && !feeMisconfigured && feeConfig?.amountNim ? (
-            <p className="font-mono text-body tabular-nums text-taupe dark:text-drift">
+            <p className="font-mono text-body tabular-nums text-muted">
               Pay {feeConfig.amountNim} NIM through Nimiq Pay to publish.
             </p>
           ) : null}
           {feeMisconfigured ? (
-            <p className="text-body font-medium text-clay dark:text-clayd" role="alert">
+            <p className="text-body font-medium text-danger" role="alert">
               Listing fee is misconfigured. Publishing is unavailable — contact support.
             </p>
           ) : null}
           {verifyFailed ? (
             <div
-              className="rounded-lg border border-ochreline bg-ochrewash p-3 text-body text-ochre dark:border-ochred dark:bg-ochrewashd dark:text-ochred"
+              className="rounded-lg border border-warning bg-surface-2 p-3 text-body text-warning"
               role="alert"
             >
               <p className="font-medium">Payment sent but publish failed. Retry with the same transaction.</p>
@@ -378,18 +378,18 @@ function ManageSlot({
                 type="button"
                 onClick={onRetryPublish}
                 disabled={publishing}
-                className="mt-2 min-h-touch rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory disabled:opacity-50 dark:bg-sandlight dark:text-coal"
+                className="mt-2 min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50"
               >
                 {publishing ? 'Retrying…' : 'Retry publish'}
               </button>
             </div>
           ) : null}
           {!actionError ? null : (
-            <p className="text-body font-medium text-clay dark:text-clayd" role="alert">
+            <p className="text-body font-medium text-danger" role="alert">
               {actionError}
             </p>
           )}
-          <p className="text-small text-muted dark:text-drift">
+          <p className="text-small text-muted">
             Publishing makes it visible to everyone right away.
           </p>
         </>
@@ -397,7 +397,7 @@ function ManageSlot({
         <>
           <SlotDetail slot={slot} />
           {slot.status === 'published' ? (
-            <p className="text-small text-muted dark:text-drift">
+            <p className="text-small text-muted">
               Published openings can’t be edited — cancel it if something needs to change.
             </p>
           ) : null}
@@ -416,14 +416,14 @@ function ManageSlot({
             ref={cancelTriggerRef}
             type="button"
             onClick={onAskCancel}
-            className="min-h-touch rounded-lg border border-clay bg-cream px-4 py-2 text-body font-medium text-clay dark:border-clayd dark:bg-cocoa dark:text-clayd"
+            className="min-h-touch rounded-lg border border-danger bg-surface px-4 py-2 text-body font-medium text-danger"
           >
             Cancel opening
           </button>
         </div>
       ) : null}
       {!isDraft && actionError ? (
-        <p className="text-body font-medium text-clay dark:text-clayd" role="alert">
+        <p className="text-body font-medium text-danger" role="alert">
           {actionError}
         </p>
       ) : null}
@@ -467,34 +467,34 @@ function DemandSection({ slotId }: { slotId: string }) {
 
   if (failed) {
     return (
-      <section aria-label="Demand" className="rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa">
-        <h2 className="text-h2 font-bold text-bark dark:text-parchment">Demand</h2>
-        <p className="mt-1 text-body text-taupe dark:text-drift">Couldn&apos;t load claims right now.</p>
+      <section aria-label="Demand" className="rounded-xl border border-border bg-surface p-4">
+        <h2 className="text-h2 font-bold text-text">Demand</h2>
+        <p className="mt-1 text-body text-muted">Couldn&apos;t load claims right now.</p>
       </section>
     );
   }
   if (claims === null) {
     return (
-      <section aria-label="Demand" className="rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa">
-        <h2 className="text-h2 font-bold text-bark dark:text-parchment">Demand</h2>
-        <p className="mt-1 text-body text-taupe dark:text-drift">Loading claims…</p>
+      <section aria-label="Demand" className="rounded-xl border border-border bg-surface p-4">
+        <h2 className="text-h2 font-bold text-text">Demand</h2>
+        <p className="mt-1 text-body text-muted">Loading claims…</p>
       </section>
     );
   }
   if (claims.length === 0) {
     return (
-      <section aria-label="Demand" className="rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa">
-        <h2 className="text-h2 font-bold text-bark dark:text-parchment">Demand</h2>
-        <p className="mt-1 text-body text-taupe dark:text-drift">No claims yet.</p>
+      <section aria-label="Demand" className="rounded-xl border border-border bg-surface p-4">
+        <h2 className="text-h2 font-bold text-text">Demand</h2>
+        <p className="mt-1 text-body text-muted">No claims yet.</p>
       </section>
     );
   }
   return (
-      <section aria-label="Demand" className="rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa">
-        <h2 className="text-h2 font-bold text-bark dark:text-parchment">Demand</h2>
+      <section aria-label="Demand" className="rounded-xl border border-border bg-surface p-4">
+        <h2 className="text-h2 font-bold text-text">Demand</h2>
         <ul className="mt-2 flex flex-col gap-3">
         {claims.map((item) => (
-          <li key={item.id} className="rounded-lg bg-sand p-3 dark:bg-umber">
+          <li key={item.id} className="rounded-lg bg-surface-2 p-3">
             <ClaimDemandRow
               claim={item}
               onDelivered={() => setRefreshKey((k) => k + 1)}
@@ -534,11 +534,11 @@ function ClaimDemandRow({
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-body font-medium text-bark dark:text-parchment">{claim.buyerDisplay}</span>
+        <span className="text-body font-medium text-text">{claim.buyerDisplay}</span>
         <ClaimStatusBadge status={claim.status} />
       </div>
       {escrowStatus !== null && escrowStatus !== 'created' ? (
-        <p className="mt-1 font-mono text-small tabular-nums text-muted dark:text-drift">Escrow: {escrowStatus}</p>
+        <p className="mt-1 font-mono text-small tabular-nums text-muted">Escrow: {escrowStatus}</p>
       ) : null}
       {claim.status === 'escrow_funded' && escrowStatus === 'funded' ? (
         <MarkDeliveredForm claimId={claim.id} onDelivered={onDelivered} />

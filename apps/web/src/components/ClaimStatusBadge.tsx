@@ -2,20 +2,20 @@
 // Labels follow the locked status copy.
 // Escrow states added (same text+color discipline).
 const STYLES: Record<string, string> = {
-  active_hold: 'bg-sagewash text-sage dark:bg-sagewashd dark:text-saged',
-  expired: 'bg-sand text-taupe dark:bg-umber dark:text-parchment',
-  cancelled: 'bg-sand text-taupe dark:bg-umber dark:text-parchment',
-  payment_pending: 'bg-ochrewash text-ochre dark:bg-ochrewashd dark:text-ochred',
-  paid: 'bg-sagewash text-sage dark:bg-sagewashd dark:text-saged',
-  payment_review: 'bg-ochrewash text-ochre dark:bg-ochrewashd dark:text-ochred',
-  deposit_submitted: 'bg-ochrewash text-ochre dark:bg-ochrewashd dark:text-ochred',
-  escrow_funded: 'bg-sagewash text-sage dark:bg-sagewashd dark:text-saged',
-  delivered: 'bg-sand text-taupe dark:bg-umber dark:text-khaki',
-  disputed: 'bg-ochrewash text-ochre dark:bg-ochrewashd dark:text-ochred',
-  releasing: 'bg-sand text-taupe dark:bg-umber dark:text-khaki',
-  released: 'bg-sagewash text-sage dark:bg-sagewashd dark:text-saged',
-  refunding: 'bg-sand text-taupe dark:bg-umber dark:text-parchment',
-  refunded: 'bg-sand text-taupe dark:bg-umber dark:text-parchment',
+  active_hold: 'bg-surface-2 text-accent',
+  expired: 'bg-surface-2 text-text',
+  cancelled: 'bg-surface-2 text-text',
+  payment_pending: 'bg-surface-2 text-warning',
+  paid: 'bg-surface-2 text-accent',
+  payment_review: 'bg-surface-2 text-warning',
+  deposit_submitted: 'bg-surface-2 text-warning',
+  escrow_funded: 'bg-surface-2 text-accent',
+  delivered: 'bg-surface-2 text-muted',
+  disputed: 'bg-surface-2 text-warning',
+  releasing: 'bg-surface-2 text-muted',
+  released: 'bg-surface-2 text-accent',
+  refunding: 'bg-surface-2 text-text',
+  refunded: 'bg-surface-2 text-text',
 };
 
 const LABELS: Record<string, string> = {
@@ -36,7 +36,7 @@ const LABELS: Record<string, string> = {
 };
 
 export default function ClaimStatusBadge({ status }: { status: string }) {
-  const style = STYLES[status] ?? 'bg-sand text-taupe dark:bg-umber dark:text-parchment';
+  const style = STYLES[status] ?? 'bg-surface-2 text-text';
   const label = LABELS[status] ?? status;
   return (
     <span

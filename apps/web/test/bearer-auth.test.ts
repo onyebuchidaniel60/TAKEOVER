@@ -148,15 +148,13 @@ describe('bearer fallback client wiring', () => {
     expect((seen[0]?.headers as Record<string, string>)['authorization']).toBe('Bearer caller-choice');
   });
 
-    it('source posture: no localStorage reference anywhere in web src except the theme store', () => {
+    it('source posture: no localStorage reference anywhere in web src', () => {
       const offenders: string[] = [];
       const src = resolve(process.cwd(), 'src');
-      // Store/theme.ts is the single sanctioned localStorage
-      // user (key 'takeover-theme': a non-credential Light/Dark/Auto UI
-      // choice — never a token, never a wallet, never a session). Session
-      // material stays in sessionStorage (asserted above); anything else
-      // touching localStorage fails this posture gate.
-      const SANCTIONED_FILE = join('store', 'theme.ts');
+      // Dark-only since Phase 1: the theme store (the former single
+      // sanctioned localStorage user) is deleted. No source file may
+      // touch localStorage at all — session material stays in
+      // sessionStorage (asserted above); anything else fails this gate.
       const walk = (dir: string): void => {
         for (const entry of readdirSync(dir)) {
           const full = join(dir, entry);
@@ -165,7 +163,7 @@ describe('bearer fallback client wiring', () => {
           } else if (/\.(ts|tsx)$/.test(entry)) {
             const text = readFileSync(full, 'utf8');
             text.split('\n').forEach((line, idx) => {
-              if (/localStorage/.test(line) && !full.endsWith(SANCTIONED_FILE)) {
+              if (/localStorage/.test(line)) {
                 offenders.push(`${full}:${idx + 1}`);
               }
             });
@@ -174,9 +172,5 @@ describe('bearer fallback client wiring', () => {
       };
       walk(src);
       expect(offenders).toEqual([]);
-      // And the sanctioned file must stay credential-free: no session token,
-      // wallet, or secret may ever pass through the theme preference.
-      const themeSrc = readFileSync(join(src, SANCTIONED_FILE), 'utf8');
-      expect(themeSrc).not.toMatch(/sessionToken|SESSION_TOKEN|walletAddress|secret|privateKey/i);
     });
 });

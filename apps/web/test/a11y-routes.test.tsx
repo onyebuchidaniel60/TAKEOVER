@@ -519,12 +519,12 @@ describe('axe on the nav drawer', () => {
   });
 });
 
-// The same route coverage with dark mode forced (the `dark`
-// class Tailwind's class strategy reads). Dark variants are class-only, so
-// forcing the class is the full theme switch — no matchMedia stub needed.
-// color-contrast stays palette-math (see the phase report); axe asserts the
-// structural half (names, roles, focus, regions) is identical in the dark.
-describe('axe on routes with dark mode forced', () => {
+// Dark-only since Phase 1: the `dark` class is inert (no darkMode
+// switch, no `dark:` variants generated), so this block re-asserts the
+// same structural coverage on the single theme. color-contrast stays
+// palette-math (see the phase report); axe asserts the structural half
+// (names, roles, focus, regions).
+describe('axe on routes (dark-only re-assertion)', () => {
   beforeEach(() => {
     document.documentElement.classList.add('dark');
   });

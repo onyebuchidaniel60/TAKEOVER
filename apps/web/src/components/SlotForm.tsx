@@ -27,9 +27,9 @@ export interface SlotFormValues {
 }
 
 const inputClass =
-  'min-h-touch w-full rounded-lg border border-borderwarm bg-cream px-3 py-2 text-body text-bark placeholder:text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-terra dark:border-rootedge dark:bg-cocoa dark:text-parchment dark:placeholder:text-drift dark:focus-visible:ring-terralight';
+  'min-h-touch w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-body text-text placeholder:text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-accent placeholder:text-muted focus-visible:ring-accent';
 
-const labelClass = 'mb-1 block text-small font-medium text-taupe dark:text-drift';
+const labelClass = 'mb-1 block text-small font-medium text-muted';
 
 function isoToInput(value: string | null): string {
   if (!value) return '';
@@ -68,7 +68,7 @@ export function initialValues(slot?: OwnerSlot): SlotFormValues {
 
 function FieldMessage({ message }: { message: string }): React.JSX.Element {
   return (
-    <p className="mt-1 text-body font-medium text-clay dark:text-clayd" role="alert">
+    <p className="mt-1 text-body font-medium text-danger" role="alert">
       {message}
     </p>
   );
@@ -147,7 +147,7 @@ export default function SlotForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-4">
       <div>
         <label htmlFor="slot-title" className={labelClass}>
           Title *
@@ -279,14 +279,14 @@ export default function SlotForm({
         </div>
       </div>
       {serverError ? (
-        <p className="text-body font-medium text-clay dark:text-clayd" role="alert">
+        <p className="text-body font-medium text-danger" role="alert">
           {serverError}
         </p>
       ) : null}
       <button
         type="submit"
         disabled={submitting}
-        className="min-h-touch rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-terra focus-visible:ring-offset-2 ring-offset-cream dark:bg-sandlight dark:text-coal dark:focus-visible:ring-terralight dark:focus-visible:ring-offset-cocoa"
+        className="min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface focus-visible:ring-accent focus-visible:ring-offset-surface"
       >
         {submitting ? 'Saving…' : submitLabel}
       </button>

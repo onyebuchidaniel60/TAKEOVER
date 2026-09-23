@@ -10,7 +10,7 @@ export default function NotificationsPage() {
   usePageMeta({ title: 'Notifications — TAKEOVER' });
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <h1 className="text-h1 font-bold text-bark dark:text-parchment">Notifications</h1>
+      <h1 className="text-h1 font-bold text-text">Notifications</h1>
       <div className="mt-4">
         <NotificationsSection />
       </div>

@@ -8,25 +8,7 @@
       name="description"
       content="TAKEOVER is the last-minute marketplace for released capacity. See what's available, claim your slot, and pay safely — providers deliver, you confirm."
     />
-    <meta name="theme-color" content="#FAF6EC" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#1D130C" media="(prefers-color-scheme: dark)" />
-    <!-- Phase 14l-3: resolve the theme before first paint (same storage key
-         the theme store uses) so a dark-mode reload never flashes light. -->
-    <script>
-      (function () {
-        try {
-          var stored = localStorage.getItem('takeover-theme');
-          var dark =
-            stored === 'dark' ||
-            (stored !== 'light' &&
-              window.matchMedia('(prefers-color-scheme: dark)').matches);
-          if (dark) document.documentElement.classList.add('dark');
-          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
-        } catch (e) {
-          /* Private mode / no storage: fall through to light. */
-        }
-      })();
-    </script>
+    <meta name="theme-color" content="#0A0A0A" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta property="og:site_name" content="TAKEOVER" />

@@ -42,7 +42,7 @@ export default function DisableDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-coal/60 p-4 dark:bg-coal/60"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/60 p-4 bg-bg/60"
       onClick={onClose}
     >
       <div
@@ -51,12 +51,12 @@ export default function DisableDialog({
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl bg-cream p-5 shadow-xl dark:bg-cocoa"
+        className="w-full max-w-md rounded-2xl bg-surface p-5 shadow-xl"
       >
       <form onSubmit={(e) => void handleSubmit(e)}>
-        <h2 className="text-h2 font-bold text-bark dark:text-parchment">{title}</h2>
-        <p className="mt-2 text-body text-taupe dark:text-drift">{body}</p>
-        <label className="mt-4 block text-body font-medium text-taupe dark:text-khaki" htmlFor="disable-reason">
+        <h2 className="text-h2 font-bold text-text">{title}</h2>
+        <p className="mt-2 text-body text-muted">{body}</p>
+        <label className="mt-4 block text-body font-medium text-muted" htmlFor="disable-reason">
           Reason
         </label>
         <textarea
@@ -66,10 +66,10 @@ export default function DisableDialog({
           rows={3}
           maxLength={1000}
           placeholder="Why is this being disabled?"
-          className="mt-1 w-full rounded-lg border border-borderwarm bg-cream px-3 py-2 text-body text-bark placeholder:text-muted dark:border-rootedge dark:bg-cocoa dark:text-parchment dark:placeholder:text-drift"
+          className="mt-1 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-body text-text placeholder:text-muted placeholder:text-muted"
         />
         {error ? (
-          <p role="alert" className="mt-2 text-body text-clay dark:text-clayd">
+          <p role="alert" className="mt-2 text-body text-danger">
             {error}
           </p>
         ) : null}
@@ -78,14 +78,14 @@ export default function DisableDialog({
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="min-h-touch rounded-lg border border-borderwarm px-4 py-2 text-body font-medium text-taupe disabled:opacity-50 dark:border-rootedge dark:bg-cocoa dark:text-khaki"
+            className="min-h-touch rounded-lg border border-border-strong px-4 py-2 text-body font-medium text-muted disabled:opacity-50 bg-surface"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={busy}
-            className="min-h-touch rounded-lg bg-claydeep px-4 py-2 text-body font-medium text-ivory disabled:opacity-50 dark:bg-clayfilld"
+            className="min-h-touch rounded-lg bg-danger px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50"
           >
             {busy ? 'Disabling…' : submitLabel}
           </button>

@@ -24,13 +24,13 @@ describe('design tokens', () => {
       }
     ).theme.extend;
     expect(theme.transitionTimingFunction['out-strong']).toBe('cubic-bezier(0.23, 1, 0.32, 1)');
-    expect(theme.transitionTimingFunction['in-out-strong']).toBe('cubic-bezier(0.77, 0, 0.175, 1)');
+    expect(theme.transitionTimingFunction['in-out']).toBe('cubic-bezier(0.77, 0, 0.175, 1)');
     expect(theme.transitionTimingFunction.drawer).toBe('cubic-bezier(0.32, 0.72, 0, 1)');
     expect(theme.transitionDuration.press).toBe('120ms');
     expect(theme.transitionDuration.ui).toBe('200ms');
     expect(theme.transitionDuration.panel).toBe('280ms');
-    expect(theme.boxShadow.card).toContain('rgb(28 25 23');
-    expect(theme.boxShadow['card-hover']).toContain('rgb(28 25 23');
+    expect(theme.boxShadow.card).toContain('rgb(0 0 0');
+    expect(theme.boxShadow['card-hover']).toContain('rgb(0 0 0');
     expect(theme.animation['feed-in']).toContain('200ms');
     expect(theme.animation['feed-in']).toContain('cubic-bezier(0.23, 1, 0.32, 1)');
   });

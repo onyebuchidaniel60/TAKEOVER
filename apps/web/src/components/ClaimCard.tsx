@@ -7,14 +7,14 @@ import HoldCountdown from './HoldCountdown';
 export default function ClaimCard({ claim }: { claim: ClaimView }) {
   const inEscrow = (ESCROW_BUCKET_STATUSES as readonly string[]).includes(claim.status);
   return (
-    <div className="rounded-xl border border-hairline bg-cream p-4 shadow-sm dark:border-rootline dark:bg-cocoa dark:shadow-none">
+    <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <ClaimStatusBadge status={claim.status} />
         {claim.status === 'active_hold' ? (
           <HoldCountdown holdExpiresAt={claim.hold_expires_at} />
         ) : null}
       </div>
-      <p className="mt-2 font-mono text-small tabular-nums text-muted dark:text-drift">
+      <p className="mt-2 font-mono text-small tabular-nums text-muted">
         Held since{' '}
         {new Date(claim.claimed_at).toLocaleString(undefined, {
           month: 'short',
@@ -26,13 +26,13 @@ export default function ClaimCard({ claim }: { claim: ClaimView }) {
       <div className="mt-3 flex gap-4 text-body font-medium">
         <Link
           to={`/claim/${claim.id}`}
-          className="inline-flex min-h-touch items-center text-bark underline dark:text-parchment"
+          className="inline-flex min-h-touch items-center text-text underline"
         >
           {inEscrow ? 'View escrow' : 'View hold'}
         </Link>
         <Link
           to={`/slot/${claim.slot_id}`}
-          className="inline-flex min-h-touch items-center text-taupe underline dark:text-drift"
+          className="inline-flex min-h-touch items-center text-muted underline"
         >
           View opening
         </Link>

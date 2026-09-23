@@ -73,19 +73,19 @@ export default function AdminAudit() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link to="/admin" className="inline-block min-h-touch py-2 text-body font-medium text-taupe dark:text-drift">
+      <Link to="/admin" className="inline-block min-h-touch py-2 text-body font-medium text-muted">
         ← Moderation
       </Link>
-      <h1 className="mt-1 text-h1 font-bold text-bark dark:text-parchment">Audit trail</h1>
-      <p className="mt-1 font-mono text-body tabular-nums text-muted dark:text-drift">
+      <h1 className="mt-1 text-h1 font-bold text-text">Audit trail</h1>
+      <p className="mt-1 font-mono text-body tabular-nums text-muted">
         {total} event{total === 1 ? '' : 's'} · newest first
       </p>
       <form
         onSubmit={applyFilters}
-        className="mt-4 grid grid-cols-1 gap-2 rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa sm:grid-cols-2"
+        className="mt-4 grid grid-cols-1 gap-2 rounded-xl border border-border bg-surface p-4 sm:grid-cols-2"
       >
         <div>
-          <label className="block text-body font-medium text-taupe dark:text-khaki" htmlFor="audit-event-type">
+          <label className="block text-body font-medium text-muted" htmlFor="audit-event-type">
             Event type
           </label>
           <input
@@ -95,7 +95,7 @@ export default function AdminAudit() {
             placeholder="e.g. payment.verified"
             autoComplete="off"
             list="audit-event-types"
-            className="mt-1 min-h-touch w-full rounded-lg border border-borderwarm bg-cream px-3 py-2 font-mono text-body text-bark placeholder:text-muted dark:border-rootedge dark:bg-cocoa dark:text-parchment dark:placeholder:text-drift"
+            className="mt-1 min-h-touch w-full rounded-lg border border-border-strong bg-surface px-3 py-2 font-mono text-body text-text placeholder:text-muted placeholder:text-muted"
           />
           <datalist id="audit-event-types">
             {KNOWN_EVENT_TYPES.map((t) => (
@@ -104,7 +104,7 @@ export default function AdminAudit() {
           </datalist>
         </div>
         <div>
-          <label className="block text-body font-medium text-taupe dark:text-khaki" htmlFor="audit-entity-type">
+          <label className="block text-body font-medium text-muted" htmlFor="audit-entity-type">
             Entity type
           </label>
           <input
@@ -113,11 +113,11 @@ export default function AdminAudit() {
             onChange={(e) => setEntityType(e.target.value)}
             placeholder="e.g. claim"
             autoComplete="off"
-            className="mt-1 min-h-touch w-full rounded-lg border border-borderwarm bg-cream px-3 py-2 font-mono text-body text-bark placeholder:text-muted dark:border-rootedge dark:bg-cocoa dark:text-parchment dark:placeholder:text-drift"
+            className="mt-1 min-h-touch w-full rounded-lg border border-border-strong bg-surface px-3 py-2 font-mono text-body text-text placeholder:text-muted placeholder:text-muted"
           />
         </div>
         <div>
-          <label className="block text-body font-medium text-taupe dark:text-khaki" htmlFor="audit-since">
+          <label className="block text-body font-medium text-muted" htmlFor="audit-since">
             Since
           </label>
           <input
@@ -125,11 +125,11 @@ export default function AdminAudit() {
             type="datetime-local"
             value={since}
             onChange={(e) => setSince(e.target.value)}
-            className="mt-1 min-h-touch w-full rounded-lg border border-borderwarm bg-cream px-3 py-2 font-mono text-body text-bark placeholder:text-muted dark:border-rootedge dark:bg-cocoa dark:text-parchment dark:placeholder:text-drift"
+            className="mt-1 min-h-touch w-full rounded-lg border border-border-strong bg-surface px-3 py-2 font-mono text-body text-text placeholder:text-muted placeholder:text-muted"
           />
         </div>
         <div>
-          <label className="block text-body font-medium text-taupe dark:text-khaki" htmlFor="audit-until">
+          <label className="block text-body font-medium text-muted" htmlFor="audit-until">
             Until
           </label>
           <input
@@ -137,13 +137,13 @@ export default function AdminAudit() {
             type="datetime-local"
             value={until}
             onChange={(e) => setUntil(e.target.value)}
-            className="mt-1 min-h-touch w-full rounded-lg border border-borderwarm bg-cream px-3 py-2 font-mono text-body text-bark placeholder:text-muted dark:border-rootedge dark:bg-cocoa dark:text-parchment dark:placeholder:text-drift"
+            className="mt-1 min-h-touch w-full rounded-lg border border-border-strong bg-surface px-3 py-2 font-mono text-body text-text placeholder:text-muted placeholder:text-muted"
           />
         </div>
         <div className="sm:col-span-2">
           <button
             type="submit"
-            className="min-h-touch w-full rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory dark:bg-sandlight dark:text-coal"
+            className="min-h-touch w-full rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink"
           >
             Apply filters
           </button>
@@ -163,23 +163,23 @@ export default function AdminAudit() {
               headers={['When', 'Event', 'Actor', 'Details']}
             >
               {events.map((e) => (
-                <tr key={e.id} className="border-b border-hairline last:border-0 dark:border-rootline">
-                  <td className="px-3 py-2 align-top font-mono text-small tabular-nums text-muted dark:text-drift">
+                <tr key={e.id} className="border-b border-border last:border-0">
+                  <td className="px-3 py-2 align-top font-mono text-small tabular-nums text-muted">
                     {new Date(e.created_at).toLocaleString()}
                   </td>
                   <td className="px-3 py-2 align-top">
                     <p className="font-mono font-medium">{e.event_type}</p>
-                    <p className="font-mono text-small text-muted dark:text-drift">
+                    <p className="font-mono text-small text-muted">
                       {e.entity_type} · {e.entity_id.slice(0, 8)}…
                     </p>
                   </td>
                   <td className="px-3 py-2 align-top font-mono">{e.actor?.walletDisplay ?? '—'}</td>
                   <td className="px-3 py-2 align-top text-small">
                     <details>
-                      <summary className="inline-flex min-h-touch cursor-pointer items-center text-taupe dark:text-drift">
+                      <summary className="inline-flex min-h-touch cursor-pointer items-center text-muted">
                         Details
                       </summary>
-                      <pre className="mt-1 max-w-56 overflow-x-auto whitespace-pre-wrap break-all font-mono text-small text-taupe dark:text-drift">
+                      <pre className="mt-1 max-w-56 overflow-x-auto whitespace-pre-wrap break-all font-mono text-small text-muted">
                         {JSON.stringify(e.metadata ?? {}, null, 2)}
                       </pre>
                     </details>
@@ -192,7 +192,7 @@ export default function AdminAudit() {
                 type="button"
                 disabled={offset === 0}
                 onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-                className="min-h-touch rounded-lg border border-borderwarm px-4 py-2 text-body font-medium text-taupe disabled:opacity-50 dark:border-rootedge dark:bg-cocoa dark:text-khaki"
+                className="min-h-touch rounded-lg border border-border-strong px-4 py-2 text-body font-medium text-muted disabled:opacity-50 bg-surface"
               >
                 Previous
               </button>
@@ -200,7 +200,7 @@ export default function AdminAudit() {
                 type="button"
                 disabled={offset + PAGE_SIZE >= total}
                 onClick={() => setOffset((o) => o + PAGE_SIZE)}
-                className="min-h-touch rounded-lg border border-borderwarm px-4 py-2 text-body font-medium text-taupe disabled:opacity-50 dark:border-rootedge dark:bg-cocoa dark:text-khaki"
+                className="min-h-touch rounded-lg border border-border-strong px-4 py-2 text-body font-medium text-muted disabled:opacity-50 bg-surface"
               >
                 Next
               </button>

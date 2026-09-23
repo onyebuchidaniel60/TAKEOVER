@@ -76,15 +76,15 @@ export default function NotificationsSection() {
   const unreadCount = items.filter((n) => !n.read_at).length;
 
   return (
-    <section className="rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa" aria-label="Notifications">
+    <section className="rounded-xl border border-border bg-surface p-4" aria-label="Notifications">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-small font-medium uppercase tracking-wide text-muted dark:text-drift">Notifications</p>
+        <p className="text-small font-medium uppercase tracking-wide text-muted">Notifications</p>
         {unreadCount > 0 && !loading && !error ? (
           <button
             type="button"
             onClick={handleMarkAll}
             disabled={markingAll}
-            className="min-h-touch rounded-lg border border-borderwarm bg-cream px-3 py-1 text-body font-medium text-taupe disabled:opacity-50 dark:border-rootedge dark:bg-cocoa dark:text-khaki"
+            className="min-h-touch rounded-lg border border-border-strong bg-surface px-3 py-1 text-body font-medium text-muted disabled:opacity-50"
           >
             {markingAll ? 'Marking…' : 'Mark all read'}
           </button>
@@ -92,20 +92,20 @@ export default function NotificationsSection() {
       </div>
       <div className="mt-3" aria-live="polite">
         {loading ? (
-          <p className="text-body text-muted dark:text-drift">Loading notifications…</p>
+          <p className="text-body text-muted">Loading notifications…</p>
         ) : error ? (
           <div>
-            <p className="text-body text-taupe dark:text-drift">{error}</p>
+            <p className="text-body text-muted">{error}</p>
             <button
               type="button"
               onClick={() => setRetryKey((k) => k + 1)}
-              className="mt-2 min-h-touch rounded-lg border border-borderwarm px-3 py-1 text-body font-medium text-taupe dark:border-rootedge dark:bg-cocoa dark:text-khaki"
+              className="mt-2 min-h-touch rounded-lg border border-border-strong px-3 py-1 text-body font-medium text-muted bg-surface"
             >
               Try again
             </button>
           </div>
         ) : items.length === 0 ? (
-          <p className="text-body text-muted dark:text-drift">You’re all caught up — new funding and delivery updates land here.</p>
+          <p className="text-body text-muted">You’re all caught up — new funding and delivery updates land here.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {items.map((item) => (
@@ -113,17 +113,17 @@ export default function NotificationsSection() {
                 <Link
                   to={notificationTarget(item)}
                   onClick={() => handleOpen(item)}
-                  className="flex items-start gap-2 rounded-lg border border-hairline bg-cream p-3 text-left transition-[box-shadow,transform] duration-ui ease-out-strong hover:shadow-card active:scale-[0.99] dark:border-rootline dark:bg-cocoa dark:hover:shadow-none"
+                  className="flex items-start gap-2 rounded-lg border border-border bg-surface p-3 text-left transition-[box-shadow,transform] duration-ui ease-out-strong hover:shadow-card active:scale-[0.99]"
                   aria-label={`${item.title}${item.read_at ? '' : ', unread'}`}
                 >
                   {!item.read_at ? (
-                    <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-terra" />
+                    <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent" />
                   ) : null}
                   <span>
-                    <span className={`block text-body ${item.read_at ? 'font-normal text-taupe dark:text-drift' : 'font-semibold text-bark dark:text-parchment'}`}>
+                    <span className={`block text-body ${item.read_at ? 'font-normal text-muted' : 'font-semibold text-text'}`}>
                       {item.title}
                     </span>
-                    <span className="mt-0.5 block text-body text-taupe dark:text-drift">{item.body}</span>
+                    <span className="mt-0.5 block text-body text-muted">{item.body}</span>
                   </span>
                 </Link>
               </li>

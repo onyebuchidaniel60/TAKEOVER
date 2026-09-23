@@ -2,24 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Phase 11: one visible keyboard focus ring for every focusable element.
-   Components may layer their own focus-visible ring on top; nothing here
-   removes an outline without replacing it. */
-/* Retheme: terracotta ring on light (4.57:1 on cream), light terracotta
-   on warm dark (6.90:1 on coal). Both measured. */
+/* Dark-only (D1). The page is the bg token; native controls and
+   scrollbars follow suit via color-scheme. */
 @layer base {
-  :focus-visible {
-    outline: 3px solid #9d5a30;
-    outline-offset: 2px;
-    border-radius: 4px;
+  html {
+    color-scheme: dark;
   }
-  .dark :focus-visible {
-    outline-color: #d2906a;
+  body {
+    @apply bg-bg font-sans text-text;
   }
 }
 
-/* Phase 11: honor prefers-reduced-motion — stop the loading shimmer and
-   card hover transitions instead of animating through them. */
+/* One visible keyboard focus ring for every focusable element:
+   2px accent at 2px offset. Components may layer their own
+   focus-visible ring on top; nothing here removes an outline without
+   replacing it. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid #c4f135;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+/* Honor prefers-reduced-motion: collapse every motion token
+   (press/ui/panel durations, feed-in, shimmer, transitions) to an
+   instant state change instead of animating through it. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

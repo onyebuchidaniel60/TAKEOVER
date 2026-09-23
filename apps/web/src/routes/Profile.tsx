@@ -17,7 +17,6 @@ import {
   type MeUser,
 } from '../lib/slots';
 import { useAuth } from '../store/auth';
-import { useTheme, type ThemeMode } from '../store/theme';
 
 export default function Profile() {
   usePageMeta({ title: 'Profile — TAKEOVER' });
@@ -63,7 +62,7 @@ export default function Profile() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <h1 className="text-h1 font-bold text-bark dark:text-parchment">Profile</h1>
+      <h1 className="text-h1 font-bold text-text">Profile</h1>
       {loading ? (
         <div className="mt-4">
           <LoadingSkeleton rows={2} />
@@ -74,23 +73,21 @@ export default function Profile() {
         </div>
       ) : (
         <div className="mt-4 flex flex-col gap-4">
-          <section className="rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa" aria-label="Wallet">
-            <p className="text-small font-medium uppercase tracking-wide text-muted dark:text-drift">Wallet</p>
+          <section className="rounded-xl border border-border bg-surface p-4" aria-label="Wallet">
+            <p className="text-small font-medium uppercase tracking-wide text-muted">Wallet</p>
             <button
               type="button"
               onClick={handleCopy}
               title={user.walletAddress}
-              className="mt-1 min-h-touch rounded-lg border border-hairline bg-sand px-3 py-2 font-mono text-body text-bark focus:outline-none focus-visible:ring-2 focus-visible:ring-terra dark:border-rootline dark:bg-umber dark:text-parchment dark:focus-visible:ring-terralight"
+              className="mt-1 min-h-touch rounded-lg border border-border bg-surface-2 px-3 py-2 font-mono text-body text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-accent"
             >
               {truncateWalletAddress(user.walletAddress)}
-              <span className="ml-2 font-sans text-small text-muted dark:text-drift">{copied ? 'Copied' : 'Copy'}</span>
+              <span className="ml-2 font-sans text-small text-muted">{copied ? 'Copied' : 'Copy'}</span>
             </button>
-            <p className="mt-2 text-body text-taupe dark:text-drift">
+            <p className="mt-2 text-body text-muted">
               Role: <span className="font-medium capitalize">{user.role}</span>
             </p>
           </section>
-
-          <ThemeSection />
 
           <ProviderSection
             user={user}
@@ -103,20 +100,20 @@ export default function Profile() {
           <section className="flex flex-wrap gap-2" aria-label="Shortcuts">
             <Link
               to="/sell"
-              className="inline-block min-h-touch rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory dark:bg-sandlight dark:text-coal"
+              className="inline-block min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink"
             >
               My openings
             </Link>
             <Link
               to="/claims"
-              className="inline-block min-h-touch rounded-lg border border-borderwarm bg-cream px-4 py-2 text-body font-medium text-taupe dark:border-rootedge dark:bg-cocoa dark:text-khaki"
+              className="inline-block min-h-touch rounded-lg border border-border-strong bg-surface px-4 py-2 text-body font-medium text-muted"
             >
               My holds
             </Link>
             <button
               type="button"
               onClick={() => void logout()}
-              className="min-h-touch rounded-lg border border-borderwarm bg-cream px-4 py-2 text-body font-medium text-taupe dark:border-rootedge dark:bg-cocoa dark:text-khaki"
+              className="min-h-touch rounded-lg border border-border-strong bg-surface px-4 py-2 text-body font-medium text-muted"
             >
               Log out
             </button>
@@ -124,50 +121,6 @@ export default function Profile() {
         </div>
       )}
     </main>
-  );
-}
-
-// Appearance toggle (Light / Dark / Auto). Auto follows the
-// OS; a manual choice is remembered across reloads by the theme store. Plain
-// text segments — the icon budget stays at 10/10.
-const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-  { value: 'auto', label: 'Auto' },
-];
-
-function ThemeSection() {
-  const mode = useTheme((s) => s.mode);
-  const setMode = useTheme((s) => s.setMode);
-  return (
-    <section
-      className="rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa"
-      aria-label="Appearance"
-    >
-      <p className="text-small font-medium uppercase tracking-wide text-muted dark:text-drift">
-        Appearance
-      </p>
-      <div className="mt-2 flex gap-2" role="group" aria-label="Color theme">
-        {THEME_OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => setMode(option.value)}
-            aria-pressed={mode === option.value}
-            className={`min-h-touch rounded-full px-4 py-2 text-body font-medium ${
-              mode === option.value
-                ? 'bg-terra text-ivory dark:bg-sandlight dark:text-coal'
-                : 'border border-borderwarm bg-cream text-taupe dark:border-rootedge dark:bg-cocoa dark:text-khaki'
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-      <p className="mt-2 text-small text-muted dark:text-drift">
-        Auto follows your device setting.
-      </p>
-    </section>
   );
 }
 
@@ -183,9 +136,9 @@ function ProviderSection({
   const existing = user.providerProfile?.displayName ?? null;
   if (existing) {
     return (
-      <section className="rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa" aria-label="Provider">
-        <p className="text-small font-medium uppercase tracking-wide text-muted dark:text-drift">Provider</p>
-        <p className="mt-1 text-h3 font-semibold text-bark dark:text-parchment">{existing}</p>
+      <section className="rounded-xl border border-border bg-surface p-4" aria-label="Provider">
+        <p className="text-small font-medium uppercase tracking-wide text-muted">Provider</p>
+        <p className="mt-1 text-h3 font-semibold text-text">{existing}</p>
         <DisplayNameForm initial="" submitLabel="Change display name" onSaved={onSaved} />
       </section>
     );
@@ -198,7 +151,7 @@ function ProviderSection({
         action={
           <Link
             to="/sell/new"
-                className="inline-block min-h-touch rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory dark:bg-sandlight dark:text-coal"
+                className="inline-block min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink"
           >
             Create your first slot
           </Link>
@@ -207,9 +160,9 @@ function ProviderSection({
     );
   }
   return (
-    <section className="rounded-xl border border-hairline bg-cream p-4 dark:border-rootline dark:bg-cocoa" aria-label="Provider">
-      <p className="text-small font-medium uppercase tracking-wide text-muted dark:text-drift">Provider</p>
-      <p className="mt-1 text-body text-taupe dark:text-drift">
+    <section className="rounded-xl border border-border bg-surface p-4" aria-label="Provider">
+      <p className="text-small font-medium uppercase tracking-wide text-muted">Provider</p>
+      <p className="mt-1 text-body text-muted">
         Name your openings — buyers see this instead of your wallet.
       </p>
       <DisplayNameForm initial="" submitLabel="Set display name" onSaved={onSaved} />
@@ -256,7 +209,7 @@ export function DisplayNameForm({
 
   return (
     <form onSubmit={handleSubmit} className="mt-3">
-      <label htmlFor="provider-display-name" className="text-body font-medium text-taupe dark:text-khaki">
+      <label htmlFor="provider-display-name" className="text-body font-medium text-muted">
         Display name
       </label>
       <input
@@ -267,17 +220,17 @@ export function DisplayNameForm({
         onChange={(event) => setValue(event.target.value)}
         maxLength={60}
         placeholder="e.g. Sunrise Yoga"
-        className="mt-1 block min-h-touch w-full rounded-lg border border-borderwarm bg-cream px-3 py-2 text-body text-bark placeholder:text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-terra dark:border-rootedge dark:bg-cocoa dark:text-parchment dark:placeholder:text-drift dark:focus-visible:ring-terralight"
+        className="mt-1 block min-h-touch w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-body text-text placeholder:text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-accent placeholder:text-muted focus-visible:ring-accent"
       />
       {error ? (
-        <p className="mt-2 text-body font-medium text-clay dark:text-clayd" role="alert">
+        <p className="mt-2 text-body font-medium text-danger" role="alert">
           {error}
         </p>
       ) : null}
       <button
         type="submit"
         disabled={saving}
-        className="mt-2 min-h-touch rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory disabled:opacity-50 dark:bg-sandlight dark:text-coal"
+        className="mt-2 min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50"
       >
         {saving ? 'Saving…' : submitLabel}
       </button>

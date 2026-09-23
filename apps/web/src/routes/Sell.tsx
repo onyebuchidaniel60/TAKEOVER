@@ -58,14 +58,14 @@ export default function Sell() {
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-h1 font-bold text-bark dark:text-parchment">My openings</h1>
-          <p className="mt-1 font-mono text-body tabular-nums text-muted dark:text-drift">
+          <h1 className="text-h1 font-bold text-text">My openings</h1>
+          <p className="mt-1 font-mono text-body tabular-nums text-muted">
             {total} opening{total === 1 ? '' : 's'} in total.
           </p>
         </div>
         <Link
           to="/sell/new"
-          className="min-h-touch shrink-0 rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory focus:outline-none focus-visible:ring-2 focus-visible:ring-terra focus-visible:ring-offset-2 ring-offset-cream dark:bg-sandlight dark:text-coal dark:focus-visible:ring-terralight dark:focus-visible:ring-offset-cocoa"
+          className="min-h-touch shrink-0 rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface focus-visible:ring-accent focus-visible:ring-offset-surface"
         >
           Create slot
         </Link>
@@ -84,8 +84,8 @@ export default function Sell() {
             aria-pressed={status === f}
             className={`min-h-touch rounded-full px-4 py-2 text-body font-medium ${
               status === f
-                ? 'bg-terra text-ivory dark:bg-sandlight dark:text-coal'
-                : 'border border-borderwarm bg-cream text-taupe dark:border-rootedge dark:bg-cocoa dark:text-khaki'
+                ? 'bg-accent text-accent-ink'
+                : 'border border-border-strong bg-surface text-muted'
             }`}
           >
             {f || 'All'}
@@ -104,7 +104,7 @@ export default function Sell() {
             action={
               <Link
                 to="/sell/new"
-                className="inline-block min-h-touch rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory dark:bg-sandlight dark:text-coal"
+                className="inline-block min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink"
               >
                 Create your first slot
               </Link>
@@ -116,13 +116,13 @@ export default function Sell() {
               <li key={slot.id}>
                 <Link
                   to={`/sell/${slot.id}`}
-                  className="block rounded-xl border border-hairline bg-cream p-4 shadow-sm transition hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-terra dark:border-rootline dark:bg-cocoa dark:shadow-none dark:hover:shadow-none dark:focus-visible:ring-terralight"
+                  className="block rounded-xl border border-border bg-surface p-4 shadow-sm transition hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-accent"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <h2 className="text-h3 font-semibold text-bark dark:text-parchment">{slot.title}</h2>
+                    <h2 className="text-h3 font-semibold text-text">{slot.title}</h2>
                     <StatusBadge status={slot.status} />
                   </div>
-                  <p className="mt-1 font-mono text-small tabular-nums text-muted dark:text-drift">
+                  <p className="mt-1 font-mono text-small tabular-nums text-muted">
                     {new Date(slot.starts_at).toLocaleString(undefined, {
                       weekday: 'short',
                       month: 'short',
@@ -145,9 +145,9 @@ export default function Sell() {
 
 function Tile({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-hairline bg-cream p-3 text-center dark:border-rootline dark:bg-cocoa">
-      <p className="font-mono text-h2 font-bold tabular-nums text-bark dark:text-parchment">{value}</p>
-      <p className="mt-1 text-small text-muted dark:text-drift">{label}</p>
+    <div className="rounded-xl border border-border bg-surface p-3 text-center">
+      <p className="font-mono text-h2 font-bold tabular-nums text-text">{value}</p>
+      <p className="mt-1 text-small text-muted">{label}</p>
     </div>
   );
 }

@@ -139,12 +139,12 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <h1 className="text-h1 font-bold text-bark dark:text-parchment">Available now</h1>
-      <p className="mt-1 text-body leading-relaxed text-muted dark:text-drift">
+      <h1 className="text-h1 font-bold text-text">Available now</h1>
+      <p className="mt-1 text-body leading-relaxed text-muted">
         Last-minute openings near you. Claim one before it’s gone.
       </p>
       {notice ? (
-        <p role="status" className="mt-3 rounded-lg bg-ochrewash p-3 text-body text-ochre dark:bg-ochrewashd dark:text-ochred">
+        <p role="status" className="mt-3 rounded-lg bg-surface-2 p-3 text-body text-warning">
           {notice}
         </p>
       ) : null}
@@ -163,7 +163,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handleClear}
-                  className="min-h-touch rounded-lg border border-borderwarm bg-cream px-4 py-2 text-body font-medium text-taupe transition-transform duration-press ease-out-strong active:scale-[0.97] dark:border-rootedge dark:bg-cocoa dark:text-khaki"
+                  className="min-h-touch rounded-lg border border-border-strong bg-surface px-4 py-2 text-body font-medium text-muted transition-transform duration-press ease-out-strong active:scale-[0.97]"
                 >
                   Clear filters
                 </button>
@@ -172,7 +172,7 @@ export default function Home() {
           />
         ) : (
           <>
-            <p className="mb-3 font-mono text-small tabular-nums text-muted dark:text-drift">
+            <p className="mb-3 font-mono text-small tabular-nums text-muted">
               {total} opening{total === 1 ? '' : 's'} · soonest first
             </p>
             <SlotList slots={slots} />
@@ -181,7 +181,7 @@ export default function Home() {
                 type="button"
                 onClick={handleShowMore}
                 disabled={loadingMore}
-                className="mt-4 inline-flex min-h-touch w-full items-center justify-center gap-1.5 rounded-xl border border-hairline bg-cream px-4 py-2 text-body font-medium text-bark shadow-card transition-[box-shadow,transform] duration-ui ease-out-strong hover:shadow-card-hover active:scale-[0.99] disabled:opacity-50 dark:border-rootline dark:bg-cocoa dark:text-parchment dark:shadow-none dark:hover:shadow-none"
+                className="mt-4 inline-flex min-h-touch w-full items-center justify-center gap-1.5 rounded-xl border border-border bg-surface px-4 py-2 text-body font-medium text-text shadow-card transition-[box-shadow,transform] duration-ui ease-out-strong hover:shadow-card-hover active:scale-[0.99] disabled:opacity-50"
               >
                 {loadingMore ? (
                   'Loading…'

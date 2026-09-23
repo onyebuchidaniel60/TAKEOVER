@@ -10,7 +10,7 @@ export interface FilterValues {
 }
 
 const inputClass =
-  'min-h-touch w-full rounded-lg border border-borderwarm bg-cream px-3 py-2 text-body text-bark placeholder:text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-terra dark:border-rootedge dark:bg-cocoa dark:text-parchment dark:placeholder:text-drift dark:focus-visible:ring-terralight';
+  'min-h-touch w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-body text-text placeholder:text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-accent placeholder:text-muted focus-visible:ring-accent';
 
 export default function SearchFilters({
   values,
@@ -29,21 +29,21 @@ export default function SearchFilters({
 
   return (
     <form
-      className="rounded-2xl border border-hairline bg-cream p-4 shadow-card dark:border-rootline dark:bg-cocoa dark:shadow-none"
+      className="rounded-2xl border border-border bg-surface p-4 shadow-card"
       role="search"
       aria-label="Search available slots"
       onSubmit={(event) => event.preventDefault()}
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label htmlFor="slot-search" className="mb-1 block text-small font-medium text-taupe dark:text-drift">
+          <label htmlFor="slot-search" className="mb-1 block text-small font-medium text-muted">
             Search
           </label>
           <div className="relative">
             <Search
               size={16}
               aria-hidden="true"
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint dark:text-drift"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
             />
             <input
               id="slot-search"
@@ -57,7 +57,7 @@ export default function SearchFilters({
           </div>
         </div>
         <div>
-          <label htmlFor="slot-category" className="mb-1 block text-small font-medium text-taupe dark:text-drift">
+          <label htmlFor="slot-category" className="mb-1 block text-small font-medium text-muted">
             Category
           </label>
           <select
@@ -75,7 +75,7 @@ export default function SearchFilters({
           </select>
         </div>
         <div>
-          <label htmlFor="slot-location" className="mb-1 block text-small font-medium text-taupe dark:text-drift">
+          <label htmlFor="slot-location" className="mb-1 block text-small font-medium text-muted">
             Area
           </label>
           <input
@@ -90,7 +90,7 @@ export default function SearchFilters({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="slot-from" className="mb-1 block text-small font-medium text-taupe dark:text-drift">
+            <label htmlFor="slot-from" className="mb-1 block text-small font-medium text-muted">
               From
             </label>
             <input
@@ -102,7 +102,7 @@ export default function SearchFilters({
             />
           </div>
           <div>
-            <label htmlFor="slot-to" className="mb-1 block text-small font-medium text-taupe dark:text-drift">
+            <label htmlFor="slot-to" className="mb-1 block text-small font-medium text-muted">
               To
             </label>
             <input
@@ -118,7 +118,7 @@ export default function SearchFilters({
       <button
         type="button"
         onClick={onClear}
-        className="mt-3 min-h-touch rounded-lg border border-borderwarm px-4 py-2 text-body font-medium text-taupe transition-transform duration-press ease-out-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-terra active:scale-[0.97] dark:border-rootedge dark:bg-cocoa dark:text-khaki dark:focus-visible:ring-terralight"
+        className="mt-3 min-h-touch rounded-lg border border-border-strong px-4 py-2 text-body font-medium text-muted transition-transform duration-press ease-out-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.97] bg-surface focus-visible:ring-accent"
       >
         Clear filters
       </button>

@@ -50,7 +50,7 @@ export default function MarkDeliveredForm({
 
   if (done) {
     return (
-      <p className="mt-2 text-body font-medium text-bark dark:text-parchment" aria-live="polite">
+      <p className="mt-2 text-body font-medium text-text" aria-live="polite">
         Marked delivered.
       </p>
     );
@@ -58,7 +58,7 @@ export default function MarkDeliveredForm({
 
   return (
     <div className="mt-2">
-      <label htmlFor={`payout-${claimId}`} className="block text-body font-medium text-taupe dark:text-khaki">
+      <label htmlFor={`payout-${claimId}`} className="block text-body font-medium text-muted">
         Provider payout address (Polygon)
       </label>
       <div className="mt-1 flex flex-col gap-2 sm:flex-row">
@@ -70,19 +70,19 @@ export default function MarkDeliveredForm({
           placeholder="0x…"
           spellCheck={false}
           autoComplete="off"
-          className="min-h-touch flex-1 rounded-lg border border-borderwarm px-3 py-2 font-mono text-body text-bark placeholder:text-muted dark:border-rootedge dark:bg-cocoa dark:text-parchment dark:placeholder:text-drift"
+          className="min-h-touch flex-1 rounded-lg border border-border-strong px-3 py-2 font-mono text-body text-text placeholder:text-muted bg-surface placeholder:text-muted"
         />
         <button
           type="button"
           onClick={submit}
           disabled={busy}
-          className="inline-flex min-h-touch items-center rounded-lg bg-terra px-4 py-2 text-body font-medium text-ivory disabled:opacity-50 dark:bg-sandlight dark:text-coal"
+          className="inline-flex min-h-touch items-center rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50"
         >
           {busy ? 'Marking…' : 'Mark delivered'}
         </button>
       </div>
       {error && (
-        <p className="mt-1 text-body text-clay dark:text-clayd" role="alert">
+        <p className="mt-1 text-body text-danger" role="alert">
           {error}
         </p>
       )}
