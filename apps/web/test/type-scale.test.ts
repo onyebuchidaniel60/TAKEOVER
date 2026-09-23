@@ -20,17 +20,20 @@ describe('type scale (tailwind.config.js)', () => {
     expect(CONFIG_TEXT).not.toContain('darkMode:');
   });
 
-  it('pairs a system sans stack with a system mono stack for figures', () => {
-    expect(CONFIG_TEXT).toContain("'ui-sans-serif'");
-    expect(CONFIG_TEXT).toContain("'ui-monospace'");
-    // No webfont wired: the fontFamily declaration must not name one
-    // (prose comments elsewhere in the file may mention history).
+  it('wires the self-hosted faces: Poppins body, Big Shoulders display, system mono', () => {
     const familyBlock = CONFIG_TEXT.slice(
       CONFIG_TEXT.indexOf('fontFamily: {'),
       CONFIG_TEXT.indexOf('fontSize: {'),
     );
+    // Poppins leads sans; the display face leads display; mono stays
+    // system-only (figures must never render proportional numerals).
+    expect(familyBlock.indexOf("'Poppins'")).toBeGreaterThanOrEqual(0);
+    expect(familyBlock.indexOf("'Poppins'")).toBeLessThan(familyBlock.indexOf("'ui-sans-serif'"));
+    expect(familyBlock).toContain("'\"Big Shoulders Display\"'");
+    expect(familyBlock).toContain("'ui-monospace'");
     expect(familyBlock).not.toContain('Geist');
-    expect(familyBlock).not.toContain('@font-face');
+    // No runtime CDN in the family stacks.
+    expect(familyBlock).not.toMatch(/https?:\/\//);
   });
 
   it('locks the six-step scale verbatim', () => {
@@ -44,5 +47,31 @@ describe('type scale (tailwind.config.js)', () => {
     ]) {
       expect(CONFIG_TEXT).toContain(entry);
     }
+  });
+
+  it('ships the six latin woff2 files (self-hosted, no CDN)', () => {
+    for (const name of [
+      'poppins-400',
+      'poppins-500',
+      'poppins-600',
+      'poppins-700',
+      'big-shoulders-600',
+      'big-shoulders-700',
+    ]) {
+      const bytes = readFileSync(resolve(process.cwd(), 'public/fonts', `${name}.woff2`));
+      expect(bytes.subarray(0, 4).toString()).toBe('wOF2');
+    }
+    const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8');
+    expect(css.match(/@font-face/g)).toHaveLength(6);
+    expect(css).toContain('font-display: swap');
+    expect(css).not.toMatch(/https?:\/\//);
+  });
+
+  it('resolves display/h1/h2 to the display face except on mono figures', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8');
+    expect(css).toContain('.text-display:not(.font-mono)');
+    expect(css).toContain('.text-h1:not(.font-mono)');
+    expect(css).toContain('.text-h2:not(.font-mono)');
+    expect(css).toContain("'Big Shoulders Display'");
   });
 });

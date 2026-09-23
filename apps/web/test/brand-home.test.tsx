@@ -16,21 +16,18 @@ afterEach(() => {
 });
 
 describe('BrandMark', () => {
-  it('renders the D6 tile treatment: dark tile, light cradle, lime tab', () => {
-    const { container } = render(<BrandMark size={24} />);
+  it('renders the D9 lockup: box, line, condensed wordmark', () => {
+    const { container } = render(<BrandMark height={24} />);
     const svg = container.querySelector('svg');
     expect(svg).toBeTruthy();
-    expect(svg?.getAttribute('role')).toBe('img');
-    expect(svg?.getAttribute('aria-label')).toBe('TAKEOVER');
-    expect(svg?.querySelector('title')?.textContent).toBe('TAKEOVER');
-    expect(svg?.getAttribute('viewBox')).toBe('0 0 32 32');
-    const rects = [...(svg?.querySelectorAll('rect') ?? [])];
-    // Tile + 3 cradle rects + tab; geometry unchanged, fills per D6.
-    // The cradle inherits its fill from the wrapping <g>.
-    expect(rects).toHaveLength(5);
-    expect(rects[0]?.getAttribute('fill')).toBe('#0A0A0A');
-    expect(svg?.querySelector('g')?.getAttribute('fill')).toBe('#FAFAFA');
-    expect(rects[4]?.getAttribute('fill')).toBe('#C4F135');
+    expect(svg?.getAttribute('aria-hidden')).toBe('true');
+    expect(svg?.getAttribute('height')).toBe('24');
+    // Box outline + T + line + TAKEOVER text, no tab-in-slot geometry.
+    expect(svg?.querySelector('rect')?.getAttribute('fill')).toBe('none');
+    const texts = [...(svg?.querySelectorAll('text') ?? [])].map((t) => t.textContent);
+    expect(texts).toContain('T');
+    expect(texts).toContain('TAKEOVER');
+    expect(svg?.querySelector('line')).toBeTruthy();
   });
 });
 
@@ -84,7 +81,7 @@ describe('Contact', () => {
 });
 
 describe('Home section order', () => {
-  it('renders feed, then How it works, FAQ, and Contact in that order', async () => {
+  it('renders hero, feed, then How it works, Why, Features, Final CTA, FAQ, Contact, footer', async () => {
     mockFetch((url: string) => {
       if (url.startsWith('/api/v1/slots')) {
         return { slots: [slotFixture()], total: 1, limit: 20, offset: 0 };
@@ -101,13 +98,50 @@ describe('Home section order', () => {
     await screen.findByText(/opening(s)? · soonest first/i);
     const main = screen.getByRole('main');
     const text = main.textContent ?? '';
-    const feedAt = text.indexOf('Available now');
-    const howAt = text.indexOf('How it works');
-    const faqAt = text.indexOf('Questions, answered');
-    const contactAt = text.indexOf('Talk to us');
-    expect(feedAt).toBeGreaterThanOrEqual(0);
-    expect(howAt).toBeGreaterThan(feedAt);
-    expect(faqAt).toBeGreaterThan(howAt);
-    expect(contactAt).toBeGreaterThan(faqAt);
+    const order = [
+      'Last-minute capacity',
+      'Available now',
+      'How it works',
+      'Why TAKEOVER',
+      'Built for the last minute',
+      'go to waste',
+      'Questions, answered',
+      'Talk to us',
+      'Built for Nimiq Pay.',
+    ];
+    let at = -1;
+    for (const marker of order) {
+      const next = text.indexOf(marker, at + 1);
+      expect(next).toBeGreaterThan(at);
+      at = next;
+    }
+  });
+
+  it('hero links to sell-new and anchors how-it-works; footer links anchor sections', async () => {
+    mockFetch((url: string) => {
+      if (url.startsWith('/api/v1/slots')) {
+        return { slots: [slotFixture()], total: 1, limit: 20, offset: 0 };
+      }
+      return undefined;
+    });
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByText(/opening(s)? · soonest first/i);
+    const createLinks = screen.getAllByRole('link', { name: 'Create a slot' });
+    expect(createLinks.length).toBeGreaterThan(0);
+    for (const link of createLinks) {
+      expect(link.getAttribute('href')).toBe('/sell/new');
+    }
+    expect(screen.getByRole('link', { name: 'Browse openings' }).getAttribute('href')).toBe(
+      '#openings',
+    );
+    for (const link of screen.getAllByRole('link', { name: 'How it works' })) {
+      expect(link.getAttribute('href')).toBe('#how-it-works');
+    }
   });
 });

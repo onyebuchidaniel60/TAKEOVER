@@ -7,10 +7,16 @@ import Contact from '../components/home/Contact';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import Faq from '../components/home/Faq';
+import Features from '../components/home/Features';
+import FinalCta from '../components/home/FinalCta';
+import Footer from '../components/home/Footer';
+import Hero from '../components/home/Hero';
 import HowItWorks from '../components/home/HowItWorks';
 import LoadingSkeleton from '../components/LoadingSkeleton';
+import Reveal from '../components/home/Reveal';
 import SearchFilters, { type FilterValues } from '../components/SearchFilters';
 import SlotList from '../components/SlotList';
+import WhyTakeover from '../components/home/WhyTakeover';
 import { ApiError } from '../lib/api';
 import { usePageMeta } from '../lib/meta';
 import { fetchSlots, type PublicSlot } from '../lib/slots';
@@ -139,67 +145,88 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <h1 className="text-h1 font-bold text-text">Available now</h1>
-      <p className="mt-1 text-body leading-relaxed text-muted">
-        Last-minute openings near you. Claim one before it’s gone.
-      </p>
-      {notice ? (
-        <p role="status" className="mt-3 rounded-lg bg-surface-2 p-3 text-body text-warning">
-          {notice}
+      <Hero />
+      <section id="openings" aria-labelledby="feed-heading" className="mt-8 scroll-mt-20">
+        <h2 id="feed-heading" className="text-h2 font-bold text-text">
+          Available now
+        </h2>
+        <p className="mt-1 text-body leading-relaxed text-muted">
+          Last-minute openings near you. Claim one before it’s gone.
         </p>
-      ) : null}
-      <div className="mt-4">
-        <SearchFilters values={values} onChange={handleChange} onClear={handleClear} />
-      </div>
-      <div className="mt-4" aria-live="polite">
-        {loading ? (
-          <LoadingSkeleton />
-        ) : error ? (
-          <ErrorState message={error} onRetry={() => setRetryKey((k) => k + 1)} />
-        ) : slots.length === 0 ? (
-          <EmptyState
-            action={
-              hasActiveFilters ? (
+        {notice ? (
+          <p role="status" className="mt-3 rounded-lg bg-surface-2 p-3 text-body text-warning">
+            {notice}
+          </p>
+        ) : null}
+        <div className="mt-4">
+          <SearchFilters values={values} onChange={handleChange} onClear={handleClear} />
+        </div>
+        <div className="mt-4" aria-live="polite">
+          {loading ? (
+            <LoadingSkeleton />
+          ) : error ? (
+            <ErrorState message={error} onRetry={() => setRetryKey((k) => k + 1)} />
+          ) : slots.length === 0 ? (
+            <EmptyState
+              action={
+                hasActiveFilters ? (
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="min-h-touch rounded-lg border border-border-strong bg-surface px-4 py-2 text-body font-medium text-muted transition-transform duration-press ease-out-strong active:scale-[0.97]"
+                  >
+                    Clear filters
+                  </button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <>
+              <p className="mb-3 font-mono text-small tabular-nums text-muted">
+                {total} opening{total === 1 ? '' : 's'} · soonest first
+              </p>
+              <SlotList slots={slots} />
+              {hasMore ? (
                 <button
                   type="button"
-                  onClick={handleClear}
-                  className="min-h-touch rounded-lg border border-border-strong bg-surface px-4 py-2 text-body font-medium text-muted transition-transform duration-press ease-out-strong active:scale-[0.97]"
+                  onClick={handleShowMore}
+                  disabled={loadingMore}
+                  className="mt-4 inline-flex min-h-touch w-full items-center justify-center gap-1.5 rounded-xl border border-border bg-surface px-4 py-2 text-body font-medium text-text shadow-card transition-[box-shadow,transform] duration-ui ease-out-strong hover:shadow-card-hover active:scale-[0.99] disabled:opacity-50"
                 >
-                  Clear filters
+                  {loadingMore ? (
+                    'Loading…'
+                  ) : (
+                    <>
+                      Show more ({total - slots.length} left)
+                      <ChevronDown size={16} aria-hidden="true" />
+                    </>
+                  )}
                 </button>
-              ) : undefined
-            }
-          />
-        ) : (
-          <>
-            <p className="mb-3 font-mono text-small tabular-nums text-muted">
-              {total} opening{total === 1 ? '' : 's'} · soonest first
-            </p>
-            <SlotList slots={slots} />
-            {hasMore ? (
-              <button
-                type="button"
-                onClick={handleShowMore}
-                disabled={loadingMore}
-                className="mt-4 inline-flex min-h-touch w-full items-center justify-center gap-1.5 rounded-xl border border-border bg-surface px-4 py-2 text-body font-medium text-text shadow-card transition-[box-shadow,transform] duration-ui ease-out-strong hover:shadow-card-hover active:scale-[0.99] disabled:opacity-50"
-              >
-                {loadingMore ? (
-                  'Loading…'
-                ) : (
-                  <>
-                    Show more ({total - slots.length} left)
-                    <ChevronDown size={16} aria-hidden="true" />
-                  </>
-                )}
-              </button>
-            ) : null}
-          </>
-        )}
-      </div>
+              ) : null}
+            </>
+          )}
+        </div>
+      </section>
       <div className="mt-12 flex flex-col gap-10">
-        <HowItWorks />
-        <Faq />
-        <Contact />
+        <Reveal>
+          <HowItWorks />
+        </Reveal>
+        <Reveal>
+          <WhyTakeover />
+        </Reveal>
+        <Reveal>
+          <Features />
+        </Reveal>
+        <Reveal>
+          <FinalCta />
+        </Reveal>
+        <Reveal>
+          <Faq />
+        </Reveal>
+        <Reveal>
+          <Contact />
+        </Reveal>
+        <Footer />
       </div>
     </main>
   );

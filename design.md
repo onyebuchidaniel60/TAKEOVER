@@ -111,15 +111,24 @@ page beneath.
 
 ### 3.3 Typography
 
-**Family:** system stack. No webfont. This was tried before
-(Geist) and reverted; the system font is faster, sharper, and
-avoids the Mini App load penalty.
+**Family:** Poppins (body) + Big Shoulders Display (display steps),
+self-hosted as latin-subset woff2 (Phase 3b, SIL OFL) — no runtime
+CDN. The system stack remains the fallback under both faces and the
+sole mono stack. (The system-only rule stood through Phase 3; the
+reference's typefaces required real faces, so the owner locked D7/D8.)
 
 ```
---font-sans: ui-sans-serif, system-ui, -apple-system,
-             "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+--font-sans: Poppins, ui-sans-serif, system-ui, -apple-system,
+              "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+--font-display: "Big Shoulders Display", Poppins, ui-sans-serif,
+              system-ui, sans-serif;
 --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 ```
+
+`display`, `h1`, and `h2` render in the display face; `h3`, `body`,
+and `small` in Poppins; every figure stays system mono. The
+mono rule below is load-bearing: Poppins numerals are proportional,
+so any number set in a display/body face would shift width.
 
 **Scale** (mobile-first, all values in `rem`):
 

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // Floating pill bottom nav (D2): header holds brand + wallet only,
-// four pill items, active lime pill + label, unread dot, navigation.
+// five icon-only pill items (icon-only: even active-only labels bleed
+// at 320px — measured), active lime pill, unread dot, navigation.
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -85,7 +86,7 @@ describe('header chrome', () => {
 });
 
 describe('pill bottom nav', () => {
-  it('renders four items in order inside a fixed safe-area pill', async () => {
+  it('renders five items in order inside a fixed safe-area pill', async () => {
     authAs('buyer');
     stubFetch(0);
     renderShell();
@@ -93,16 +94,16 @@ describe('pill bottom nav', () => {
     const nav = screen.getByRole('navigation', { name: 'Primary' });
     expect(nav.className).toContain('fixed');
     expect(nav.className).toContain('safe-area-inset-bottom');
-    const links = ['Sell', 'Claims', 'Notifications', 'Profile'].map((name) =>
+    const links = ['Home', 'Sell', 'Claims', 'Notifications', 'Profile'].map((name) =>
       screen.getByRole('link', { name }),
     );
-    expect(links).toHaveLength(4);
+    expect(links).toHaveLength(5);
     const pill = nav.firstElementChild as HTMLElement;
     expect(pill.className).toContain('rounded-pill');
     expect(pill.className).toContain('bg-surface');
   });
 
-  it('marks the active item with aria-current, the lime pill, and its label', async () => {
+  it('marks the active item with aria-current and the lime pill (icon-only)', async () => {
     authAs('buyer');
     stubFetch(0);
     renderShell('/sell');
@@ -110,31 +111,27 @@ describe('pill bottom nav', () => {
     const sell = screen.getByRole('link', { name: 'Sell' });
     expect(sell.getAttribute('aria-current')).toBe('page');
     expect(sell.innerHTML).toContain('bg-accent');
-    expect(sell.textContent).toContain('Sell');
-    // Inactive items are icon-only (labels do not fit 320px four-wide).
-    const claims = screen.getByRole('link', { name: 'Claims' });
-    expect(claims.getAttribute('aria-current')).toBeNull();
-    expect(claims.textContent ?? '').not.toContain('Claims');
+    // Icon-only at every width: no visible label text anywhere in the pill.
+    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    expect(nav.textContent ?? '').not.toContain('Notifications');
   });
 
-  it('maps nested routes to their section: /sell/new → Sell, /claim/:id → Claims', async () => {
-    authAs('buyer');
-    stubFetch(0);
-    renderShell('/sell/new');
-    await waitFor(() => expect(useNotifications.getState().unread).toBe(0));
-    expect(screen.getByRole('link', { name: 'Sell' }).getAttribute('aria-current')).toBe('page');
-    cleanup();
-    useNotifications.setState({ unread: null });
-    renderShell('/claim/claim-1');
-    expect(screen.getByRole('link', { name: 'Claims' }).getAttribute('aria-current')).toBe('page');
-  });
-
-  it('leaves every item inactive on / (home is not a nav section)', async () => {
+  it('activates Home exactly on / (never on /slot/* or /claim/*)', async () => {
     authAs('buyer');
     stubFetch(0);
     renderShell('/');
     await waitFor(() => expect(useNotifications.getState().unread).toBe(0));
-    for (const name of ['Sell', 'Claims', 'Notifications', 'Profile']) {
+    expect(screen.getByRole('link', { name: 'Home' }).getAttribute('aria-current')).toBe('page');
+    cleanup();
+    useNotifications.setState({ unread: null });
+    render(
+      <MemoryRouter initialEntries={['/slot/slot-1']}>
+        <Routes>
+          <Route path="/slot/:slotId" element={<BottomNav />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    for (const name of ['Home', 'Sell', 'Claims', 'Notifications', 'Profile']) {
       expect(screen.getByRole('link', { name }).getAttribute('aria-current')).toBeNull();
     }
   });
@@ -172,12 +169,12 @@ describe('pill bottom nav', () => {
     stubFetch(0);
     renderShell();
     await waitFor(() => expect(useNotifications.getState().unread).toBe(0));
-    for (const name of ['Sell', 'Claims', 'Notifications', 'Profile']) {
+    for (const name of ['Home', 'Sell', 'Claims', 'Notifications', 'Profile']) {
       const link = screen.getByRole('link', { name });
-      // Structural proxy (jsdom has no layout): h-14 × min-w-[52px].
+      // Structural proxy (jsdom has no layout): h-12 × min-w-[48px].
       // The audit script measures real boxes in Chromium.
-      expect(link.className).toContain('h-14');
-      expect(link.className).toContain('min-w-[52px]');
+      expect(link.className).toContain('h-12');
+      expect(link.className).toContain('min-w-[48px]');
     }
   });
 

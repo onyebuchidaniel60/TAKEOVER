@@ -1,8 +1,7 @@
-// App header (design.md §7): one row, 56px, bg background. Brand mark +
-// wordmark left (links home), wallet status right. Nothing else — the
-// hamburger is gone with the drawer; the pill nav owns navigation.
-// A border hairline appears only once scrolled (border color swaps, so
-// the 56px height never shifts).
+// App header (design.md §7): one row, 56px, bg background. Bounded
+// brand lockup left (links home), wallet status right. Nothing else —
+// the pill nav owns navigation. A border hairline appears only once
+// scrolled (border color swaps, so the 56px height never shifts).
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import BrandMark from './BrandMark';
@@ -24,14 +23,13 @@ export default function TopBar() {
         scrolled ? 'border-border' : 'border-transparent'
       }`}
     >
-      <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-3 px-4 sm:px-6">
+      <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-2 px-4 sm:px-6">
         <Link
           to="/"
           aria-label="TAKEOVER home"
-          className="inline-flex min-h-touch items-center gap-2 text-h3 font-bold text-text"
+          className="inline-flex h-11 min-w-[44px] shrink-0 items-center justify-center rounded-control border border-border px-2"
         >
-          <BrandMark size={24} />
-          TAKEOVER
+          <BrandMark height={24} />
         </Link>
         <WalletStatus />
       </div>

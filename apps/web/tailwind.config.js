@@ -50,14 +50,19 @@ export default {
         'card-hover':
           '0 2px 4px rgb(0 0 0 / 0.4), 0 16px 32px -12px rgb(0 0 0 / 0.6)',
       },
-      // Type scale (design.md §3.3). System stacks only — no webfont.
-      // Weight stays explicit at each call site (display/h1/h2 bold, h3
-      // semibold, body regular, small medium). Mono pairs a scale size
-      // with font-mono + tabular-nums for every figure (prices,
-      // countdowns, counts, dates). Line heights are unitless spec
-      // values: 1.2 display/h1, 1.3 h2/h3, 1.5 body/small.
+      // Type scale (design.md §3.3). Self-hosted Poppins (body) + Big
+      // Shoulders Display (display steps) with system fallbacks — no
+      // runtime CDN. Weight stays explicit at each call site
+      // (display/h1/h2 bold, h3 semibold, body regular, small medium).
+      // Mono stays the system stack: figures pair a scale size with
+      // font-mono + tabular-nums (prices, countdowns, counts, dates).
+      // display/h1/h2 resolve to the display face via index.css
+      // (.text-* + :not(.font-mono) guard, so money surfaces keep mono).
+      // Line heights are unitless spec values: 1.2 display/h1, 1.3
+      // h2/h3, 1.5 body/small.
       fontFamily: {
         sans: [
+          'Poppins',
           'ui-sans-serif',
           'system-ui',
           '-apple-system',
@@ -65,6 +70,13 @@ export default {
           'Roboto',
           '"Helvetica Neue"',
           'Arial',
+          'sans-serif',
+        ],
+        display: [
+          '"Big Shoulders Display"',
+          'Poppins',
+          'ui-sans-serif',
+          'system-ui',
           'sans-serif',
         ],
         mono: ['ui-monospace', '"SF Mono"', 'Menlo', 'Consolas', 'monospace'],

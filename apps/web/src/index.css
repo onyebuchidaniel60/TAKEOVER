@@ -2,15 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Self-hosted typefaces (Phase 3b, SIL OFL): Poppins 400/500/600/700
+   (body) + Big Shoulders Display 600/700 (display), latin subsets,
+   ~59 KB total. font-display: swap — system stacks cover first paint. */
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/poppins-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/poppins-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/poppins-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/poppins-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Big Shoulders Display';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/big-shoulders-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Big Shoulders Display';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/big-shoulders-700.woff2') format('woff2');
+}
+
 /* Dark-only (D1). The page is the bg token; native controls and
    scrollbars follow suit via color-scheme. */
 @layer base {
   html {
     color-scheme: dark;
+    scroll-behavior: smooth;
   }
   body {
     @apply bg-bg font-sans text-text;
   }
+}
+
+/* Display family for the large scale steps (design.md §3.3). Plain
+   unlayered rules so they win over same-specificity utilities.
+   The :not(.font-mono) guard is load-bearing: money surfaces pair a
+   scale size with font-mono + tabular-nums, and numerals must never
+   render in the proportional display face. */
+.text-display:not(.font-mono),
+.text-h1:not(.font-mono),
+.text-h2:not(.font-mono) {
+  font-family: 'Big Shoulders Display', 'Poppins', ui-sans-serif, system-ui, sans-serif;
 }
 
 /* One visible keyboard focus ring for every focusable element:
@@ -27,8 +85,12 @@
 
 /* Honor prefers-reduced-motion: collapse every motion token
    (press/ui/panel durations, feed-in, shimmer, transitions) to an
-   instant state change instead of animating through it. */
+   instant state change instead of animating through it — including
+   smooth anchor scrolling. */
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
   *,
   *::before,
   *::after {

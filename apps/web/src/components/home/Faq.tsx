@@ -38,7 +38,7 @@ const ITEMS = [
 
 export default function Faq() {
   return (
-    <section aria-labelledby="faq-heading">
+    <section aria-labelledby="faq-heading" id="faq" className="scroll-mt-20">
       <h2 id="faq-heading" className="text-h2 font-bold text-text">
         Questions, answered
       </h2>
@@ -46,7 +46,7 @@ export default function Faq() {
         {ITEMS.map((item) => (
           <details
             key={item.question}
-            className="rounded-xl border border-border bg-surface px-4 py-3 shadow-card"
+            className="rounded-card border border-border bg-surface px-4 py-3"
           >
             <summary className="min-h-touch cursor-pointer list-none text-body font-semibold text-text [&::-webkit-details-marker]:hidden">
               {item.question}

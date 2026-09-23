@@ -22,16 +22,13 @@ const STEPS = [
 
 export default function HowItWorks() {
   return (
-    <section aria-labelledby="how-it-works-heading">
+    <section aria-labelledby="how-it-works-heading" id="how-it-works" className="scroll-mt-20">
       <h2 id="how-it-works-heading" className="text-h2 font-bold text-text">
         How it works
       </h2>
       <ol className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         {STEPS.map((step, index) => (
-          <li
-            key={step.title}
-            className="rounded-2xl border border-border bg-surface p-4 shadow-card"
-          >
+          <li key={step.title} className="rounded-card border border-border bg-surface p-4">
             <div className="flex items-center gap-2">
               <span
                 aria-hidden="true"
