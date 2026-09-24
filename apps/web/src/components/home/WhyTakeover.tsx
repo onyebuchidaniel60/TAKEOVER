@@ -1,6 +1,18 @@
 // Why TAKEOVER: problem → solution in one section. Two short
 // paragraphs, stacked on mobile, two columns on tablet+. The visual is
 // pure CSS (stacked mini-cards) — no icon budget spent, no photography.
+//
+// Phase 4b: the three marks are anchor buttons to the sections they
+// abstract (problem → How it works, solution → Features, questions →
+// FAQ) instead of decoration. Plain hash anchors reuse the existing
+// smooth-scroll behavior (CSS, reduced-motion guarded); each keeps a
+// 44px hit area around the unchanged 32px mark.
+const JUMPS = [
+  { href: '#how-it-works', label: 'Jump to How it works', bar: 'bg-surface-2' },
+  { href: '#features', label: 'Jump to Features', bar: 'bg-accent' },
+  { href: '#faq', label: 'Jump to FAQ', bar: 'bg-surface-2' },
+] as const;
+
 export default function WhyTakeover() {
   return (
     <section aria-labelledby="why-heading">
@@ -23,10 +35,17 @@ export default function WhyTakeover() {
             under a minute; buyers claim it on the spot. Payment is held safely until delivery
             is confirmed.
           </p>
-          <div aria-hidden="true" className="mt-3 flex items-center gap-2">
-            <span className="h-8 w-14 rounded-chip bg-surface-2" />
-            <span className="h-8 w-14 rounded-chip bg-accent" />
-            <span className="h-8 w-14 rounded-chip bg-surface-2" />
+          <div className="mt-1 flex items-center gap-1">
+            {JUMPS.map((jump) => (
+              <a
+                key={jump.href}
+                href={jump.href}
+                aria-label={jump.label}
+                className="flex min-h-touch items-center justify-center rounded-chip px-1 transition-transform duration-press ease-out-strong hover:scale-105 active:scale-[0.97] motion-reduce:transition-none"
+              >
+                <span aria-hidden="true" className={`h-8 w-14 rounded-chip ${jump.bar}`} />
+              </a>
+            ))}
           </div>
         </div>
       </div>

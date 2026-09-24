@@ -1,6 +1,8 @@
 // Real profile page (replaces the debug placeholder).
-// Wallet, role, provider display-name setup/edit, links, logout. No wallet
+// Wallet, provider display-name setup/edit, links, logout. No wallet
 // SDK usage here — display and form state only, server stays authoritative.
+// No role display (Phase 4b): any user can buy or provide, so the label
+// is meaningless — the fetch stays, only the visible line is gone.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import EmptyState from '../components/EmptyState';
@@ -84,9 +86,6 @@ export default function Profile() {
               {truncateWalletAddress(user.walletAddress)}
               <span className="ml-2 font-sans text-small text-muted">{copied ? 'Copied' : 'Copy'}</span>
             </button>
-            <p className="mt-2 text-body text-muted">
-              Role: <span className="font-medium capitalize">{user.role}</span>
-            </p>
           </section>
 
           <ProviderSection

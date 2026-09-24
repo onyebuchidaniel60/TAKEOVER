@@ -8,6 +8,7 @@ import BrandMark from '../src/components/BrandMark';
 import Contact, { SUPPORT_EMAIL } from '../src/components/home/Contact';
 import Faq from '../src/components/home/Faq';
 import HowItWorks from '../src/components/home/HowItWorks';
+import WhyTakeover from '../src/components/home/WhyTakeover';
 import Home from '../src/routes/Home';
 import { mockFetch, slotFixture } from './a11y-helpers';
 
@@ -43,6 +44,37 @@ describe('HowItWorks', () => {
     expect(screen.getByText(/enjoy, then confirm/i)).toBeTruthy();
     // No crypto jargon in step copy.
     expect(document.body.textContent).not.toMatch(/on-chain|smart contract/i);
+  });
+
+  it('anchors steps in large display numbers, not icons', () => {
+    const { container } = render(<HowItWorks />);
+    for (const n of ['01', '02', '03']) {
+      expect(screen.getByText(n)).toBeTruthy();
+    }
+    const numbers = ['01', '02', '03'].map((n) => screen.getByText(n));
+    for (const el of numbers) {
+      expect(el.className).toContain('text-display');
+    }
+    // No icon chips: zero lucide SVGs in the section.
+    expect(container.querySelector('svg')).toBeNull();
+  });
+});
+
+describe('WhyTakeover jumps', () => {
+  it('maps each mark to a real section anchor with a 44px hit area', () => {
+    const { container } = render(<WhyTakeover />);
+    const jumps = [
+      ['Jump to How it works', '#how-it-works'],
+      ['Jump to Features', '#features'],
+      ['Jump to FAQ', '#faq'],
+    ] as const;
+    for (const [name, href] of jumps) {
+      const link = screen.getByRole('link', { name });
+      expect(link.getAttribute('href')).toBe(href);
+      expect(link.className).toContain('min-h-touch');
+    }
+    // Visuals unchanged: the same three abstract bars, no icons.
+    expect(container.querySelector('svg')).toBeNull();
   });
 });
 

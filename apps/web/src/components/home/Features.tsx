@@ -28,7 +28,9 @@ const FEATURES = [
 
 export default function Features() {
   return (
-    <section aria-labelledby="features-heading">
+    // id + scroll offset: anchor target for the Why section's jump marks
+    // (Phase 4b), matching the other sections.
+    <section aria-labelledby="features-heading" id="features" className="scroll-mt-20">
       <h2 id="features-heading" className="text-h2 font-bold text-text">
         Built for the last minute
       </h2>

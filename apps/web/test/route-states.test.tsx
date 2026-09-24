@@ -306,7 +306,7 @@ describe('/sell/:id states', () => {
 });
 
 describe('/profile states', () => {
-  it('error shows retry; loaded profile shows wallet and role', async () => {
+  it('error shows retry; loaded profile shows wallet and no role', async () => {
     setBuyer();
     mockFetch(() => err(500, 'INTERNAL_ERROR', 'Something went wrong.'));
     const { unmount } = render(
@@ -339,7 +339,9 @@ describe('/profile states', () => {
         <Profile />
       </RequireAuth>,
     );
-    await screen.findByText(/buyer/i);
+    // Wallet shows (truncated); no role line anywhere (Phase 4b).
+    await screen.findByText(/NQ07…0000/);
+    expect(screen.queryByText(/role:/i)).toBeNull();
   });
 });
 

@@ -23,6 +23,7 @@ import AdminUsers from '../src/routes/admin/AdminUsers';
 import ClaimDetailPage from '../src/routes/ClaimDetailPage';
 import ClaimsPage from '../src/routes/ClaimsPage';
 import Home from '../src/routes/Home';
+import Openings from '../src/routes/Openings';
 import NotFound from '../src/routes/NotFound';
 import NotificationsPage from '../src/routes/NotificationsPage';
 import Profile from '../src/routes/Profile';
@@ -126,6 +127,17 @@ describe('axe on consumer routes', () => {
     const container = renderAt('/', '/', <Home />);
     await awaitLoaded();
     await checkAxe('/', container);
+  });
+
+  it('/openings renders without critical/serious violations', async () => {
+    setGuest();
+    mockFetch((url) => {
+      if (url.startsWith('/api/v1/slots')) return slotsList();
+      return undefined;
+    });
+    const container = renderAt('/openings', '/openings', <Openings />);
+    await awaitLoaded();
+    await checkAxe('/openings', container);
   });
 
   it('/slot/:id renders without critical/serious violations', async () => {
@@ -605,6 +617,17 @@ describe('axe on routes (dark-only re-assertion)', () => {
     const container = renderAt('/', '/', <Home />);
     await awaitLoaded();
     await checkAxe('/ (dark)', container);
+  });
+
+  it('/openings renders without critical/serious violations (dark)', async () => {
+    setGuest();
+    mockFetch((url) => {
+      if (url.startsWith('/api/v1/slots')) return slotsList();
+      return undefined;
+    });
+    const container = renderAt('/openings', '/openings', <Openings />);
+    await awaitLoaded();
+    await checkAxe('/openings (dark)', container);
   });
 
   it('/slot/:id renders without critical/serious violations (dark)', async () => {

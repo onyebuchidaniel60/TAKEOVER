@@ -6,12 +6,17 @@ import RequireAdmin from './components/RequireAdmin';
 import RequireAuth, { getReturnTo } from './components/RequireAuth';
 import BottomNav from './components/BottomNav';
 import TopBar from './components/TopBar';
+import { useDesktopGate } from './hooks/useDesktopGate';
 import { useAuth } from './store/auth';
 
 // Route-level code splitting. Every route is its own chunk, so the
 // admin pages (and their heavier tables) never ship in the consumer entry.
 // The build output shows one chunk per route file.
 const Home = lazy(() => import('./routes/Home'));
+const Openings = lazy(() => import('./routes/Openings'));
+// Lazy like the routes: desktop visitors are rare, so mobile users never
+// download the gate (or the QR renderer).
+const DesktopGate = lazy(() => import('./components/DesktopGate'));
 const SlotDetailPage = lazy(() => import('./routes/SlotDetailPage'));
 const ClaimDetailPage = lazy(() => import('./routes/ClaimDetailPage'));
 const ClaimsPage = lazy(() => import('./routes/ClaimsPage'));
@@ -70,13 +75,9 @@ function AdminSection({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function App() {
-  const refresh = useAuth((s) => s.refresh);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
+// The routed app shell. Rendered by App below unless the desktop gate
+// takes the whole viewport (Phase 4b correction 7).
+function Shell() {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-bg font-sans text-text">
@@ -86,6 +87,7 @@ export default function App() {
           <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/openings" element={<Openings />} />
               <Route path="/slot/:slotId" element={<SlotDetailPage />} />
               <Route
                 path="/claim/:claimId"
@@ -205,4 +207,24 @@ export default function App() {
       </div>
     </BrowserRouter>
   );
+}
+
+export default function App() {
+  const refresh = useAuth((s) => s.refresh);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const gate = useDesktopGate();
+  if (gate === 'desktop') {
+    return (
+      <div className="min-h-screen bg-bg font-sans text-text">
+        <Suspense fallback={<RouteFallback />}>
+          <DesktopGate />
+        </Suspense>
+      </div>
+    );
+  }
+  return <Shell />;
 }

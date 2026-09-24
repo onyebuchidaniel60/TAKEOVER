@@ -50,6 +50,7 @@ function renderShell(initial = '/'): void {
     <MemoryRouter initialEntries={[initial]}>
       <Routes>
         <Route path="/" element={<><TopBar /><BottomNav /><p>home page</p></>} />
+        <Route path="/openings" element={<><TopBar /><BottomNav /><p>openings page</p></>} />
         <Route path="/sell/*" element={<><TopBar /><BottomNav /><p>sell page</p></>} />
         <Route path="/sell/new" element={<><TopBar /><BottomNav /><p>sell new page</p></>} />
         <Route path="/claims" element={<><TopBar /><BottomNav /><p>claims page</p></>} />
@@ -134,6 +135,15 @@ describe('pill bottom nav', () => {
     for (const name of ['Home', 'Sell', 'Claims', 'Notifications', 'Profile']) {
       expect(screen.getByRole('link', { name }).getAttribute('aria-current')).toBeNull();
     }
+  });
+
+  it('treats /openings as the Home surface', async () => {
+    authAs('buyer');
+    stubFetch(0);
+    renderShell('/openings');
+    await waitFor(() => expect(useNotifications.getState().unread).toBe(0));
+    expect(screen.getByRole('link', { name: 'Home' }).getAttribute('aria-current')).toBe('page');
+    expect(await screen.findByText('openings page')).toBeTruthy();
   });
 
   it('shows the numberless lime dot on Notifications only while unread > 0', async () => {

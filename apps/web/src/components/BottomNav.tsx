@@ -14,15 +14,16 @@
 // surfaces (reference comparison in the phase report).
 import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Bell, House, Package, Tag, User } from 'lucide-react';
+import { Bell, CalendarPlus, ClipboardList, House, User } from 'lucide-react';
 import { useAuth } from '../store/auth';
 import { useNotifications } from '../store/notifications';
 
 function isActive(pathname: string, key: string): boolean {
   switch (key) {
     case 'home':
-      // Exact: /slot/* and /claim/* belong to other surfaces.
-      return pathname === '/';
+      // Home and the full-list view are one surface; /slot/* and
+      // /claim/* belong to other surfaces.
+      return pathname === '/' || pathname === '/openings';
     case 'sell':
       // Sell list, new-slot form, and slot manage pages are one surface.
       return pathname === '/sell' || pathname.startsWith('/sell/');
@@ -40,8 +41,11 @@ function isActive(pathname: string, key: string): boolean {
 
 const ITEMS = [
   { key: 'home', to: '/', label: 'Home', Icon: House },
-  { key: 'sell', to: '/sell', label: 'Sell', Icon: Tag },
-  { key: 'claims', to: '/claims', label: 'Claims', Icon: Package },
+  // Sell = release time-based capacity: a calendar with a plus.
+  // Claims = the buyer's holds: a clipboard list. Both chunky at
+  // 24px, distinct from House/Bell/User (Phase 4b correction 3).
+  { key: 'sell', to: '/sell', label: 'Sell', Icon: CalendarPlus },
+  { key: 'claims', to: '/claims', label: 'Claims', Icon: ClipboardList },
   { key: 'notifications', to: '/notifications', label: 'Notifications', Icon: Bell },
   { key: 'profile', to: '/profile', label: 'Profile', Icon: User },
 ] as const;
