@@ -1,15 +1,22 @@
-// Desktop gate (Phase 4b correction 7): TAKEOVER runs inside Nimiq
-// Pay (mobile-only), so a desktop browser without the Mini App
-// provider gets this explainer instead of a broken app. Centered
-// column, plain consumer language (design.md §5), no jargon.
+// Desktop gate (Phase 4b correction 7, expanded in 4c): TAKEOVER runs
+// inside Nimiq Pay (mobile-only), so any browser without the Mini App
+// provider gets this explainer instead of a broken app — desktop AND
+// mobile browsers alike. Centered column, plain consumer language
+// (design.md §5), no jargon.
 //
-// QR target: `nimiqpay://miniapp?url=<host>` — the deeplink format in
+// Variants share brand, eyebrow, headline, body, download, and footer.
+// Desktop (wide): QR block — scan with a phone. Mobile (narrow): a
+// primary "Open in Nimiq Pay" deeplink CTA instead (you cannot scan
+// your own screen), plus the manual fallback.
+//
+// Deeplink target: `nimiqpay://miniapp?url=<host>` — the format in
 // docs/deployment/manual-test.md. The manual fallback carries the
-// plain https URL for cameras that ignore custom schemes. Menu path
+// plain https URL for handlers that ignore custom schemes. Menu path
 // ("Mini Apps → Custom URL") and download host (nimpay.app) are both
 // confirmed in-repo / on the official site — never invented.
 import { QRCodeSVG } from 'qrcode.react';
 import BrandMark from './BrandMark';
+import type { DesktopGateState } from '../hooks/useDesktopGate';
 
 function currentOriginAndPath(): { httpsUrl: string; host: string } {
   if (typeof window === 'undefined') return { httpsUrl: '', host: '' };
@@ -19,9 +26,15 @@ function currentOriginAndPath(): { httpsUrl: string; host: string } {
   };
 }
 
-export default function DesktopGate() {
+export default function DesktopGate({
+  variant,
+}: {
+  /** 'desktop-gate' → QR; 'mobile-gate' → deeplink CTA. */
+  variant: Exclude<DesktopGateState, 'in-app'>;
+}) {
   const { httpsUrl, host } = currentOriginAndPath();
-  const qrValue = `nimiqpay://miniapp?url=${host}`;
+  const deeplink = `nimiqpay://miniapp?url=${host}`;
+  const desktop = variant === 'desktop-gate';
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-[480px] flex-col items-center justify-center px-4 py-12 text-center sm:px-6">
@@ -32,20 +45,36 @@ export default function DesktopGate() {
         Nimiq Pay is a mobile wallet for Nimiq and other chains. It is where you sign in,
         claim openings, and pay — all in one app.
       </p>
-      <div className="mt-6 rounded-card bg-text p-4">
-        {httpsUrl ? (
-          <QRCodeSVG
-            value={qrValue}
-            size={192}
-            bgColor="#FAFAFA"
-            fgColor="#0A0A0A"
-            level="M"
-            title="QR code to open TAKEOVER in Nimiq Pay"
-          />
-        ) : null}
-      </div>
-      <p className="mt-3 text-body text-muted">Scan with your phone camera to open TAKEOVER.</p>
-      <p className="mt-6 text-body text-muted">Or open this URL inside Nimiq Pay:</p>
+      {desktop ? (
+        <>
+          <div className="mt-6 rounded-card bg-text p-4">
+            {httpsUrl ? (
+              <QRCodeSVG
+                value={deeplink}
+                size={192}
+                bgColor="#FAFAFA"
+                fgColor="#0A0A0A"
+                level="M"
+                title="QR code to open TAKEOVER in Nimiq Pay"
+              />
+            ) : null}
+          </div>
+          <p className="mt-3 text-body text-muted">Scan with your phone camera to open TAKEOVER.</p>
+          <p className="mt-6 text-body text-muted">Or open this URL inside Nimiq Pay:</p>
+        </>
+      ) : (
+        <>
+          <a
+            href={deeplink}
+            className="mt-6 inline-flex min-h-touch w-full items-center justify-center rounded-pill bg-accent px-5 py-3 text-body font-semibold text-accent-ink transition-transform duration-press ease-out-strong active:scale-[0.97] motion-reduce:transition-none"
+          >
+            Open in Nimiq Pay
+          </a>
+          <p className="mt-3 text-body text-muted">
+            If Nimiq Pay doesn&apos;t open, open this URL inside it:
+          </p>
+        </>
+      )}
       <p className="mt-1 w-full break-all rounded-control bg-surface-2 px-3 py-2 font-mono text-small text-text">
         {httpsUrl}
       </p>

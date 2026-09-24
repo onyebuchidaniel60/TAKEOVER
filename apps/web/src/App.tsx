@@ -217,11 +217,11 @@ export default function App() {
   }, [refresh]);
 
   const gate = useDesktopGate();
-  if (gate === 'desktop') {
+  if (gate !== 'in-app') {
     return (
       <div className="min-h-screen bg-bg font-sans text-text">
         <Suspense fallback={<RouteFallback />}>
-          <DesktopGate />
+          <DesktopGate variant={gate} />
         </Suspense>
       </div>
     );

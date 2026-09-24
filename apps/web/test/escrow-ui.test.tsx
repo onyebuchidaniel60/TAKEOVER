@@ -22,7 +22,8 @@ import * as evm from '../src/lib/evm';
 import ClaimCard from '../src/components/ClaimCard';
 import ClaimStatusBadge from '../src/components/ClaimStatusBadge';
 import ConfirmReceiptBox from '../src/components/ConfirmReceiptBox';
-import ContactNoteForm, { validateContactNote } from '../src/components/ContactNoteForm';
+import SlotForm, { type SlotFormValues } from '../src/components/SlotForm';
+import { validateContactNote } from '../src/lib/slots';
 import EscrowPanel from '../src/components/EscrowPanel';
 import MarkDeliveredForm from '../src/components/MarkDeliveredForm';
 import VerifyDepositBox from '../src/components/VerifyDepositBox';
@@ -446,84 +447,110 @@ describe('MarkDeliveredForm', () => {
   });
 });
 
-describe('ContactNoteForm', () => {
-  const SLOT = 'slot-1';
-
-  function slotWithNote(note: string | null): Record<string, unknown> {
-    return { id: SLOT, provider_contact_note: note };
+describe('SlotForm contact note field', () => {
+  function validInitial(note: string): SlotFormValues {
+    return {
+      title: 'Table for two',
+      description: '',
+      category: '',
+      location_label: '',
+      starts_at: '2030-01-01T10:00',
+      ends_at: '',
+      price: '1',
+      total_quantity: '2',
+      provider_contact_note: note,
+    };
   }
 
-  it('validateContactNote mirrors the server rules', () => {
-    expect(validateContactNote('   ')).toMatch(/Clear/);
+  it('validateContactNote mirrors the server rules (empty means unchanged)', () => {
+    expect(validateContactNote('   ')).toBeNull();
     expect(validateContactNote('x'.repeat(501))).toMatch(/500/);
     expect(validateContactNote('see https://example.com/x')).toMatch(/Links/);
     expect(validateContactNote('visit WWW.example.com')).toMatch(/Links/);
     expect(validateContactNote('Meet at the side entrance.')).toBeNull();
   });
 
-  it('saves the trimmed note via PATCH', async () => {
-    const user = userEvent.setup();
-    const calls: Array<{ url: string; body: unknown }> = [];
-    const original = globalThis.fetch;
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
-        const href = String(url);
-        if (href.endsWith('/contact-note')) {
-          const body = init?.body !== undefined ? JSON.parse(String(init.body)) : undefined;
-          calls.push({ url: href, body });
-          return jsonResponse({ data: { slot: slotWithNote((body as { provider_contact_note: string }).provider_contact_note) } });
-        }
-        return (original as typeof fetch)(url, init);
-      }) as unknown as typeof fetch,
+  it('renders the field with escrow-gated helper and a live count', () => {
+    const { unmount } = render(
+      <SlotForm
+        initial={validInitial('')}
+        submitLabel="Save changes"
+        submitting={false}
+        serverError={null}
+        onSubmit={() => {}}
+      />,
     );
-    const onSaved = vi.fn();
-    render(<ContactNoteForm slot={slotWithNote(null) as never} onSaved={onSaved} />);
-    await user.type(screen.getByLabelText(/buyer contact note/i), '  Meet at gate B.  ');
-    await user.click(screen.getByText('Save note'));
-    await waitFor(() => expect(calls).toHaveLength(1));
-    expect(calls[0]?.body).toEqual({ provider_contact_note: 'Meet at gate B.' });
-    expect(await screen.findByText('Saved.')).toBeTruthy();
-    expect(onSaved).toHaveBeenCalledTimes(1);
+    try {
+      expect(screen.getByLabelText(/contact for the buyer/i)).toBeTruthy();
+      expect(screen.getByText(/only once their claim is funded/i)).toBeTruthy();
+      expect(screen.getByText('0/500 characters')).toBeTruthy();
+    } finally {
+      unmount();
+    }
   });
 
-  it('clear sends null', async () => {
+  it('passes the trimmed note as the second submit arg', async () => {
     const user = userEvent.setup();
-    const bodies: unknown[] = [];
-    const original = globalThis.fetch;
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
-        const href = String(url);
-        if (href.endsWith('/contact-note')) {
-          bodies.push(init?.body !== undefined ? JSON.parse(String(init.body)) : undefined);
-          return jsonResponse({ data: { slot: slotWithNote(null) } });
-        }
-        return (original as typeof fetch)(url, init);
-      }) as unknown as typeof fetch,
+    const onSubmit = vi.fn();
+    const { unmount } = render(
+      <SlotForm
+        initial={validInitial('  Meet at gate B.  ')}
+        submitLabel="Save changes"
+        submitting={false}
+        serverError={null}
+        onSubmit={onSubmit}
+      />,
     );
-    render(<ContactNoteForm slot={slotWithNote('Old note.') as never} onSaved={vi.fn()} />);
-    await user.click(screen.getByText('Clear'));
-    await waitFor(() => expect(bodies).toHaveLength(1));
-    expect(bodies[0]).toEqual({ provider_contact_note: null });
+    try {
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect((onSubmit.mock.calls[0]?.[0] as Record<string, unknown>).title).toBe('Table for two');
+      expect(onSubmit.mock.calls[0]?.[1]).toBe('Meet at gate B.');
+    } finally {
+      unmount();
+    }
   });
 
-  it('blocks URL-ish input client-side without fetching', async () => {
+  it('submits a null note when the field is empty', async () => {
     const user = userEvent.setup();
-    const calls: string[] = [];
-    const original = globalThis.fetch;
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
-        calls.push(String(url));
-        return (original as typeof fetch)(url, init);
-      }) as unknown as typeof fetch,
+    const onSubmit = vi.fn();
+    const { unmount } = render(
+      <SlotForm
+        initial={validInitial('')}
+        submitLabel="Save changes"
+        submitting={false}
+        serverError={null}
+        onSubmit={onSubmit}
+      />,
     );
-    render(<ContactNoteForm slot={slotWithNote(null) as never} onSaved={vi.fn()} />);
-    await user.type(screen.getByLabelText(/buyer contact note/i), 'see https://x.example/y');
-    await user.click(screen.getByText('Save note'));
-    expect(await screen.findByText(/Links/)).toBeTruthy();
-    expect(calls).toHaveLength(0);
+    try {
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(onSubmit.mock.calls[0]?.[1]).toBeNull();
+    } finally {
+      unmount();
+    }
+  });
+
+  it('blocks URL-ish notes client-side without submitting', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    const { unmount } = render(
+      <SlotForm
+        initial={validInitial('see https://x.example/y')}
+        submitLabel="Save changes"
+        submitting={false}
+        serverError={null}
+        onSubmit={onSubmit}
+      />,
+    );
+    try {
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+      expect(await screen.findByText(/Links/)).toBeTruthy();
+      expect(onSubmit).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+    }
   });
 });
 

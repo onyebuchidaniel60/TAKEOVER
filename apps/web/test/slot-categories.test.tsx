@@ -39,6 +39,7 @@ const emptyForm: SlotFormValues = {
   ends_at: '',
   price: '',
   total_quantity: '',
+  provider_contact_note: '',
 };
 
 const validForm: SlotFormValues = {

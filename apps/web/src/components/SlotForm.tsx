@@ -3,8 +3,10 @@
 // emits exact base units via parseUsdtToBaseUnits.
 import { useState } from 'react';
 import {
+  CONTACT_NOTE_MAX_LENGTH,
   parseUsdtToBaseUnits,
   SLOT_CATEGORIES,
+  validateContactNote,
   validateSlotEndsAt,
   validateSlotPrice,
   validateSlotQuantity,
@@ -24,6 +26,8 @@ export interface SlotFormValues {
   ends_at: string;
   price: string;
   total_quantity: string;
+  /** Buyer contact note (raw field text; empty means none). */
+  provider_contact_note: string;
 }
 
 const inputClass =
@@ -63,6 +67,7 @@ export function initialValues(slot?: OwnerSlot): SlotFormValues {
     ends_at: isoToInput(slot?.ends_at ?? null),
     price: slot ? baseUnitsToUsdt(slot.price_usdt) : '',
     total_quantity: slot ? String(slot.total_quantity) : '',
+    provider_contact_note: slot?.provider_contact_note ?? '',
   };
 }
 
@@ -80,12 +85,27 @@ export default function SlotForm({
   submitting,
   serverError,
   onSubmit,
+  commercialLocked = false,
+  onSubmitNote,
 }: {
   initial: SlotFormValues;
   submitLabel: string;
   submitting: boolean;
   serverError: string | null;
-  onSubmit: (body: SlotWrite) => void;
+  /**
+   * Draft submit: commercial body plus the note as trimmed text, or null
+   * when the field is empty. The parent PATCHes the note separately when
+   * it differs from the stored one (the slot PATCH endpoint accepts no
+   * note field — two calls, one user action).
+   */
+  onSubmit: (body: SlotWrite, note: string | null) => void;
+  /**
+   * Locked mode (published slots): commercial fields render disabled and
+   * the note is the only editable field. Submit calls onSubmitNote
+   * instead of onSubmit — commercial values are never sent.
+   */
+  commercialLocked?: boolean;
+  onSubmitNote?: (note: string | null) => void;
 }) {
   const [values, setValues] = useState<SlotFormValues>(initial);
   // Per-field inline reasons mirroring the
@@ -99,8 +119,25 @@ export default function SlotForm({
       setValues((prev) => ({ ...prev, [key]: event.target.value }));
     };
 
+  /** Trimmed note, or null when the field is empty. */
+  const noteOrNull = (): string | null => {
+    const trimmed = values.provider_contact_note.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  };
+
   const handleSubmit = (event: React.FormEvent): void => {
     event.preventDefault();
+    const noteError = validateContactNote(values.provider_contact_note);
+    if (commercialLocked) {
+      // Note-only save: commercial fields are disabled and untouched.
+      if (noteError) {
+        setFieldErrors({ provider_contact_note: noteError });
+        return;
+      }
+      setFieldErrors({});
+      onSubmitNote?.(noteOrNull());
+      return;
+    }
     const errors: Partial<Record<keyof SlotFormValues, string>> = {};
     const titleError = validateSlotTitle(values.title);
     if (titleError) errors.title = titleError;
@@ -113,6 +150,7 @@ export default function SlotForm({
     if (priceError) errors.price = priceError;
     const quantityError = validateSlotQuantity(values.total_quantity);
     if (quantityError) errors.total_quantity = quantityError;
+    if (noteError) errors.provider_contact_note = noteError;
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       return;
@@ -134,16 +172,19 @@ export default function SlotForm({
       return;
     }
     const endsAt = inputToIso(values.ends_at);
-    onSubmit({
-      title: values.title.trim(),
-      description: values.description.trim() || undefined,
-      category: values.category.trim() || undefined,
-      location_label: values.location_label.trim() || undefined,
-      starts_at: startsAt,
-      ...(endsAt ? { ends_at: endsAt } : {}),
-      price_usdt: priceUsdt,
-      total_quantity: totalQuantity,
-    });
+    onSubmit(
+      {
+        title: values.title.trim(),
+        description: values.description.trim() || undefined,
+        category: values.category.trim() || undefined,
+        location_label: values.location_label.trim() || undefined,
+        starts_at: startsAt,
+        ...(endsAt ? { ends_at: endsAt } : {}),
+        price_usdt: priceUsdt,
+        total_quantity: totalQuantity,
+      },
+      noteOrNull(),
+    );
   };
 
   return (
@@ -161,6 +202,7 @@ export default function SlotForm({
           value={values.title}
           onChange={set('title')}
           maxLength={200}
+          disabled={commercialLocked}
         />
         {fieldErrors.title ? <FieldMessage message={fieldErrors.title} /> : null}
       </div>
@@ -175,6 +217,7 @@ export default function SlotForm({
           value={values.description}
           onChange={set('description')}
           maxLength={5000}
+          disabled={commercialLocked}
         />
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -187,6 +230,7 @@ export default function SlotForm({
             className={inputClass}
             value={values.category}
             onChange={set('category')}
+            disabled={commercialLocked}
           >
             <option value="">No category</option>
             {SLOT_CATEGORIES.map((category) => (
@@ -217,6 +261,7 @@ export default function SlotForm({
             value={values.location_label}
             onChange={set('location_label')}
             maxLength={200}
+            disabled={commercialLocked}
           />
         </div>
         <div>
@@ -229,6 +274,7 @@ export default function SlotForm({
             className={inputClass}
             value={values.starts_at}
             onChange={set('starts_at')}
+            disabled={commercialLocked}
           />
           {fieldErrors.starts_at ? <FieldMessage message={fieldErrors.starts_at} /> : null}
         </div>
@@ -242,6 +288,7 @@ export default function SlotForm({
             className={inputClass}
             value={values.ends_at}
             onChange={set('ends_at')}
+            disabled={commercialLocked}
           />
           {fieldErrors.ends_at ? <FieldMessage message={fieldErrors.ends_at} /> : null}
         </div>
@@ -258,6 +305,7 @@ export default function SlotForm({
             placeholder="1.5"
             value={values.price}
             onChange={set('price')}
+            disabled={commercialLocked}
           />
           {fieldErrors.price ? <FieldMessage message={fieldErrors.price} /> : null}
         </div>
@@ -274,9 +322,36 @@ export default function SlotForm({
             placeholder="2"
             value={values.total_quantity}
             onChange={set('total_quantity')}
+            disabled={commercialLocked}
           />
           {fieldErrors.total_quantity ? <FieldMessage message={fieldErrors.total_quantity} /> : null}
         </div>
+      </div>
+      <div>
+        <label htmlFor="slot-contact-note" className={labelClass}>
+          Contact for the buyer
+        </label>
+        <p className="mb-1 text-small text-muted">
+          Shown to the buyer only once their claim is funded. No links or URLs.
+        </p>
+        <textarea
+          id="slot-contact-note"
+          className={`${inputClass} min-h-area`}
+          placeholder="Where to meet, what to bring…"
+          value={values.provider_contact_note}
+          onChange={set('provider_contact_note')}
+          maxLength={CONTACT_NOTE_MAX_LENGTH + 50}
+          aria-describedby="slot-contact-note-count"
+        />
+        <p
+          id="slot-contact-note-count"
+          className="mt-1 font-mono text-small tabular-nums text-muted"
+        >
+          {values.provider_contact_note.trim().length}/{CONTACT_NOTE_MAX_LENGTH} characters
+        </p>
+        {fieldErrors.provider_contact_note ? (
+          <FieldMessage message={fieldErrors.provider_contact_note} />
+        ) : null}
       </div>
       {serverError ? (
         <p className="text-body font-medium text-danger" role="alert">

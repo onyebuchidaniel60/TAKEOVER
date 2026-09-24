@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import SlotForm, { initialValues } from '../components/SlotForm';
 import { ApiError } from '../lib/api';
 import { usePageMeta } from '../lib/meta';
-import { createSlot, type SlotWrite } from '../lib/slots';
+import { createSlot, updateSlotContactNote, type SlotWrite } from '../lib/slots';
 
 export default function SellNew() {
   usePageMeta({ title: 'New opening — TAKEOVER' });
@@ -12,12 +12,24 @@ export default function SellNew() {
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const handleSubmit = (body: SlotWrite): void => {
+  // Create first, then the contact-note PATCH in the same user action
+  // when a note was entered (the create endpoint accepts no note field
+  // — double round-trip, reported in Phase 4c). If the note PATCH fails
+  // after the slot exists, we still navigate: the draft keeps an empty
+  // note field for re-entry, which beats duplicating the slot on retry.
+  const handleSubmit = (body: SlotWrite, note: string | null): void => {
     setSubmitting(true);
     setServerError(null);
     void createSlot(body)
       .then(({ slot }) => {
-        navigate(`/sell/${slot.id}`);
+        if (note === null) {
+          navigate(`/sell/${slot.id}`);
+          return;
+        }
+        void updateSlotContactNote(slot.id, note).then(
+          () => navigate(`/sell/${slot.id}`),
+          () => navigate(`/sell/${slot.id}`),
+        );
       })
       .catch((err: unknown) => {
         setServerError(err instanceof ApiError ? err.message : 'Something went wrong.');

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import CancelConfirmDialog from '../components/CancelConfirmDialog';
 import ClaimStatusBadge from '../components/ClaimStatusBadge';
-import ContactNoteForm from '../components/ContactNoteForm';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -24,11 +23,53 @@ import {
   fetchSlotClaims,
   publishSlot,
   updateSlot,
+  updateSlotContactNote,
   type ListingFeeConfig,
   type OwnerSlot,
   type ProviderSlotClaim,
   type SlotWrite,
 } from '../lib/slots';
+
+// Fee failure codes the backend can return after a broadcast hash is
+// submitted (ARCH §15). The retryable set means "same hash, try again
+// later" (confirmations accrue / outage passes); anything else means the
+// hash can never publish and the provider needs a new payment.
+const RETRYABLE_FEE_CODES = new Set([
+  'PAYMENT_NOT_CONFIRMED',
+  'PAYMENT_NOT_FOUND',
+  'RPC_UNAVAILABLE',
+]);
+
+// sessionStorage key for the broadcast fee hash (per slot). The hash is
+// public chain data (it lands in audit metadata), so tab-session scope
+// is plenty — it only needs to survive a reload mid-publish, following
+// the Bearer-token sessionStorage precedent in lib/api.
+function feeHashKey(slotId: string): string {
+  return `takeover.feeHash.${slotId}`;
+}
+
+function readStoredFeeHash(slotId: string): string | null {
+  try {
+    if (typeof sessionStorage === 'undefined') return null;
+    return sessionStorage.getItem(feeHashKey(slotId));
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredFeeHash(slotId: string, hash: string | null): void {
+  try {
+    if (typeof sessionStorage === 'undefined') return;
+    if (hash === null) {
+      sessionStorage.removeItem(feeHashKey(slotId));
+    } else {
+      sessionStorage.setItem(feeHashKey(slotId), hash);
+    }
+  } catch {
+    // Private mode / restricted WebView: the in-memory hash still
+    // protects this session; only reload recovery is lost.
+  }
+}
 
 type State =
   | { kind: 'loading' }
@@ -49,12 +90,17 @@ export default function SellDetail() {
   const [actionError, setActionError] = useState<string | null>(null);
   // NIM listing-fee state. feeConfig null = not loaded (or the
   // config read failed — then plain publish is attempted and the backend,
-  // which is authoritative, enforces the fee). feeHash preserves the
-  // broadcast hash for the D6 same-hash retry (never auto-retried).
+  // which is authoritative, enforces the fee). feeHash is the one-time
+  // payment: once set, the approve path is gone for this session and
+  // every attempt reuses the same hash (double-charge impossible).
+  // feeFailure carries the last publish failure WITH a hash (code drives
+  // the retryable/fatal banner copy). hasStoredHash marks a hash
+  // restored from sessionStorage after a reload (no failure seen yet).
   const [feeConfig, setFeeConfig] = useState<ListingFeeConfig | null>(null);
   const [feeStep, setFeeStep] = useState<'paying' | 'verifying' | null>(null);
   const [feeHash, setFeeHash] = useState<string | null>(null);
-  const [verifyFailed, setVerifyFailed] = useState(false);
+  const [feeFailure, setFeeFailure] = useState<{ code: string; message: string } | null>(null);
+  const [hasStoredHash, setHasStoredHash] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,11 +145,46 @@ export default function SellDetail() {
     setFormKey((k) => k + 1);
   };
 
-  const handleSave = (body: SlotWrite): void => {
+  // Draft save: commercial PATCH first, then the contact-note PATCH in
+  // the same user action when the note differs (the slot PATCH endpoint
+  // accepts no note field — double round-trip, reported in Phase 4c).
+  const handleSave = (body: SlotWrite, note: string | null): void => {
     if (!slotId) return;
     setSaving(true);
     setActionError(null);
     void updateSlot(slotId, body)
+      .then(({ slot }) => {
+        if (note === (slot.provider_contact_note ?? null)) {
+          refreshAfter(slot);
+          setSaving(false);
+          return;
+        }
+        void updateSlotContactNote(slotId, note)
+          .then(({ slot: withNote }) => {
+            refreshAfter(withNote);
+            setSaving(false);
+          })
+          .catch((err: unknown) => {
+            // Slot saved, note failed: keep the form un-reset so the
+            // typed note survives for retry; surface the reason.
+            setState({ kind: 'ready', slot });
+            setActionError(err instanceof ApiError ? err.message : 'Something went wrong.');
+            setSaving(false);
+          });
+      })
+      .catch((err: unknown) => {
+        setActionError(err instanceof ApiError ? err.message : 'Something went wrong.');
+        setSaving(false);
+      });
+  };
+
+  // Note-only save (locked form on published slots): the contact-note
+  // PATCH is open for any owned status, commercial fields stay locked.
+  const handleSaveNote = (note: string | null): void => {
+    if (!slotId) return;
+    setSaving(true);
+    setActionError(null);
+    void updateSlotContactNote(slotId, note)
       .then(({ slot }) => {
         refreshAfter(slot);
         setSaving(false);
@@ -121,19 +202,26 @@ export default function SellDetail() {
         setPublishing(false);
         setFeeStep(null);
         setFeeHash(null);
-        setVerifyFailed(false);
+        writeStoredFeeHash(id, null);
+        setFeeFailure(null);
+        setHasStoredHash(false);
       })
       .catch((err: unknown) => {
-        // D6: after a broadcast, the hash is preserved and the failure
-        // surfaces a persistent retry banner (same hash, manual retry only).
+        // After a broadcast, the hash is preserved and the failure
+        // surfaces a persistent retry banner (same hash, manual retry
+        // only — the approve path is gone while the hash exists).
         // Without a broadcast there is nothing to retry — plain error.
+        // The backend code drives the banner copy: retryable
+        // (under-confirmed / not-found / RPC down) vs fatal (the hash
+        // can never publish).
         if (broadcasted) {
-          setVerifyFailed(true);
+          setFeeFailure({
+            code: err instanceof ApiError ? err.code : 'UNKNOWN',
+            message: err instanceof ApiError ? err.message : 'Something went wrong.',
+          });
+          setActionError(err instanceof ApiError ? err.message : 'Something went wrong.');
         } else {
           setActionError(err instanceof ApiError ? err.message : 'Something went wrong.');
-        }
-        if (broadcasted && err instanceof ApiError) {
-          setActionError(err.message);
         }
         setPublishing(false);
         setFeeStep(null);
@@ -142,6 +230,14 @@ export default function SellDetail() {
 
   const handlePublish = (): void => {
     if (!slotId) return;
+    // A hash already exists: money is on-chain, so this is always a
+    // same-hash retry — the wallet NEVER opens twice. This guard (not
+    // just the hidden button below) is what makes a double-charge
+    // structurally impossible.
+    if (feeHash) {
+      handleRetryPublish();
+      return;
+    }
     // No-fee path (unchanged): fee not required, or the config read failed
     // (the backend still enforces the fee when it is configured).
     if (!feeConfig || !feeConfig.required) {
@@ -159,7 +255,8 @@ export default function SellDetail() {
     setPublishing(true);
     setFeeStep('paying');
     setActionError(null);
-    setVerifyFailed(false);
+    setFeeFailure(null);
+    setHasStoredHash(false);
     void (async (): Promise<void> => {
       let provider;
       try {
@@ -186,6 +283,7 @@ export default function SellDetail() {
         return;
       }
       setFeeHash(hash);
+      writeStoredFeeHash(slotId, hash);
       setFeeStep('verifying');
       postPublish(slotId, hash, true);
     })();
@@ -198,6 +296,33 @@ export default function SellDetail() {
     setActionError(null);
     postPublish(slotId, feeHash, true);
   };
+
+  // Escape hatch (fatal hash only): discard a hash that can never
+  // publish (wrong address/amount/data) so the provider can pay again.
+  // De-emphasized by design — the retry banner stays primary.
+  const handleNewPayment = (): void => {
+    if (!slotId) return;
+    setFeeHash(null);
+    writeStoredFeeHash(slotId, null);
+    setFeeFailure(null);
+    setHasStoredHash(false);
+    setActionError(null);
+  };
+
+  // Reload recovery: a hash broadcast before a refresh returns as a
+  // retry banner ("already on record"), never as a fresh pay button.
+  useEffect(() => {
+    if (!slotId) return;
+    const stored = readStoredFeeHash(slotId);
+    if (stored) {
+      setFeeHash(stored);
+      setHasStoredHash(true);
+    } else {
+      setFeeHash(null);
+      setHasStoredHash(false);
+    }
+    setFeeFailure(null);
+  }, [slotId]);
 
   const handleCancel = (): void => {
     if (!slotId) return;
@@ -249,14 +374,17 @@ export default function SellDetail() {
             actionError={actionError}
             feeConfig={feeConfig}
             feeStep={feeStep}
-            verifyFailed={verifyFailed}
+            feeFailure={feeFailure}
+            hasFeeHash={feeHash !== null}
+            hasStoredHash={hasStoredHash}
             onSave={handleSave}
+            onSaveNote={handleSaveNote}
             onPublish={handlePublish}
             onRetryPublish={handleRetryPublish}
+            onNewPayment={handleNewPayment}
             onAskCancel={() => setConfirmingCancel(true)}
             onDismissCancel={() => setConfirmingCancel(false)}
             onConfirmCancel={handleCancel}
-            onSlotUpdated={refreshAfter}
           />
         )}
       </div>
@@ -274,14 +402,17 @@ function ManageSlot({
   actionError,
   feeConfig,
   feeStep,
-  verifyFailed,
+  feeFailure,
+  hasFeeHash,
+  hasStoredHash,
   onSave,
+  onSaveNote,
   onPublish,
   onRetryPublish,
+  onNewPayment,
   onAskCancel,
   onDismissCancel,
   onConfirmCancel,
-  onSlotUpdated,
 }: {
   slot: OwnerSlot;
   formKey: number;
@@ -292,14 +423,17 @@ function ManageSlot({
   actionError: string | null;
   feeConfig: ListingFeeConfig | null;
   feeStep: 'paying' | 'verifying' | null;
-  verifyFailed: boolean;
-  onSave: (body: SlotWrite) => void;
+  feeFailure: { code: string; message: string } | null;
+  hasFeeHash: boolean;
+  hasStoredHash: boolean;
+  onSave: (body: SlotWrite, note: string | null) => void;
+  onSaveNote: (note: string | null) => void;
   onPublish: () => void;
   onRetryPublish: () => void;
+  onNewPayment: () => void;
   onAskCancel: () => void;
   onDismissCancel: () => void;
   onConfirmCancel: () => void;
-  onSlotUpdated: (slot: OwnerSlot) => void;
 }) {
   const isDraft = slot.status === 'draft';
   const canCancel = slot.status === 'draft' || slot.status === 'published';
@@ -340,13 +474,20 @@ function ManageSlot({
             onSubmit={onSave}
           />
           <div className="flex flex-wrap items-center gap-2">
-            <PublishButton
-              onPublish={onPublish}
-              publishing={publishing}
-              disabled={feeMisconfigured}
-              label={publishLabel}
-              busyLabel={feeLabel}
-            />
+            {/* The approve button exists only before any fee payment
+                (or as the transient busy indicator mid-publish): once a
+                hash exists outside publishing, the retry banner below
+                is the sole publish path, so a second wallet payment is
+                impossible. */}
+            {!hasFeeHash || publishing ? (
+              <PublishButton
+                onPublish={onPublish}
+                publishing={publishing}
+                disabled={feeMisconfigured}
+                label={publishLabel}
+                busyLabel={feeLabel}
+              />
+            ) : null}
             {!confirmingCancel ? (
               <button
                 ref={cancelTriggerRef}
@@ -368,21 +509,13 @@ function ManageSlot({
               Listing fee is misconfigured. Publishing is unavailable — contact support.
             </p>
           ) : null}
-          {verifyFailed ? (
-            <div
-              className="rounded-lg border border-warning bg-surface-2 p-3 text-body text-warning"
-              role="alert"
-            >
-              <p className="font-medium">Payment sent but publish failed. Retry with the same transaction.</p>
-              <button
-                type="button"
-                onClick={onRetryPublish}
-                disabled={publishing}
-                className="mt-2 min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50"
-              >
-                {publishing ? 'Retrying…' : 'Retry publish'}
-              </button>
-            </div>
+          {hasFeeHash && !publishing && (feeFailure || hasStoredHash) ? (
+            <FeeRetryBanner
+              feeFailure={feeFailure}
+              publishing={publishing}
+              onRetryPublish={onRetryPublish}
+              onNewPayment={onNewPayment}
+            />
           ) : null}
           {!actionError ? null : (
             <p className="text-body font-medium text-danger" role="alert">
@@ -398,9 +531,21 @@ function ManageSlot({
           <SlotDetail slot={slot} />
           {slot.status === 'published' ? (
             <p className="text-small text-muted">
-              Published openings can’t be edited — cancel it if something needs to change.
+              Published details can’t be edited — only the buyer contact note below.
             </p>
           ) : null}
+          {/* Locked form: commercial fields disabled, contact note the
+              one editable field post-publish (Phase 4c correction 3). */}
+          <SlotForm
+            key={`note-${formKey}`}
+            initial={initialValues(slot)}
+            submitLabel="Save note"
+            submitting={saving}
+            serverError={actionError}
+            onSubmit={() => {}}
+            commercialLocked
+            onSubmitNote={onSaveNote}
+          />
         </>
       )}
       {canCancel && confirmingCancel ? (
@@ -427,12 +572,62 @@ function ManageSlot({
           {actionError}
         </p>
       ) : null}
-      <ContactNoteForm
-        key={slot.provider_contact_note ?? ''}
-        slot={slot}
-        onSaved={onSlotUpdated}
-      />
       {!isDraft ? <DemandSection slotId={slot.id} /> : null}
+    </div>
+  );
+}
+
+// Retry banner for a broadcast-but-unpublished fee (states C/D): the
+// stored hash is reused, the wallet never opens. Copy depends on the
+// backend code — retryable (confirmations accrue) vs fatal (the hash
+// can never publish) vs restored-after-reload (no failure seen yet).
+// The escape hatch (fatal only) discards the hash so the provider can
+// pay again; it stays small and de-emphasized by design.
+function FeeRetryBanner({
+  feeFailure,
+  publishing,
+  onRetryPublish,
+  onNewPayment,
+}: {
+  feeFailure: { code: string; message: string } | null;
+  publishing: boolean;
+  onRetryPublish: () => void;
+  onNewPayment: () => void;
+}) {
+  const retryable = feeFailure === null || RETRYABLE_FEE_CODES.has(feeFailure.code);
+  const title = feeFailure
+    ? retryable
+      ? 'Payment sent — waiting for confirmations. Retry with the same transaction.'
+      : 'Payment sent but publish failed. Retry with the same transaction.'
+    : 'A fee payment is already on record for this opening. Retry with the same transaction.';
+  return (
+    <div
+      className="rounded-lg border border-warning bg-surface-2 p-3 text-body text-warning"
+      role="alert"
+    >
+      <p className="font-medium">{title}</p>
+      {feeFailure && !retryable ? (
+        <p className="mt-1 text-body text-muted">{feeFailure.message}</p>
+      ) : null}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onRetryPublish}
+          disabled={publishing}
+          className="min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50"
+        >
+          {publishing ? 'Retrying…' : 'Retry publish'}
+        </button>
+        {feeFailure && !retryable ? (
+          <button
+            type="button"
+            onClick={onNewPayment}
+            className="min-h-touch text-body font-medium text-muted underline"
+          >
+            Use a new payment instead
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

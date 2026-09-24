@@ -8,17 +8,16 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import ConfirmReceiptBox from '../src/components/ConfirmReceiptBox';
-import ContactNoteForm from '../src/components/ContactNoteForm';
 import EscrowPanel from '../src/components/EscrowPanel';
 import MarkDeliveredForm from '../src/components/MarkDeliveredForm';
 import PublishButton from '../src/components/PublishButton';
+import SlotForm, { initialValues } from '../src/components/SlotForm';
 import VerifyDepositBox from '../src/components/VerifyDepositBox';
 import {
   assertZeroCriticalOrSerious,
   claimFixture,
   runAxe,
   setBuyer,
-  slotFixture,
   type AxeTriage,
 } from './a11y-helpers';
 
@@ -263,28 +262,49 @@ describe('MarkDeliveredForm', () => {
   });
 });
 
-describe('ContactNoteForm', () => {
-  function ownerSlot(note: string | null): Record<string, unknown> {
-    return slotFixture({ id: 'slot-1', payout_wallet: 'NQ0700000000000000000000000000000000', provider_contact_note: note });
-  }
-
+describe('SlotForm contact note field', () => {
   it('labels the textarea, announces the char count, and alerts on links', async () => {
     setBuyer();
     stubApi(() => { throw new Error('unexpected fetch'); });
     const { container } = render(
-      <ContactNoteForm slot={ownerSlot(null) as never} onSaved={() => {}} />,
+      <SlotForm
+        initial={{ ...initialValues(), title: 'T', starts_at: '2030-01-01T10:00', price: '1', total_quantity: '1' }}
+        submitLabel="Save draft"
+        submitting={false}
+        serverError={null}
+        onSubmit={() => {}}
+      />,
     );
-    const area = screen.getByLabelText('Buyer contact note');
+    const area = screen.getByLabelText('Contact for the buyer');
     expect(area instanceof HTMLTextAreaElement).toBe(true);
     expect(screen.getByText('0/500 characters')).toBeDefined();
     const describedBy = (area as HTMLTextAreaElement).getAttribute('aria-describedby');
-    expect(describedBy).toContain('contact-note-count-slot-1');
+    expect(describedBy).toContain('slot-contact-note-count');
     const user = userEvent.setup();
     await user.type(area as HTMLTextAreaElement, 'see https://example.com/x');
-    await user.click(screen.getByRole('button', { name: 'Save note' }));
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('Links and URLs');
-    await checkAxe('contact-note-form', container);
+    await checkAxe('slot-form-contact-note', container);
+  });
+
+  it('locks commercial fields but keeps the note editable in locked mode', async () => {
+    setBuyer();
+    stubApi(() => { throw new Error('unexpected fetch'); });
+    const { container } = render(
+      <SlotForm
+        initial={{ ...initialValues(), title: 'T', starts_at: '2030-01-01T10:00', price: '1', total_quantity: '1' }}
+        submitLabel="Save note"
+        submitting={false}
+        serverError={null}
+        onSubmit={() => {}}
+        commercialLocked
+        onSubmitNote={() => {}}
+      />,
+    );
+    expect((screen.getByLabelText('Title *') as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByLabelText('Contact for the buyer') as HTMLTextAreaElement).disabled).toBe(false);
+    await checkAxe('slot-form-note-locked', container);
   });
 });
 

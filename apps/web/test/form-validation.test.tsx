@@ -37,6 +37,7 @@ describe('SlotForm client validation', () => {
     ends_at: '',
     price: '',
     total_quantity: '',
+    provider_contact_note: '',
   };
 
   it('labels the price input in USDT', async () => {

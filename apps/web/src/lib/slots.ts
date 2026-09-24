@@ -297,8 +297,34 @@ export function cancelSlot(slotId: string): Promise<{ slot: OwnerSlot }> {
 
 // One-way provider contact note. Body shape mirrors
 // the server schema exactly ({ provider_contact_note: string | null } —
-// null clears). Client-side length/URL checks live in ContactNoteForm (UX
-// only); the server stays authoritative.
+// null clears). Client-side length/URL checks below are UX only;
+// the server stays authoritative.
+export const CONTACT_NOTE_MAX_LENGTH = 500;
+
+function contactNoteContainsUrl(value: string): boolean {
+  return value.includes('://') || value.toLowerCase().includes('www.');
+}
+
+/**
+ * Client-side mirror of the server note rules (trimmed 1–500 chars, no
+ * URLs). Empty input is VALID here (means "leave unchanged / clear,"
+ * decided by the caller) — only non-empty text is checked. Returns an
+ * error copy or null when ok.
+ */
+export function validateContactNote(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  if (trimmed.length > CONTACT_NOTE_MAX_LENGTH) {
+    return `Keep it under ${CONTACT_NOTE_MAX_LENGTH} characters.`;
+  }
+  if (contactNoteContainsUrl(trimmed)) {
+    return 'Links and URLs aren’t allowed in the contact note.';
+  }
+  return null;
+}
+
 export function updateSlotContactNote(
   slotId: string,
   providerContactNote: string | null,

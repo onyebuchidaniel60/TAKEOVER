@@ -50,6 +50,7 @@ describe('NIM listing fee publish flow', () => {
     vi.mocked(sendListingFee).mockReset();
     vi.mocked(connectWallet).mockResolvedValue({ provider: {} as NimiqProvider, accounts: ['NQ07'] });
     vi.mocked(sendListingFee).mockResolvedValue(HASH);
+    window.sessionStorage.clear();
     setBuyer();
   });
 
@@ -115,7 +116,7 @@ describe('NIM listing fee publish flow', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Approve payment & publish' }));
     expect(
-      await screen.findByText('Payment sent but publish failed. Retry with the same transaction.'),
+      await screen.findByText('Payment sent — waiting for confirmations. Retry with the same transaction.'),
     ).toBeDefined();
     await user.click(screen.getByRole('button', { name: 'Retry publish' }));
     await waitFor(() => expect(publishBodies).toHaveLength(2));
@@ -124,6 +125,50 @@ describe('NIM listing fee publish flow', () => {
     expect(publishBodies[1]).toEqual({ transactionHash: HASH });
     expect(vi.mocked(sendListingFee)).toHaveBeenCalledTimes(1);
     expect(await screen.findByText(/be edited/)).toBeDefined();
+  });
+
+  it('removes the approve button once a fee hash exists (no double charge)', async () => {
+    publishHandler = () =>
+      err(409, 'PAYMENT_NOT_CONFIRMED', 'Fee payment needs 3 confirmations (0 so far).');
+    renderWithConfig(requiredFee);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Approve payment & publish' }));
+    await screen.findByRole('button', { name: 'Retry publish' });
+    // The wallet path is gone while the hash exists: no approve button,
+    // so no second payment is possible from this screen.
+    expect(screen.queryByRole('button', { name: 'Approve payment & publish' })).toBeNull();
+    expect(vi.mocked(sendListingFee)).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers a de-emphasized new-payment hatch on a fatal hash, restoring approve', async () => {
+    publishHandler = () =>
+      err(409, 'PAYMENT_DATA_MISMATCH', 'Fee payment does not match this opening. Fee transfers are final.');
+    renderWithConfig(requiredFee);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Approve payment & publish' }));
+    await screen.findByRole('button', { name: 'Retry publish' });
+    expect(screen.queryByRole('button', { name: 'Approve payment & publish' })).toBeNull();
+    const hatch = await screen.findByRole('button', { name: 'Use a new payment instead' });
+    await user.click(hatch);
+    expect(await screen.findByRole('button', { name: 'Approve payment & publish' })).toBeTruthy();
+    // The hatch discarded the hash without paying: still one broadcast.
+    expect(vi.mocked(sendListingFee)).toHaveBeenCalledTimes(1);
+  });
+
+  it('restores a pre-reload hash from session storage as retry-only', async () => {
+    window.sessionStorage.setItem(`takeover.feeHash.${SLOT_ID}`, HASH);
+    renderWithConfig(requiredFee);
+    // No click, no wallet: the stored hash returns as a retry banner.
+    expect(
+      await screen.findByText('A fee payment is already on record for this opening. Retry with the same transaction.'),
+    ).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Approve payment & publish' })).toBeNull();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Retry publish' }));
+    await waitFor(() => expect(publishBodies).toHaveLength(1));
+    expect(publishBodies[0]).toEqual({ transactionHash: HASH });
+    expect(vi.mocked(sendListingFee)).not.toHaveBeenCalled();
+    expect(vi.mocked(connectWallet)).not.toHaveBeenCalled();
   });
 
   it('surfaces a broadcast failure without the retry banner (nothing on-chain)', async () => {

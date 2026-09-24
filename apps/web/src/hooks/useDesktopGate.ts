@@ -1,31 +1,33 @@
 import { useEffect, useState } from 'react';
 
-// Desktop gate detection (Phase 4b correction 7).
+// Desktop gate detection (Phase 4b correction 7, expanded in 4c).
 //
 // TAKEOVER runs inside Nimiq Pay (mobile-only): sign-in, claims, and
 // payments all need the Nimiq Pay Mini App provider (`window.nimiq`,
 // injected by the host and polled by the SDK — see lib/nimiq.ts and
-// node_modules/@nimiq/mini-app-sdk/dist/index.js). A desktop browser
-// without it gets a gate instead of a broken app.
+// node_modules/@nimiq/mini-app-sdk/dist/index.js). Any browser
+// without it — desktop OR mobile — gets the gate instead of a broken
+// app (Phase 4c: a mobile browser must be guided into Nimiq Pay, not
+// dropped into a flow that fails at auth or payment).
 //
 // Returns:
 // - 'in-app' — the provider exists (inside Nimiq Pay), OR the audit/dev
-//   bypass `?desktop=1` is present. Show the app.
-// - 'desktop' — no provider after a short grace period AND viewport
-//   width >= 1024px. Show the gate.
-// - 'mobile-browser' — no provider AND viewport < 1024px. Show the app
-//   (the existing auth flow already handles the wallet-less case with
-//   "Open this app inside Nimiq Pay to connect a wallet").
+//   bypass `?desktop=1` is present (bypasses both gate variants). Show
+//   the app.
+// - 'desktop-gate' — no provider after a short grace period AND viewport
+//   width >= 1024px. Show the gate with the QR variant.
+// - 'mobile-gate' — no provider after grace AND viewport < 1024px. Show
+//   the gate with the deeplink-button variant.
 //
 // First render defaults to 'in-app': the provider may arrive late (the
 // SDK polls every 50ms), so the gate only appears after the check
-// confirms desktop — never as a first-paint flash. The check re-runs
-// on viewport crossing 1024px either way.
-export type DesktopGateState = 'in-app' | 'desktop' | 'mobile-browser';
+// confirms it — never as a first-paint flash. The check re-runs on
+// viewport crossing 1024px either way.
+export type DesktopGateState = 'in-app' | 'desktop-gate' | 'mobile-gate';
 
 const DESKTOP_MIN_WIDTH = 1024;
 // Long enough for a late-injected provider to appear (the SDK polls at
-// 50ms), short enough that a real desktop visitor is gated promptly.
+// 50ms), short enough that a gated visitor is redirected promptly.
 const PROVIDER_GRACE_MS = 500;
 
 function hasProvider(): boolean {
@@ -44,7 +46,7 @@ function isDesktopWidth(): boolean {
 
 function decide(provider: boolean, desktopWidth: boolean): DesktopGateState {
   if (provider) return 'in-app';
-  return desktopWidth ? 'desktop' : 'mobile-browser';
+  return desktopWidth ? 'desktop-gate' : 'mobile-gate';
 }
 
 export function useDesktopGate(): DesktopGateState {

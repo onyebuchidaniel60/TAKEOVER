@@ -14,7 +14,7 @@
 // surfaces (reference comparison in the phase report).
 import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Bell, CalendarPlus, ClipboardList, House, User } from 'lucide-react';
+import { Bell, ClipboardList, House, LayoutGrid, User } from 'lucide-react';
 import { useAuth } from '../store/auth';
 import { useNotifications } from '../store/notifications';
 
@@ -41,10 +41,12 @@ function isActive(pathname: string, key: string): boolean {
 
 const ITEMS = [
   { key: 'home', to: '/', label: 'Home', Icon: House },
-  // Sell = release time-based capacity: a calendar with a plus.
+  // Sell = the provider's own openings: a grid of their listings.
   // Claims = the buyer's holds: a clipboard list. Both chunky at
-  // 24px, distinct from House/Bell/User (Phase 4b correction 3).
-  { key: 'sell', to: '/sell', label: 'Sell', Icon: CalendarPlus },
+  // 24px, distinct from House/Bell/User (Phase 4c correction 2:
+  // LayoutGrid replaces the calendar, which read as dates rather
+  // than the provider's own slots).
+  { key: 'sell', to: '/sell', label: 'Sell', Icon: LayoutGrid },
   { key: 'claims', to: '/claims', label: 'Claims', Icon: ClipboardList },
   { key: 'notifications', to: '/notifications', label: 'Notifications', Icon: Bell },
   { key: 'profile', to: '/profile', label: 'Profile', Icon: User },

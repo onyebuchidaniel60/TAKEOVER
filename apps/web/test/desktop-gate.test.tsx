@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-// Desktop gate (Phase 4b correction 7): detection states, gate
-// content, and App mounting. jsdom has no matchMedia, so these
-// exercise the resize-fallback path; real browsers use matchMedia
-// (same verdict function).
+// Desktop gate (Phase 4b correction 7, expanded in 4c): detection
+// states, both gate variants, and App mounting. jsdom has no
+// matchMedia, so these exercise the resize-fallback path; real
+// browsers use matchMedia (same verdict function).
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
@@ -45,16 +45,16 @@ describe('useDesktopGate', () => {
     // First render never gates (the provider may arrive late).
     expect(screen.getByTestId('gate-state').textContent).toBe('in-app');
     await waitFor(
-      () => expect(screen.getByTestId('gate-state').textContent).toBe('desktop'),
+      () => expect(screen.getByTestId('gate-state').textContent).toBe('desktop-gate'),
       { timeout: 3000 },
     );
   });
 
-  it('keeps the app on a narrow provider-less viewport', async () => {
+  it('gates a narrow provider-less viewport with the mobile variant', async () => {
     setWidth(375);
     render(<Probe />);
     await waitFor(
-      () => expect(screen.getByTestId('gate-state').textContent).toBe('mobile-browser'),
+      () => expect(screen.getByTestId('gate-state').textContent).toBe('mobile-gate'),
       { timeout: 3000 },
     );
   });
@@ -78,10 +78,10 @@ describe('useDesktopGate', () => {
   });
 });
 
-describe('DesktopGate content', () => {
+describe('DesktopGate desktop variant', () => {
   it('explains Nimiq Pay with QR, manual URL, download, and footer', async () => {
     setUrl('/slot/slot-1');
-    render(<DesktopGate />);
+    render(<DesktopGate variant="desktop-gate" />);
     expect(await screen.findByText('Mobile only')).toBeTruthy();
     expect(screen.getByRole('heading', { name: /TAKEOVER runs inside Nimiq Pay/i })).toBeTruthy();
     expect(screen.getByText(/mobile wallet for Nimiq/i)).toBeTruthy();
@@ -89,6 +89,7 @@ describe('DesktopGate content', () => {
     expect(document.querySelector('svg')).toBeTruthy();
     expect(screen.getByText(/scan with your phone camera/i)).toBeTruthy();
     expect(screen.getByText(`${window.location.origin}/slot/slot-1`)).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /open in nimiq pay/i })).toBeNull();
     expect(screen.getByText(/Mini Apps → Custom URL/i)).toBeTruthy();
     const download = screen.getByRole('link', { name: /get Nimiq Pay/i });
     expect(download.getAttribute('href')).toBe('https://nimpay.app/');
@@ -97,10 +98,36 @@ describe('DesktopGate content', () => {
 
   it('has no critical/serious axe violations', async () => {
     setUrl('/');
-    const { container } = render(<DesktopGate />);
+    const { container } = render(<DesktopGate variant="desktop-gate" />);
     await screen.findByRole('heading', { name: /TAKEOVER runs inside Nimiq Pay/i });
     const triage = await runAxe(container);
     assertZeroCriticalOrSerious(triage, 'desktop gate');
+  });
+});
+
+describe('DesktopGate mobile variant', () => {
+  it('swaps the QR for an Open-in-Nimiq-Pay deeplink CTA', async () => {
+    setUrl('/slot/slot-1');
+    const { container } = render(<DesktopGate variant="mobile-gate" />);
+    expect(await screen.findByRole('heading', { name: /TAKEOVER runs inside Nimiq Pay/i })).toBeTruthy();
+    const cta = screen.getByRole('link', { name: /open in nimiq pay/i });
+    expect(cta.getAttribute('href')).toBe(`nimiqpay://miniapp?url=${window.location.host}`);
+    expect(cta.className).toContain('bg-accent');
+    expect(cta.className).toContain('rounded-pill');
+    // No QR on mobile (you cannot scan your own screen): no svg carries
+    // the QR title (the remaining svg is the brand lockup).
+    const svgTitles = [...container.querySelectorAll('svg title')].map((t) => t.textContent ?? '');
+    expect(svgTitles.some((t) => t.includes('QR code'))).toBe(false);
+    expect(screen.getByText(/doesn't open, open this URL inside it/i)).toBeTruthy();
+    expect(screen.getByText(`${window.location.origin}/slot/slot-1`)).toBeTruthy();
+  });
+
+  it('has no critical/serious axe violations', async () => {
+    setUrl('/');
+    const { container } = render(<DesktopGate variant="mobile-gate" />);
+    await screen.findByRole('link', { name: /open in nimiq pay/i });
+    const triage = await runAxe(container);
+    assertZeroCriticalOrSerious(triage, 'mobile gate');
   });
 });
 
@@ -128,12 +155,15 @@ describe('App gate mounting', () => {
     expect(screen.queryByRole('heading', { name: /TAKEOVER runs inside Nimiq Pay/i })).toBeNull();
   });
 
-  it('renders the app on mobile widths', async () => {
+  it('renders the mobile gate (not the app) on narrow widths', async () => {
     setGuest();
     setWidth(375);
     mockFetch(() => ({ slots: [], total: 0, limit: 12, offset: 0 }));
     render(<App />);
-    await screen.findByText(/nothing available right now/i, undefined, { timeout: 5000 });
-    expect(screen.queryByRole('heading', { name: /TAKEOVER runs inside Nimiq Pay/i })).toBeNull();
+    await waitFor(
+      () => expect(screen.queryByRole('link', { name: /open in nimiq pay/i })).toBeTruthy(),
+      { timeout: 3000 },
+    );
+    expect(screen.queryByRole('navigation', { name: 'Primary' })).toBeNull();
   });
 });
