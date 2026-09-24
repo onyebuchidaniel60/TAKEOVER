@@ -135,6 +135,24 @@ async function seed(): Promise<Record<string, string>> {
     }
     ids[f.state] = claimId(f);
   }
+
+  // One draft slot owned by the audit buyer (sell-detail + publish-flow
+  // measurements). Fixed UUID, idempotent like the rest.
+  await db.insert(slots).values({
+    id: '44444444-4444-4422-8422-000000000009',
+    providerId: BUYER_ID,
+    title: 'Audit draft — do not publish',
+    description: 'Phase 5 perf fixture.',
+    category: 'Event',
+    locationLabel: 'Mitte',
+    startsAt: new Date(now.getTime() + 3 * DAY),
+    endsAt: new Date(now.getTime() + 3 * DAY + 2 * HOUR),
+    priceUsdt: 1000000n,
+    totalQuantity: 2,
+    availableQuantity: 2,
+    status: 'draft' as const,
+  }).onConflictDoNothing();
+  ids.draftSlot = '44444444-4444-4422-8422-000000000009';
   return ids;
 }
 
