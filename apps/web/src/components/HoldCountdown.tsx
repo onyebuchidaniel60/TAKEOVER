@@ -63,17 +63,27 @@ export default function HoldCountdown({ holdExpiresAt }: { holdExpiresAt: string
   if (remaining <= 0) {
     return (
       <>
-        <span className="text-body font-semibold text-muted">Hold expired</span>
+        <span className="font-mono text-display font-bold tabular-nums text-muted">Hold expired.</span>
         <span className="sr-only" role="status">
           Hold expired.
         </span>
       </>
     );
   }
+  // Prominent display mono; warning under 5 minutes, danger + subtle
+  // pulse under 1 minute. The pulse is motion-safe only: reduced-motion
+  // gets the color shift without movement. Threshold announcements
+  // below are untouched.
+  const urgent = remaining <= 60 * 1000;
+  const soon = remaining <= 5 * 60 * 1000;
+  const tone = urgent ? 'text-danger' : soon ? 'text-warning' : 'text-text';
   const text = `Hold expires in ${formatRemaining(remaining)}`;
   return (
     <>
-      <span className="font-mono text-body font-semibold tabular-nums text-text" aria-hidden="true">
+      <span
+        className={`font-mono text-display font-bold tabular-nums ${tone} ${urgent ? 'motion-safe:animate-pulse-soft' : ''}`}
+        aria-hidden="true"
+      >
         {text}
       </span>
       {/* Static until a threshold is crossed, so screen readers hear the

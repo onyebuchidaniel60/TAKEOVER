@@ -1,7 +1,7 @@
 // Manage one owned opening. Drafts are editable + publishable;
 // drafts and published openings are cancellable. Auth-guarded.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import CancelConfirmDialog from '../components/CancelConfirmDialog';
 import ClaimStatusBadge from '../components/ClaimStatusBadge';
 import EmptyState from '../components/EmptyState';
@@ -80,6 +80,22 @@ type State =
 export default function SellDetail() {
   usePageMeta({ title: 'Manage opening — TAKEOVER' });
   const { slotId } = useParams<{ slotId: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
+  // Phase 5 side item: SellNew flags a contact-note PATCH that failed
+  // after the slot was created (navigate-anyway, never silent). The flag
+  // rides location.state; dismiss replaces the entry to clear it. (Only
+  // noteFailed travels this way — no other state to preserve.)
+  const [noteBannerDismissed, setNoteBannerDismissed] = useState(false);
+  const showNoteBanner =
+    !noteBannerDismissed &&
+    typeof location.state === 'object' &&
+    location.state !== null &&
+    (location.state as { noteFailed?: unknown }).noteFailed === true;
+  const dismissNoteBanner = (): void => {
+    setNoteBannerDismissed(true);
+    navigate(location.pathname, { replace: true });
+  };
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [retryKey, setRetryKey] = useState(0);
   const [formKey, setFormKey] = useState(0);
@@ -364,8 +380,26 @@ export default function SellDetail() {
             }
           />
         ) : (
-          <ManageSlot
-            slot={state.slot}
+          <>
+            {showNoteBanner ? (
+              <div
+                className="mb-4 rounded-card border border-warning bg-surface p-4"
+                role="status"
+              >
+                <p className="text-body font-medium text-text">
+                  Slot created — the contact note wasn&apos;t saved. Add it below.
+                </p>
+                <button
+                  type="button"
+                  onClick={dismissNoteBanner}
+                  className="mt-2 min-h-touch text-body font-medium text-muted underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            ) : null}
+            <ManageSlot
+              slot={state.slot}
             formKey={formKey}
             saving={saving}
             publishing={publishing}
@@ -386,6 +420,7 @@ export default function SellDetail() {
             onDismissCancel={() => setConfirmingCancel(false)}
             onConfirmCancel={handleCancel}
           />
+          </>
         )}
       </div>
     </main>

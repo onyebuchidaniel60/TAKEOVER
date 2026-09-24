@@ -87,7 +87,7 @@ export async function sendBasicTransactionWithData(
 export interface ListingFeeSend {
   /** TAKEOVER fee wallet (canonical NQ address, from GET /config). */
   to: string;
-  /** Decimal NIM string from GET /config (e.g. "400") — converted here. */
+  /** Decimal NIM string from GET /config (e.g. "15") — converted here. */
   nimAmount: string;
   /** Slot id the fee pays for (bound into the data string). */
   slotId: string;

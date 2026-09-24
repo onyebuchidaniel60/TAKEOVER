@@ -6,6 +6,7 @@
 // until zero legacy rows remain (§5 deprecation gates).
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import CategoryIcon from '../components/CategoryIcon';
 import ClaimStatusBadge from '../components/ClaimStatusBadge';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
@@ -119,22 +120,37 @@ function ClaimBody({
   slot: PublicSlot;
   onSubmitted: () => void;
 }) {
+  // The escrow panel owns the amount for escrow states; legacy states
+  // keep the compact header price so no amount ever hides.
+  const panelRendered =
+    claim.status === 'active_hold' || ESCROW_CLAIM_STATUSES.includes(claim.status);
   return (
-    <article className="overflow-hidden rounded-xl border border-border bg-surface">
+    <article className="overflow-hidden rounded-card border border-border bg-surface">
       <div className="p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <ClaimStatusBadge status={claim.status} />
-          {claim.status === 'active_hold' ? (
-            <HoldCountdown holdExpiresAt={claim.hold_expires_at} />
-          ) : null}
+        <div className="flex items-start gap-3">
+          <CategoryIcon category={slot.category} />
+          <div className="min-w-0">
+            <h1 className="text-h1 font-bold text-text">{slot.title}</h1>
+            <p className="mt-0.5 truncate text-small text-muted">By {slot.providerDisplay}</p>
+          </div>
         </div>
-        <h1 className="mt-3 text-h1 font-bold text-text">{slot.title}</h1>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <TimeBadge startsAt={slot.starts_at} endsAt={slot.ends_at} />
+          <ClaimStatusBadge status={claim.status} />
         </div>
-        <div className="mt-4 border-t border-border pt-4">
-          <PriceDisplay priceUsdt={slot.price_usdt} large />
-        </div>
+        <p className="mt-2 font-mono text-small tabular-nums text-muted">
+          Claimed {new Date(claim.claimed_at).toLocaleString()}.
+        </p>
+        {claim.status === 'active_hold' ? (
+          <div className="mt-3">
+            <HoldCountdown holdExpiresAt={claim.hold_expires_at} />
+          </div>
+        ) : null}
+        {!panelRendered ? (
+          <div className="mt-3">
+            <PriceDisplay priceUsdt={slot.price_usdt} />
+          </div>
+        ) : null}
         {claim.status === 'active_hold' ? (
           <div className="mt-4">
             <EscrowPanel claim={claim} onUpdate={onSubmitted} />

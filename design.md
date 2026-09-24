@@ -301,7 +301,7 @@ earns its place.
 | Confirm button | "Confirm receipt" |
 | Released | "Payment released." |
 | Refunded | "Refunded to your wallet." |
-| Fee prompt | "Publish costs 400 NIM." |
+| Fee prompt | "Publish costs 15 NIM." |
 | Error (network) | "Couldn't reach the server. Try again." |
 | Error (wallet) | "Open Nimiq Pay to continue." |
 
@@ -326,7 +326,7 @@ earns its place.
 
 **Provider:**
 1. Sell → create a slot
-2. Publish → pay 400 NIM fee
+2. Publish → pay 15 NIM fee
 3. Manage → see who claimed
 4. Mark delivered → hand off
 5. Get paid → funds release on buyer confirmation

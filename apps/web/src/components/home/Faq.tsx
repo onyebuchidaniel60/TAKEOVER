@@ -27,7 +27,7 @@ const ITEMS = [
   {
     question: 'What does it cost to list a slot?',
     answer:
-      'Publishing a slot costs a small fixed fee of 400 NIM, paid once per listing from the provider’s Nimiq wallet. Buyers pay nothing extra beyond the slot price.',
+      'Publishing a slot costs a small fixed fee of 15 NIM, paid once per listing from the provider’s Nimiq wallet. Buyers pay nothing extra beyond the slot price.',
   },
   {
     question: 'How do I contact support?',

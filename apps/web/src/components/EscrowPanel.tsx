@@ -1,11 +1,26 @@
-// Buyer-facing USDT escrow panel, sub-component dispatch by
-// escrow status. Fixed rail (D8 — no token selector; intent sends the
-// literal 'USDT_POLYGON'). Instruction step: exact amount/contract/token
-// from the server response (D7-B — nothing token-specific hardcoded),
-// "Pay with USDT on Polygon" disclosure (D8), exact-amount approve then
-// deposit through the wallet, receipt wait before advancing (no
-// auto-retry of broadcasts). Contact-note display is P2 (not rendered).
+// Buyer-facing USDT escrow panel, dispatch by escrow status.
+//
+// Visual language (design.md §8 — eight states, each unmistakable):
+// funded/delivered/releasing/released carry lime (money working);
+// disputed is the only warning use; refunding/refunded are neutral
+// (a refund is the system working, not a failure). Amounts always in
+// mono + tabular-nums, never behind a tap. State changes remount only
+// the inner content (keyed by status, 200ms feed-in); the panel itself
+// — and any wallet flow inside it — never remounts.
+//
+// Flow mechanics (approve → deposit → receipt → submit; polling
+// cadences) are unchanged — only the visual states around them.
 import { useCallback, useEffect, useState } from 'react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Clock,
+  Lock,
+  Package,
+  TriangleAlert,
+  Undo2,
+} from 'lucide-react';
 import {
   ApiError,
   createEscrowIntent,
@@ -22,7 +37,7 @@ import {
   getEthereumProvider,
   waitForReceipt,
 } from '../lib/evm';
-import type { ClaimView } from '../lib/slots';
+import { formatUsdt, type ClaimView } from '../lib/slots';
 import ConfirmReceiptBox from './ConfirmReceiptBox';
 import VerifyDepositBox from './VerifyDepositBox';
 
@@ -32,15 +47,116 @@ type LoadState =
   | { kind: 'ready'; escrow: EscrowView; contactNote: string | null }
   | { kind: 'error'; message: string };
 
-function formatUsdt(baseUnits: string): string {
-  try {
-    const value = BigInt(baseUnits);
-    const whole = value / 1_000_000n;
-    const frac = (value % 1_000_000n).toString().padStart(6, '0').replace(/0+$/, '');
-    return frac === '' ? `${whole.toString()} USDT` : `${whole.toString()}.${frac} USDT`;
-  } catch {
-    return `${baseUnits} USDT (base units)`;
-  }
+/** Split "1.5 USDT" into a prominent mono amount + muted unit label. */
+function splitAmount(formatted: string): { amount: string; unit: string } {
+  const match = /^(.*)\s+([A-Za-z]+)$/.exec(formatted.trim());
+  if (!match) return { amount: formatted, unit: '' };
+  return { amount: match[1] ?? formatted, unit: match[2] ?? '' };
+}
+
+function AmountBlock({ baseUnits }: { baseUnits: string }) {
+  const { amount, unit } = splitAmount(formatUsdt(baseUnits));
+  return (
+    <p className="mt-3 flex flex-wrap items-baseline gap-x-2">
+      <span className="font-mono text-display font-bold tabular-nums text-text">{amount}</span>
+      {unit ? <span className="text-small font-medium text-muted">{unit}</span> : null}
+    </p>
+  );
+}
+
+interface StateChrome {
+  Icon: typeof Clock;
+  chip: string;
+  title: string;
+  subtitle: string | null;
+  pulseDot: string | null;
+}
+
+// Icon + accent per state (design.md §8). Every state pairs icon with
+// label and copy — color is never the only signal.
+const STATE_CHROME: Record<string, StateChrome> = {
+  created: {
+    Icon: Clock,
+    chip: 'bg-surface-2 text-muted',
+    title: 'Waiting for payment',
+    subtitle: null,
+    pulseDot: null,
+  },
+  funded: {
+    Icon: Lock,
+    chip: 'bg-accent text-accent-ink',
+    title: 'Held until delivery',
+    subtitle: 'Waiting for the provider to deliver.',
+    pulseDot: null,
+  },
+  delivered: {
+    Icon: Package,
+    chip: 'bg-accent text-accent-ink',
+    title: 'Marked delivered',
+    subtitle: 'The provider marked this delivered.',
+    pulseDot: null,
+  },
+  disputed: {
+    Icon: TriangleAlert,
+    chip: 'bg-warning text-accent-ink',
+    title: 'In review',
+    subtitle: 'Waiting for admin review.',
+    pulseDot: null,
+  },
+  releasing: {
+    Icon: ArrowUp,
+    chip: 'bg-accent text-accent-ink',
+    title: 'Releasing to provider…',
+    subtitle: null,
+    pulseDot: 'bg-accent',
+  },
+  released: {
+    Icon: Check,
+    chip: 'bg-accent text-accent-ink',
+    title: 'Released',
+    subtitle: 'Payment released.',
+    pulseDot: null,
+  },
+  refunding: {
+    Icon: ArrowDown,
+    chip: 'bg-surface-2 text-muted',
+    title: 'Refunding to your wallet…',
+    subtitle: null,
+    pulseDot: 'bg-muted',
+  },
+  refunded: {
+    Icon: Undo2,
+    chip: 'bg-surface-2 text-muted',
+    title: 'Refunded',
+    subtitle: 'Refunded to your wallet.',
+    pulseDot: null,
+  },
+};
+
+function StateHeader({ status }: { status: string }) {
+  const chrome = STATE_CHROME[status] ?? STATE_CHROME.created;
+  if (!chrome) return null;
+  const { Icon, chip, title, subtitle, pulseDot } = chrome;
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        aria-hidden="true"
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${chip}`}
+      >
+        <Icon size={20} />
+      </span>
+      <div className="min-w-0">
+        <h3 className="text-h3 font-semibold text-text">{title}</h3>
+        {subtitle ? <p className="mt-0.5 text-body text-muted">{subtitle}</p> : null}
+      </div>
+      {pulseDot ? (
+        <span
+          aria-hidden="true"
+          className={`ml-auto h-2 w-2 shrink-0 rounded-full motion-safe:animate-pulse-soft ${pulseDot}`}
+        />
+      ) : null}
+    </div>
+  );
 }
 
 function staticDate(iso: string | null): string | null {
@@ -104,19 +220,26 @@ export default function EscrowPanel({
 
   if (load.kind === 'loading') {
     return (
-      <div className="mt-4 rounded-lg bg-surface-2 p-3" aria-live="polite">
-        <p className="text-body text-muted">Loading escrow status…</p>
+      <div className="animate-pulse rounded-card border border-border bg-surface p-4" aria-hidden="true">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 shrink-0 rounded-full bg-surface-2" />
+          <div className="flex-1">
+            <div className="h-5 w-1/2 rounded bg-surface-2" />
+            <div className="mt-1 h-3 w-2/3 rounded bg-surface-2" />
+          </div>
+        </div>
+        <div className="mt-3 h-8 w-32 rounded bg-surface-2" />
       </div>
     );
   }
   if (load.kind === 'error') {
     return (
-      <div className="mt-4 rounded-lg bg-surface-2 p-3" aria-live="polite">
-        <p className="text-body text-danger">{load.message}</p>
+      <div className="rounded-card border border-border bg-surface p-4" aria-live="polite">
+        <p className="text-body text-muted">{load.message}</p>
         <button
           type="button"
           onClick={refresh}
-          className="mt-2 inline-flex min-h-touch items-center rounded-lg border border-border-strong px-4 py-2 text-body font-medium text-text bg-surface"
+          className="mt-3 inline-flex min-h-touch items-center rounded-pill border border-border-strong bg-transparent px-4 py-2 text-body font-medium text-text transition-transform duration-press ease-out-strong active:scale-[0.97] motion-reduce:transition-none"
         >
           Try again
         </button>
@@ -127,81 +250,85 @@ export default function EscrowPanel({
     return <InstructionStep claimId={claim.id} onSubmitted={handleUpdate} />;
   }
   const escrow = load.escrow;
-  // Buyer-side contact note (P2): the backend gates visibility;
-  // a non-null note renders under the status, null hides. No re-gating here.
+  // Buyer-side contact note: the backend gates visibility; a non-null
+  // note renders under the state, null hides. Plain block, not a nested
+  // card. No re-gating here.
   const noteBlock =
     load.contactNote !== null ? (
-      <div className="mt-3 rounded-lg border border-border bg-surface p-3">
-        <p className="text-body font-medium text-text">Provider contact</p>
-        <p className="mt-1 text-body text-muted">{load.contactNote}</p>
+      <div className="mt-4 border-t border-border pt-3">
+        <p className="text-small font-medium uppercase tracking-wide text-muted">Provider contact</p>
+        <p className="mt-1 text-body leading-relaxed text-text">{load.contactNote}</p>
       </div>
     ) : null;
   switch (escrow.status) {
     case 'created':
       return escrow.deposit_tx_hash ? (
-        <VerifyDepositBox claimId={claim.id} onFunded={handleUpdate} />
+        <PanelShell status={escrow.status} amount={escrow.amount_base_units}>
+          <VerifyDepositBox claimId={claim.id} onFunded={handleUpdate} />
+          {noteBlock}
+        </PanelShell>
       ) : (
         <InstructionStep claimId={claim.id} onSubmitted={handleUpdate} />
       );
     case 'funded':
       return (
-        <div className="mt-4 rounded-lg bg-surface-2 p-3" aria-live="polite">
-          <p className="text-body font-medium text-text">Funds in escrow. Waiting for provider.</p>
+        <PanelShell status={escrow.status} amount={escrow.amount_base_units}>
           {staticDate(escrow.delivery_deadline) && (
-            <p className="mt-1 font-mono text-body tabular-nums text-muted">
+            <p className="mt-3 font-mono text-body tabular-nums text-muted">
               Delivery expected by {staticDate(escrow.delivery_deadline)}.
             </p>
           )}
           {noteBlock}
-        </div>
+        </PanelShell>
       );
     case 'delivered':
       return (
-        <>
+        <PanelShell status={escrow.status} amount={escrow.amount_base_units}>
           <ConfirmReceiptBox claimId={claim.id} escrow={escrow} onUpdate={handleUpdate} />
           {noteBlock}
-        </>
+        </PanelShell>
       );
     case 'disputed':
-      return (
-        <div className="mt-4 rounded-lg bg-surface-2 p-3" aria-live="polite">
-          <p className="text-body font-medium text-warning">Dispute open. Admin will resolve.</p>
-          {noteBlock}
-        </div>
-      );
     case 'releasing':
-      return (
-        <div className="mt-4 rounded-lg bg-surface-2 p-3" aria-live="polite">
-          <p className="text-body text-muted">Releasing to provider…</p>
-          {noteBlock}
-        </div>
-      );
     case 'released':
-      return (
-        <div className="mt-4 rounded-lg bg-surface-2 p-3" aria-live="polite">
-          <p className="text-body font-medium text-text">Released. Complete.</p>
-          {noteBlock}
-        </div>
-      );
     case 'refunding':
-      return (
-        <div className="mt-4 rounded-lg bg-surface-2 p-3" aria-live="polite">
-          <p className="text-body text-muted">Refunding to you…</p>
-        </div>
-      );
     case 'refunded':
       return (
-        <div className="mt-4 rounded-lg bg-surface-2 p-3" aria-live="polite">
-          <p className="text-body font-medium text-text">Refunded. Complete.</p>
-        </div>
+        <PanelShell status={escrow.status} amount={escrow.amount_base_units}>
+          {noteBlock}
+        </PanelShell>
       );
     default:
       return (
-        <div className="mt-4 rounded-lg bg-surface-2 p-3" aria-live="polite">
-          <p className="text-body text-muted">Escrow status: {escrow.status}.</p>
-        </div>
+        <PanelShell status="created" amount={escrow.amount_base_units}>
+          <p className="mt-3 text-body text-muted">Escrow status: {escrow.status}.</p>
+          {noteBlock}
+        </PanelShell>
       );
   }
+}
+
+// The panel card itself: surface, radius-card, state header, amount.
+// Inner content remounts on status change (cross-fade); the section —
+// and any wallet flow above it — never remounts.
+function PanelShell({
+  status,
+  amount,
+  children,
+}: {
+  status: string;
+  amount: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-card border border-border bg-surface p-4" aria-live="polite">
+      <div key={status} className="animate-feed-in">
+        <StateHeader status={status} />
+        <AmountBlock baseUnits={amount} />
+        {children}
+      </div>
+    </section>
+  );
 }
 
 type FundStep = 'loading' | 'ready' | 'approving' | 'depositing' | 'submitting';
@@ -216,7 +343,6 @@ function InstructionStep({
   const [step, setStep] = useState<FundStep>('loading');
   const [instruction, setInstruction] = useState<DepositInstruction | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busyLabel, setBusyLabel] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -245,6 +371,11 @@ function InstructionStep({
     };
   }, [claimId]);
 
+  const busy = step === 'approving' || step === 'depositing' || step === 'submitting';
+  const busyLabel =
+    step === 'submitting' ? 'Confirming…' : step === 'loading' ? 'Loading…' : 'Opening wallet…';
+  const payLabel = instruction ? `Pay ${formatUsdt(instruction.usdtAmount)}` : 'Pay';
+
   const handlePay = (): void => {
     if (!instruction) return;
     const current = instruction;
@@ -252,7 +383,6 @@ function InstructionStep({
     void (async () => {
       try {
         setStep('approving');
-        setBusyLabel('Waiting for wallet approval… (1 of 2: approve USDT)');
         const provider = getEthereumProvider();
         await ensureChain(provider);
         const accounts = await getAccounts(provider);
@@ -265,7 +395,6 @@ function InstructionStep({
         });
         await waitForReceipt(provider, approveHash);
         setStep('depositing');
-        setBusyLabel('Waiting for wallet approval… (2 of 2: deposit into escrow)');
         const depositHash = await deposit(provider, {
           contract: current.contractAddress,
           escrowId: current.onChainEscrowId,
@@ -274,48 +403,53 @@ function InstructionStep({
         });
         await waitForReceipt(provider, depositHash);
         setStep('submitting');
-        setBusyLabel('Recording deposit…');
         await submitDepositReference(claimId, depositHash);
         onSubmitted();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Something went wrong.');
         setStep('ready');
-        setBusyLabel('');
       }
     })();
   };
 
   return (
-    <div className="mt-4 rounded-lg bg-surface-2 p-3" aria-live="polite">
-      <p className="text-body font-medium text-text">Pay with USDT on Polygon</p>
-      {step === 'loading' && <p className="mt-1 text-body text-muted">Loading payment details…</p>}
-      {instruction && (
-        <dl className="mt-2 space-y-1 text-body text-muted">
-          <div className="flex justify-between gap-2">
-            <dt>Amount</dt>
-            <dd className="font-mono font-medium tabular-nums text-text">{formatUsdt(instruction.usdtAmount)}</dd>
-          </div>
-          <div className="flex justify-between gap-2">
-            <dt>Escrow contract</dt>
-            <dd className="break-all font-mono text-small">{instruction.contractAddress}</dd>
-          </div>
-          <div className="flex justify-between gap-2">
-            <dt>Approval</dt>
-            <dd>Exact amount only — never unlimited</dd>
-          </div>
-        </dl>
-      )}
-      {error && <p className="mt-2 text-body text-danger">{error}</p>}
-      {step !== 'loading' && instruction && (
-        <button
-          type="button"
-          onClick={handlePay}
-          disabled={step === 'approving' || step === 'depositing' || step === 'submitting'}
-          className="mt-3 inline-flex min-h-touch items-center rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50"
-        >
-          {step === 'ready' ? 'Approve & Deposit' : busyLabel || 'Working…'}
-        </button>
-      )}
-    </div>
+    <section className="rounded-card border border-border bg-surface p-4" aria-live="polite">
+      <div className="animate-feed-in">
+        <StateHeader status="created" />
+        {instruction ? (
+          <AmountBlock baseUnits={instruction.usdtAmount} />
+        ) : (
+          <div aria-hidden="true" className="mt-3 h-8 w-32 animate-pulse rounded bg-surface-2" />
+        )}
+        <p className="mt-3 text-body leading-relaxed text-text">
+          {instruction ? `Pay ${formatUsdt(instruction.usdtAmount)} to hold this slot.` : 'Loading payment details…'}
+        </p>
+        {error ? (
+          <p className="mt-2 text-body font-medium text-danger" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {step !== 'loading' && instruction ? (
+          <button
+            type="button"
+            onClick={handlePay}
+            disabled={busy}
+            className="mt-3 inline-flex min-h-touch w-full items-center justify-center gap-2 rounded-pill bg-accent px-4 py-2 text-body font-medium text-accent-ink transition-transform duration-press ease-out-strong active:scale-[0.97] disabled:scale-100 disabled:bg-surface-2 disabled:text-faint motion-reduce:transition-none"
+          >
+            {busy ? (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-text-faint/30 border-t-text-faint"
+                />
+                {busyLabel}
+              </>
+            ) : (
+              payLabel
+            )}
+          </button>
+        ) : null}
+      </div>
+    </section>
   );
 }

@@ -131,9 +131,18 @@ export default {
           from: { opacity: '0', transform: 'translateY(8px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },
+        // In-flight pulse for transitional escrow states (design.md §4
+        // exception: 1.2s opacity cycle). Always paired with
+        // motion-safe: so prefers-reduced-motion renders the dot static
+        // (the global blanket alone would freeze it mid-fade).
+        'pulse-soft': {
+          '0%, 100%': { opacity: '0.5' },
+          '50%': { opacity: '1' },
+        },
       },
       animation: {
         'feed-in': 'feed-in 200ms cubic-bezier(0.23, 1, 0.32, 1) both',
+        'pulse-soft': 'pulse-soft 1.2s ease-in-out infinite',
       },
     },
   },

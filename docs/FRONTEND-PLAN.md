@@ -617,7 +617,7 @@ Additional:
 2. Form: inputs `surface-2`, `radius-control`. Labels above,
    helper text below. Inline validation.
 3. Publish: primary pill. Fee prompt when required.
-4. Fee prompt: "Publish costs 400 NIM." Amount in `mono`.
+4. Fee prompt: "Publish costs 15 NIM." Amount in `mono`.
    Primary CTA "Approve & publish."
 5. Sell detail demand: buyer (truncated), status, "Mark
    delivered" pill.
@@ -803,7 +803,7 @@ work.
 ### Final sweep
 
 1. Walk every route in the app, in order. Screenshot each.
-2. Full flow: provider publishes → 400 NIM → slot live → buyer
+2. Full flow: provider publishes → 15 NIM → slot live → buyer
    browses → claims → deposits → provider delivers → buyer
    confirms → released.
 3. Functional behavior unchanged.

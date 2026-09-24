@@ -173,7 +173,7 @@ describe('EscrowPanel across all 8 escrow states', () => {
 });
 
 describe('VerifyDepositBox', () => {
-  it('announces polling state with an always-available manual check', async () => {
+  it('announces confirming state with progress, no manual button yet', async () => {
     setBuyer();
     stubApi((url: string) => {
       if (url.includes('/verify-deposit')) {
@@ -182,13 +182,12 @@ describe('VerifyDepositBox', () => {
       throw new Error('unexpected fetch: ' + url);
     });
     const { container } = render(<VerifyDepositBox claimId={CLAIM_ID} onFunded={() => {}} />);
-    expect(await screen.findByText(/waiting for confirmation/)).toBeDefined();
-    const manual = screen.getByRole('button', { name: 'Check again' });
-    expect(manual instanceof HTMLButtonElement).toBe(true);
+    expect(await screen.findByText('Confirming payment…')).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     await checkAxe('verify-deposit-box-pending', container);
   });
 
-  it('announces mismatch copy without asking for another payment', async () => {
+  it('announces mismatch copy with a Try-again action, never another payment', async () => {
     setBuyer();
     stubApi((url: string) => {
       if (url.includes('/verify-deposit')) {
@@ -197,8 +196,10 @@ describe('VerifyDepositBox', () => {
       throw new Error('unexpected fetch: ' + url);
     });
     const { container } = render(<VerifyDepositBox claimId={CLAIM_ID} onFunded={() => {}} />);
-    expect(await screen.findByText("Deposit doesn't match.")).toBeDefined();
+    expect(await screen.findByText("We couldn't confirm your payment. Try again.")).toBeDefined();
     expect(screen.getByText(/do not pay again/)).toBeDefined();
+    const manual = screen.getByRole('button', { name: 'Try again' });
+    expect(manual instanceof HTMLButtonElement).toBe(true);
     await checkAxe('verify-deposit-box-mismatch', container);
   });
 });
@@ -215,7 +216,7 @@ describe('ConfirmReceiptBox', () => {
       <ConfirmReceiptBox claimId={CLAIM_ID} escrow={deliveredEscrow() as never} onUpdate={() => {}} />,
     );
     const confirm = await screen.findByRole('button', { name: 'Confirm receipt' });
-    const dispute = screen.getByRole('button', { name: 'Dispute' });
+    const dispute = screen.getByRole('button', { name: 'Something wrong? Dispute this.' });
     expect(confirm instanceof HTMLButtonElement).toBe(true);
     expect(dispute instanceof HTMLButtonElement).toBe(true);
     // Tab order: confirm before dispute (primary action first).
@@ -224,11 +225,11 @@ describe('ConfirmReceiptBox', () => {
     await user.tab();
     expect(document.activeElement?.textContent).toContain('Confirm receipt');
     await user.tab();
-    expect(document.activeElement?.textContent).toContain('Dispute');
+    expect(document.activeElement?.textContent).toContain('Dispute this.');
     await checkAxe('confirm-receipt-box-idle', container);
   });
 
-  it('explains the busy dispute state in text (not color alone)', async () => {
+  it('confirms the dispute in a dialog before any wallet call', async () => {
     setBuyer();
     stubApi((url: string) => {
       if (url.includes('/dispute')) {
@@ -240,9 +241,33 @@ describe('ConfirmReceiptBox', () => {
       <ConfirmReceiptBox claimId={CLAIM_ID} escrow={deliveredEscrow() as never} onUpdate={() => {}} />,
     );
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Dispute' }));
-    expect(await screen.findByRole('button', { name: 'Opening dispute…' })).toBeDefined();
+    await user.click(await screen.findByRole('button', { name: 'Something wrong? Dispute this.' }));
+    expect(await screen.findByRole('dialog', { name: 'Open dispute' })).toBeDefined();
+    expect(screen.getByText(/Disputes are resolved by an admin/)).toBeDefined();
+    await user.click(screen.getByRole('button', { name: 'Open dispute' }));
+    expect(await screen.findByRole('button', { name: 'Opening…' })).toBeDefined();
     await checkAxe('confirm-receipt-box-disputing', container);
+  });
+
+  it('closes the dispute dialog on Keep waiting with no wallet call', async () => {
+    setBuyer();
+    let disputeCalls = 0;
+    stubApi((url: string) => {
+      if (url.includes('/dispute')) {
+        disputeCalls += 1;
+        return new Promise(() => {});
+      }
+      throw new Error('unexpected fetch: ' + url);
+    });
+    render(
+      <ConfirmReceiptBox claimId={CLAIM_ID} escrow={deliveredEscrow() as never} onUpdate={() => {}} />,
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Something wrong? Dispute this.' }));
+    await screen.findByRole('dialog', { name: 'Open dispute' });
+    await user.click(screen.getByRole('button', { name: 'Keep waiting' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(disputeCalls).toBe(0);
   });
 });
 

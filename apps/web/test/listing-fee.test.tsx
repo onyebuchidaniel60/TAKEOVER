@@ -78,18 +78,18 @@ describe('NIM listing fee publish flow', () => {
     );
   }
 
-  const requiredFee = { required: true, amountNim: '400', walletAddress: FEE_WALLET };
+  const requiredFee = { required: true, amountNim: '15', walletAddress: FEE_WALLET };
   const noFee = { required: false, amountNim: null, walletAddress: null };
 
   it('pays the fee then publishes when required', async () => {
     renderWithConfig(requiredFee);
-    expect(await screen.findByText('Pay 400 NIM through Nimiq Pay to publish.')).toBeDefined();
+    expect(await screen.findByText('Pay 15 NIM through Nimiq Pay to publish.')).toBeDefined();
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Approve payment & publish' }));
     await waitFor(() => expect(vi.mocked(sendListingFee)).toHaveBeenCalledTimes(1));
     expect(vi.mocked(sendListingFee)).toHaveBeenCalledWith(
       {},
-      { to: FEE_WALLET, nimAmount: '400', slotId: SLOT_ID },
+      { to: FEE_WALLET, nimAmount: '15', slotId: SLOT_ID },
     );
     await waitFor(() => expect(publishBodies).toHaveLength(1));
     expect(publishBodies[0]).toEqual({ transactionHash: HASH });
@@ -104,7 +104,7 @@ describe('NIM listing fee publish flow', () => {
     await waitFor(() => expect(publishBodies).toHaveLength(1));
     expect(publishBodies[0]).toEqual({});
     expect(vi.mocked(sendListingFee)).not.toHaveBeenCalled();
-    expect(screen.queryByText(/Pay 400 NIM/)).toBeNull();
+    expect(screen.queryByText(/Pay 15 NIM/)).toBeNull();
   });
 
   it('shows the retry banner after a verify failure and retries with the same hash (D6)', async () => {
@@ -187,7 +187,7 @@ describe('NIM listing fee publish flow', () => {
   it('disables publish when the fee is misconfigured', async () => {
     renderWithConfig({
       required: true,
-      amountNim: '400',
+      amountNim: '15',
       walletAddress: null,
       misconfigured: true,
     });
@@ -213,12 +213,12 @@ describe('sendListingFee conversion (real function)', () => {
     } as unknown as NimiqProvider;
     const hash = await actual.sendListingFee(provider, {
       to: FEE_WALLET,
-      nimAmount: '400',
+      nimAmount: '15',
       slotId: SLOT_ID,
     });
     expect(hash).toBe(HASH);
     expect(calls).toEqual([
-      { recipient: FEE_WALLET, value: 40000000, data: `TAKEOVER:fee:v1:${SLOT_ID}` },
+      { recipient: FEE_WALLET, value: 1500000, data: `TAKEOVER:fee:v1:${SLOT_ID}` },
     ]);
   });
 

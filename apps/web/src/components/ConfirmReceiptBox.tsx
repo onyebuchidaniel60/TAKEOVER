@@ -1,10 +1,15 @@
-// Confirm-receipt + dispute box for a delivered escrow.
+// Confirm-receipt + dispute actions for a delivered escrow. Lives inside
+// the EscrowPanel card (no outer card of its own).
 // Confirm: POST confirm-receipt broadcasts the server-signed release, then
 // the box polls GET /escrow on the plan cadence (15 s, cap 24) until the
-// rows flip to released. Dispute (USDT): POST dispute returns the
-// server-encoded callData until the buyer broadcasts dispute(escrowId)
-// from their own wallet; re-polling dispute then flips both rows to
-// disputed for admin resolution. Contact-note display is P2 (not here).
+// rows flip to released. Dispute (USDT): a confirmation dialog first
+// ("Are you sure? Disputes are resolved by an admin."), then POST dispute
+// returns the server-encoded callData until the buyer broadcasts
+// dispute(escrowId) from their own wallet; re-polling dispute then flips
+// both rows to disputed for admin resolution. No reason textarea: the
+// dispute endpoint takes no input (verified against
+// apps/api/src/escrow/validation.ts). Contact-note display is P2
+// (not here).
 import { useEffect, useState } from 'react';
 import {
   ApiError,
@@ -15,6 +20,7 @@ import {
   raiseDispute,
   type EscrowView,
 } from '../lib/escrow';
+import { useDialogFocus } from '../lib/dialog-focus';
 import {
   DISPUTE_GAS_LIMIT,
   ensureChain,
@@ -129,13 +135,16 @@ export default function ConfirmReceiptBox({
     void raiseDispute(claimId)
       .then((result) => {
         if (result.status === 'disputed') {
+          setConfirmDialogOpen(false);
           onUpdate();
           return;
         }
         setDisputeCallData(result.disputeInstruction?.callData ?? null);
+        setConfirmDialogOpen(false);
         setDisputing(true);
       })
       .catch((err: unknown) => {
+        setConfirmDialogOpen(false);
         setDisputeError(err instanceof ApiError ? err.message : 'Something went wrong.');
       })
       .finally(() => setDisputeBusy(false));
@@ -172,11 +181,12 @@ export default function ConfirmReceiptBox({
     })();
   };
 
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+
   return (
-    <div className="mt-4 rounded-lg bg-surface-2 p-3" aria-live="polite">
-      <p className="text-body font-medium text-text">Service delivered?</p>
+    <div className="mt-3" aria-live="polite">
       {escrow.dispute_window_ends && (
-        <p className="mt-1 font-mono text-body tabular-nums text-muted">
+        <p className="font-mono text-body tabular-nums text-muted">
           Dispute window closes{' '}
           {new Date(escrow.dispute_window_ends).toLocaleString(undefined, {
             month: 'short',
@@ -188,46 +198,60 @@ export default function ConfirmReceiptBox({
         </p>
       )}
       {display === 'pending' && (
-        <p className="mt-1 font-mono text-body tabular-nums text-muted">
+        <p className="mt-2 font-mono text-body tabular-nums text-muted">
           Release in progress
           {confirmations !== null ? ` (${confirmations}/3 confirmations)` : ''}…
         </p>
       )}
       {display === 'released' && (
-        <p className="mt-1 text-body font-medium text-text">Released. Complete.</p>
+        <p className="mt-2 text-body font-medium text-text">Released. Complete.</p>
       )}
       {display === 'rpc-down' && (
-        <p className="mt-1 text-body text-muted">
+        <p className="mt-2 text-body text-muted">
           Release status is temporarily unavailable. We&apos;ll keep checking.
         </p>
       )}
       {display === 'exhausted' && (
-        <p className="mt-1 text-body text-muted">
+        <p className="mt-2 text-body text-muted">
           Still pending. The release may need more time — confirm again.
         </p>
       )}
-      {error && <p className="mt-1 text-body text-danger">{error}</p>}
+      {error && (
+        <p className="mt-2 text-body font-medium text-danger" role="alert">
+          {error}
+        </p>
+      )}
       {(display === 'idle' || display === 'exhausted') && (
         <button
           type="button"
           onClick={handleConfirm}
-          className="mt-2 inline-flex min-h-touch items-center rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink"
+          className="mt-3 inline-flex min-h-touch w-full items-center justify-center rounded-pill bg-accent px-4 py-2 text-body font-medium text-accent-ink transition-transform duration-press ease-out-strong active:scale-[0.97] motion-reduce:transition-none"
         >
           Confirm receipt
         </button>
       )}
       {display === 'confirming' && (
-        <p className="mt-2 text-body text-muted">Confirming…</p>
+        <button
+          type="button"
+          disabled
+          className="mt-3 inline-flex min-h-touch w-full items-center justify-center gap-2 rounded-pill bg-surface-2 px-4 py-2 text-body font-medium text-faint"
+        >
+          <span
+            aria-hidden="true"
+            className="h-4 w-4 animate-spin rounded-full border-2 border-text-faint/30 border-t-text-faint"
+          />
+          Confirming…
+        </button>
       )}
       <div className="mt-3 border-t border-border pt-3">
         {!disputing ? (
           <button
             type="button"
-            onClick={handleDispute}
+            onClick={() => setConfirmDialogOpen(true)}
             disabled={disputeBusy}
-            className="inline-flex min-h-touch items-center rounded-lg border border-border-strong px-4 py-2 text-body font-medium text-text disabled:opacity-50 bg-surface"
+            className="inline-flex min-h-touch items-center rounded-pill border border-border-strong bg-transparent px-4 py-2 text-body font-medium text-text transition-transform duration-press ease-out-strong active:scale-[0.97] disabled:scale-100 disabled:opacity-50 motion-reduce:transition-none"
           >
-            {disputeBusy ? 'Opening dispute…' : 'Dispute'}
+            Something wrong? Dispute this.
           </button>
         ) : (
           <div>
@@ -238,13 +262,85 @@ export default function ConfirmReceiptBox({
               type="button"
               onClick={handleDisputeSend}
               disabled={disputeBusy}
-              className="mt-2 inline-flex min-h-touch items-center rounded-lg border border-border-strong px-4 py-2 text-body font-medium text-text disabled:opacity-50 bg-surface"
+              className="mt-2 inline-flex min-h-touch items-center justify-center gap-2 rounded-pill bg-accent px-4 py-2 text-body font-medium text-accent-ink transition-transform duration-press ease-out-strong active:scale-[0.97] disabled:scale-100 disabled:bg-surface-2 disabled:text-faint motion-reduce:transition-none"
             >
-              {disputeBusy ? 'Waiting for wallet…' : 'Send dispute transaction'}
+              {disputeBusy ? (
+                <>
+                  <span
+                    aria-hidden="true"
+                    className="h-4 w-4 animate-spin rounded-full border-2 border-text-faint/30 border-t-text-faint"
+                  />
+                  Waiting for wallet…
+                </>
+              ) : (
+                'Send dispute transaction'
+              )}
             </button>
           </div>
         )}
-        {disputeError && <p className="mt-1 text-body text-danger">{disputeError}</p>}
+        {disputeError && (
+          <p className="mt-2 text-body font-medium text-danger" role="alert">
+            {disputeError}
+          </p>
+        )}
+      </div>
+      {confirmDialogOpen ? (
+        <DisputeConfirmDialog
+          busy={disputeBusy}
+          onKeepWaiting={() => setConfirmDialogOpen(false)}
+          onOpenDispute={handleDispute}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+// Disputes are legitimate features, not errors: neutral copy, no danger
+// red anywhere in this dialog.
+function DisputeConfirmDialog({
+  busy,
+  onKeepWaiting,
+  onOpenDispute,
+}: {
+  busy: boolean;
+  onKeepWaiting: () => void;
+  onOpenDispute: () => void;
+}) {
+  const panelRef = useDialogFocus<HTMLDivElement>(true, onKeepWaiting);
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/60 p-4"
+      onClick={onKeepWaiting}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Open dispute"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-card border border-border bg-surface p-5"
+      >
+        <h2 className="text-h2 font-bold text-text">Open dispute?</h2>
+        <p className="mt-2 text-body leading-relaxed text-muted">
+          Are you sure? Disputes are resolved by an admin.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onOpenDispute}
+            disabled={busy}
+            className="inline-flex min-h-touch items-center rounded-pill bg-accent px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50"
+          >
+            {busy ? 'Opening…' : 'Open dispute'}
+          </button>
+          <button
+            type="button"
+            onClick={onKeepWaiting}
+            className="inline-flex min-h-touch items-center rounded-pill border border-border-strong bg-transparent px-4 py-2 text-body font-medium text-text"
+          >
+            Keep waiting
+          </button>
+        </div>
       </div>
     </div>
   );

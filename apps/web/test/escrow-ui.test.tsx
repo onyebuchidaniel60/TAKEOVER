@@ -172,16 +172,16 @@ afterEach(() => {
 
 describe('EscrowPanel status dispatch', () => {
   const cases: Array<{ escrowError?: string; escrow?: Record<string, unknown>; copy: string }> = [
-    { escrowError: 'ESCROW_NOT_FOUND', copy: 'Pay with USDT on Polygon' },
-    { escrow: escrowRow('created'), copy: 'Pay with USDT on Polygon' },
-    { escrow: escrowRow('created', { deposit_tx_hash: DEPOSIT_TX }), copy: 'Check again' },
-    { escrow: escrowRow('funded'), copy: 'Funds in escrow. Waiting for provider.' },
-    { escrow: escrowRow('delivered'), copy: 'Service delivered?' },
-    { escrow: escrowRow('disputed'), copy: 'Dispute open. Admin will resolve.' },
+    { escrowError: 'ESCROW_NOT_FOUND', copy: 'Waiting for payment' },
+    { escrow: escrowRow('created'), copy: 'Waiting for payment' },
+    { escrow: escrowRow('created', { deposit_tx_hash: DEPOSIT_TX }), copy: 'Confirming payment…' },
+    { escrow: escrowRow('funded'), copy: 'Held until delivery' },
+    { escrow: escrowRow('delivered'), copy: 'Marked delivered' },
+    { escrow: escrowRow('disputed'), copy: 'In review' },
     { escrow: escrowRow('releasing'), copy: 'Releasing to provider…' },
-    { escrow: escrowRow('released'), copy: 'Released. Complete.' },
-    { escrow: escrowRow('refunding'), copy: 'Refunding to you…' },
-    { escrow: escrowRow('refunded'), copy: 'Refunded. Complete.' },
+    { escrow: escrowRow('released'), copy: 'Released' },
+    { escrow: escrowRow('refunding'), copy: 'Refunding to your wallet…' },
+    { escrow: escrowRow('refunded'), copy: 'Refunded' },
   ];
 
   for (const { escrowError, escrow, copy } of cases) {
@@ -205,8 +205,8 @@ describe('approve & deposit flow', () => {
     backend.escrowError = 'ESCROW_NOT_FOUND';
     const onSubmitted = vi.fn();
     render(<EscrowPanel claim={claim('active_hold') as never} onUpdate={onSubmitted} />);
-    await screen.findByText('Approve & Deposit');
-    await user.click(screen.getByText('Approve & Deposit'));
+    await screen.findByText('Pay 1.5 USDT');
+    await user.click(screen.getByText('Pay 1.5 USDT'));
     await waitFor(() => expect(evm.approve).toHaveBeenCalledTimes(1));
     expect(evm.approve).toHaveBeenCalledWith(expect.anything(), {
       token: TOKEN,
@@ -226,12 +226,12 @@ describe('approve & deposit flow', () => {
     await waitFor(() => expect(onSubmitted).toHaveBeenCalled());
   });
 
-  it('shows the D8 disclosure and exact-amount approval copy', async () => {
+  it('shows the deposit instruction and exact-amount CTA copy', async () => {
     backend.escrow = null;
     backend.escrowError = 'ESCROW_NOT_FOUND';
     render(<EscrowPanel claim={claim('active_hold') as never} onUpdate={vi.fn()} />);
-    expect(await screen.findByText('Pay with USDT on Polygon')).toBeTruthy();
-    expect(await screen.findByText('Exact amount only — never unlimited')).toBeTruthy();
+    expect(await screen.findByText('Pay 1.5 USDT to hold this slot.')).toBeTruthy();
+    expect(await screen.findByText('Pay 1.5 USDT')).toBeTruthy();
   });
 });
 
@@ -247,7 +247,7 @@ describe('VerifyDepositBox', () => {
     backend.verify = { status: 'mismatch', reason: 'amount' };
     const onFunded = vi.fn();
     render(<VerifyDepositBox claimId={CLAIM_ID} onFunded={onFunded} />);
-    expect(await screen.findByText("Deposit doesn't match.")).toBeTruthy();
+    expect(await screen.findByText("We couldn't confirm your payment. Try again.")).toBeTruthy();
     expect(onFunded).not.toHaveBeenCalled();
   });
 });
@@ -289,7 +289,9 @@ describe('ConfirmReceiptBox', () => {
     render(
       <ConfirmReceiptBox claimId={CLAIM_ID} escrow={escrowRow('delivered') as never} onUpdate={onUpdate} />,
     );
-    await user.click(screen.getByText('Dispute'));
+    await user.click(screen.getByText('Something wrong? Dispute this.'));
+    expect(await screen.findByText('Are you sure? Disputes are resolved by an admin.')).toBeTruthy();
+    await user.click(screen.getByText('Open dispute'));
     expect(await screen.findByText('Send dispute transaction')).toBeTruthy();
     backend.dispute = { status: 'disputed' };
     await user.click(screen.getByText('Send dispute transaction'));
@@ -374,7 +376,7 @@ describe('EscrowPanel contact-note display (P2, render-what-it-gets)', () => {
   it('hides the note block when null', async () => {
     panelWithNote(null);
     render(<EscrowPanel claim={claim('escrow_funded') as never} onUpdate={vi.fn()} />);
-    expect(await screen.findByText('Funds in escrow. Waiting for provider.')).toBeTruthy();
+    expect(await screen.findByText('Held until delivery')).toBeTruthy();
     expect(screen.queryByText('Provider contact')).toBeNull();
   });
 });

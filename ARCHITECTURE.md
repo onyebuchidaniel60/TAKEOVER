@@ -189,7 +189,7 @@ Path B — NIM:
 ### NIM listing fee
 
 Publishing a slot costs a pinned NIM listing fee when configured
-(`LISTING_FEE_NIM`, decimal string, e.g. `"400"`; `TAKEOVER_FEE_WALLET_ADDRESS`
+(`LISTING_FEE_NIM`, decimal string, e.g. `"15"`; `TAKEOVER_FEE_WALLET_ADDRESS`
 is the receive-only wallet). The seller pays via Nimiq Pay with the exact
 binding `TAKEOVER:fee:v1:<slotId>`; the publish endpoint verifies the
 transfer on-chain (sender = slot owner, recipient = fee wallet, exact Luna
@@ -198,7 +198,7 @@ amount via `nimToBaseUnits`, confirmations >= 3, replay-guarded by the
 When either var is unset, publishing behaves as before (no fee). A set
 amount with a missing/malformed wallet fails closed (503). The fee wallet
 only receives: no private key exists server-side, nothing ever signs from
-it, no ledger is written, no custody of any kind. Users see "400 NIM" —
+it, no ledger is written, no custody of any kind. Users see "15 NIM" —
 Luna never reaches the UI. Fee terms are served publicly by
 `GET /api/v1/config`.
 

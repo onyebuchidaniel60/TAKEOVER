@@ -125,22 +125,36 @@ export default function VerifyDepositBox({
       .finally(() => setManualBusy(false));
   };
 
+  const secondaryCta =
+    'mt-3 inline-flex min-h-touch items-center justify-center gap-2 rounded-pill border border-border-strong bg-transparent px-4 py-2 text-body font-medium text-text transition-transform duration-press ease-out-strong active:scale-[0.97] disabled:scale-100 disabled:opacity-50 motion-reduce:transition-none';
+
   return (
-    <div className="mt-4 rounded-lg bg-surface-2 p-3" aria-live="polite">
-      {display === 'checking' && <p className="text-body text-muted">Checking deposit status…</p>}
-      {display === 'pending' && (
-        <p className="font-mono text-body tabular-nums text-muted">
-          Deposit seen, waiting for confirmation… (check {attempts} of {VERIFY_DEPOSIT_MAX_ATTEMPTS})
+    <div className="mt-3" aria-live="polite">
+      {(display === 'checking' || display === 'pending') && (
+        <p className="flex items-center gap-2 text-body font-medium text-text">
+          <span
+            aria-hidden="true"
+            className="h-4 w-4 animate-spin rounded-full border-2 border-text-faint/30 border-t-text-faint"
+          />
+          Confirming payment…
+        </p>
+      )}
+      {(display === 'checking' || display === 'pending') && (
+        <p className="mt-1 font-mono text-small tabular-nums text-muted">
+          Check {attempts} of {VERIFY_DEPOSIT_MAX_ATTEMPTS}
         </p>
       )}
       {display === 'mismatch' && (
         <div>
-          <p className="text-body font-medium text-text">Deposit doesn&apos;t match.</p>
+          <p className="text-body font-medium text-text">We couldn&apos;t confirm your payment. Try again.</p>
           <p className="mt-1 text-body text-muted">
             {reason === 'amount' || reason === 'escrow_id'
               ? 'The transaction details differ from this claim. If you already paid, contact support — do not pay again.'
               : 'We could not match a deposit for this claim yet. If you already paid, contact support — do not pay again.'}
           </p>
+          <button type="button" onClick={manualCheck} disabled={manualBusy} className={secondaryCta}>
+            {manualBusy ? 'Checking…' : 'Try again'}
+          </button>
         </div>
       )}
       {display === 'review' && (
@@ -149,23 +163,23 @@ export default function VerifyDepositBox({
         </p>
       )}
       {display === 'rpc-down' && (
-        <p className="text-body text-muted">
-          Network status is temporarily unavailable. We&apos;ll keep checking.
-        </p>
+        <div>
+          <p className="text-body text-muted">
+            Network status is temporarily unavailable. We&apos;ll keep checking.
+          </p>
+          <button type="button" onClick={manualCheck} disabled={manualBusy} className={secondaryCta}>
+            {manualBusy ? 'Checking…' : 'Try again'}
+          </button>
+        </div>
       )}
       {display === 'exhausted' && (
-        <p className="text-body text-muted">
-          Still pending. The deposit may need more time — check again.
-        </p>
+        <div>
+          <p className="text-body text-muted">Still confirming. Check back in a moment.</p>
+          <button type="button" onClick={manualCheck} disabled={manualBusy} className={secondaryCta}>
+            {manualBusy ? 'Checking…' : 'Try again'}
+          </button>
+        </div>
       )}
-      <button
-        type="button"
-        onClick={manualCheck}
-        disabled={manualBusy}
-        className="mt-2 inline-flex min-h-touch items-center rounded-lg border border-border-strong px-4 py-2 text-body font-medium text-text disabled:opacity-50 bg-surface"
-      >
-        {manualBusy ? 'Checking…' : 'Check again'}
-      </button>
     </div>
   );
 }

@@ -18,8 +18,8 @@ import { nimFromBaseUnits, nimToBaseUnits } from '../src/payments/amounts';
 import type { TxRecord } from '../src/payments/rpc';
 
 const SLOT_ID = '123e4567-e89b-12d3-a456-426614174000';
-const FEE_NIM = '400';
-const FEE_LUNA = '40000000';
+const FEE_NIM = '15';
+const FEE_LUNA = '1500000';
 
 function randomWallet(): string {
   return deriveNimiqAddress(new Uint8Array(32).map(() => Math.floor(Math.random() * 256)));
@@ -69,11 +69,11 @@ describe('assessListingFee', () => {
       status: 'review',
       reason: 'recipient_mismatch',
     });
-    expect(assessListingFee(txRecord({ value: '39999999' }), EXPECTED)).toMatchObject({
+    expect(assessListingFee(txRecord({ value: '1499999' }), EXPECTED)).toMatchObject({
       status: 'review',
       reason: 'amount_mismatch',
     });
-    expect(assessListingFee(txRecord({ value: '40000001' }), EXPECTED)).toMatchObject({
+    expect(assessListingFee(txRecord({ value: '1500001' }), EXPECTED)).toMatchObject({
       status: 'review',
       reason: 'amount_mismatch',
     });
@@ -178,7 +178,7 @@ describe('normalizeFeeHash', () => {
 });
 
 describe('listing-fee amount conversion', () => {
-  it('converts 400 NIM to exactly 40000000 Luna and back', () => {
+  it('converts 15 NIM to exactly 1500000 Luna and back', () => {
     expect(nimToBaseUnits(FEE_NIM)).toBe(FEE_LUNA);
     expect(nimFromBaseUnits(FEE_LUNA)).toBe(FEE_NIM);
   });
@@ -194,7 +194,7 @@ describe('listing-fee amount conversion', () => {
     expect(() => nimFromBaseUnits('1.5')).toThrow();
     expect(() => nimFromBaseUnits('-5')).toThrow();
     expect(() => nimFromBaseUnits('0')).toThrow();
-    expect(() => nimToBaseUnits('400.000001')).toThrow();
+    expect(() => nimToBaseUnits('15.000001')).toThrow();
   });
 });
 
@@ -231,19 +231,19 @@ describe('getListingFeeState', () => {
 
   it('reports required with canonical terms when fully configured', () => {
     expect(
-      getListingFeeState({ LISTING_FEE_NIM: '400', TAKEOVER_FEE_WALLET_ADDRESS: FEE_WALLET }),
-    ).toEqual({ required: true, amountNim: '400', walletAddress: FEE_WALLET, misconfigured: false });
+      getListingFeeState({ LISTING_FEE_NIM: '15', TAKEOVER_FEE_WALLET_ADDRESS: FEE_WALLET }),
+    ).toEqual({ required: true, amountNim: '15', walletAddress: FEE_WALLET, misconfigured: false });
   });
 
   it('reports misconfigured when the wallet is missing or malformed (F4)', () => {
-    expect(getListingFeeState({ LISTING_FEE_NIM: '400' })).toMatchObject({
+    expect(getListingFeeState({ LISTING_FEE_NIM: '15' })).toMatchObject({
       required: true,
-      amountNim: '400',
+      amountNim: '15',
       walletAddress: null,
       misconfigured: true,
     });
     expect(
-      getListingFeeState({ LISTING_FEE_NIM: '400', TAKEOVER_FEE_WALLET_ADDRESS: 'NQ00BOGUS' }),
+      getListingFeeState({ LISTING_FEE_NIM: '15', TAKEOVER_FEE_WALLET_ADDRESS: 'NQ00BOGUS' }),
     ).toMatchObject({ required: true, misconfigured: true, walletAddress: null });
   });
 });

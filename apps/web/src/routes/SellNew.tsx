@@ -15,8 +15,9 @@ export default function SellNew() {
   // Create first, then the contact-note PATCH in the same user action
   // when a note was entered (the create endpoint accepts no note field
   // — double round-trip, reported in Phase 4c). If the note PATCH fails
-  // after the slot exists, we still navigate: the draft keeps an empty
-  // note field for re-entry, which beats duplicating the slot on retry.
+  // after the slot exists, we still navigate (duplicating the slot on
+  // retry would be worse) but flag it: SellDetail shows a dismissible
+  // "note wasn't saved" banner so the miss is never silent.
   const handleSubmit = (body: SlotWrite, note: string | null): void => {
     setSubmitting(true);
     setServerError(null);
@@ -28,7 +29,7 @@ export default function SellNew() {
         }
         void updateSlotContactNote(slot.id, note).then(
           () => navigate(`/sell/${slot.id}`),
-          () => navigate(`/sell/${slot.id}`),
+          () => navigate(`/sell/${slot.id}`, { state: { noteFailed: true } }),
         );
       })
       .catch((err: unknown) => {

@@ -51,7 +51,7 @@ const envSchema = z.object({
   // (strict 32-byte-hex validation lives in the signer module, which fails
   // closed at first release attempt, never at boot).
   ESCROW_SIGNER_PRIVATE_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
-  // NIM listing fee. Decimal NIM string (e.g. "400") — users
+  // NIM listing fee. Decimal NIM string (e.g. "15") — users
   // never see Luna; the backend converts via nimToBaseUnits. Receive-only
   // fee wallet (never signs; no private key exists server-side).
   LISTING_FEE_NIM: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
@@ -235,7 +235,7 @@ export function getEscrowRefundConfirmations(
 
 /**
  * NIM listing-fee amount as a normalized decimal NIM string
- * (e.g. "400"). Tolerant by design: missing, blank, or invalid values
+ * (e.g. "15"). Tolerant by design: missing, blank, or invalid values
  * (garbage, non-positive, >5 decimals — validated via nimToBaseUnits) fall
  * back to undefined (fee not configured) instead of crashing boot.
  */

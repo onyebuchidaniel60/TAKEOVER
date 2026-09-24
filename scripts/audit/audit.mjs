@@ -66,6 +66,10 @@ const scrollY = Number(arg('scrollY', '0')) || 0;
 const readyDefault = arg('ready', '');
 const readyEmpty = arg('readyEmpty', '');
 const readyError = arg('readyError', '');
+// Optional session cookie for authenticated routes (Phase 5 claim audit):
+// --cookie "takeover_session=<id>.<secret>" is set on every browser
+// context (domain derived from --base). Absent by default.
+const cookieArg = arg('cookie', '');
 
 if (viewports.length === 0 || states.length === 0) {
   console.error('audit: --viewports and --states must be non-empty');
@@ -177,6 +181,13 @@ try {
     const height = HEIGHTS[width] ?? 800;
     for (const state of states) {
       const context = await browser.newContext({ viewport: { width, height } });
+      if (cookieArg) {
+        const cut = cookieArg.indexOf('=');
+        const domain = new URL(base).hostname;
+        await context.addCookies([
+          { name: cookieArg.slice(0, cut), value: cookieArg.slice(cut + 1), domain, path: '/' },
+        ]);
+      }
       const page = await context.newPage();
       const notes = [];
       let effectiveState = state;

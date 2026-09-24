@@ -464,8 +464,8 @@ describe('claim payment states', () => {
         </Routes>
       </MemoryRouter>,
     );
-    await screen.findByText('Pay with USDT on Polygon');
-    await screen.findByRole('button', { name: /approve & deposit/i });
+    await screen.findByText('Pay 1.5 USDT to hold this slot.');
+    await screen.findByRole('button', { name: 'Pay 1.5 USDT' });
     unmount();
     mockFetch(() => ({ claim: claimFixture('payment_review'), slot: slotFixture() }));
     renderAt(

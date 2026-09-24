@@ -38,7 +38,7 @@ booked. TAKEOVER lets providers publish those openings in seconds, and lets
 nearby buyers claim them before they expire. Buyers fund a non-custodial
 USDT escrow on Polygon, so providers only get paid on confirmed delivery and
 buyers are refunded when delivery never happens. Publishing a slot costs a
-400 NIM listing fee paid through Nimiq Pay, which keeps the board free of
+15 NIM listing fee paid through Nimiq Pay, which keeps the board free of
 spam.
 
 ## How it works

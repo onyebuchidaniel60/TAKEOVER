@@ -90,7 +90,25 @@ describe('HoldCountdown announcements', () => {
     act(() => {
       vi.advanceTimersByTime(10_000);
     });
-    expect(screen.getByText('Hold expired')).toBeDefined();
+    // Visual + screen-reader copies share the text (one visible, one sr-only).
+    expect(screen.getAllByText('Hold expired.')).toHaveLength(2);
     expect(live()).toBe('Hold expired.');
+  });
+
+  it('shifts warning under 5 minutes, danger plus pulse under 1 minute', () => {
+    const visualClass = (container: HTMLElement): string =>
+      container.querySelector('[aria-hidden="true"]')?.className ?? '';
+    const first = render(<HoldCountdown holdExpiresAt={expiresIn(10 * 60_000)} />);
+    expect(visualClass(first.container)).toContain('text-text');
+    expect(visualClass(first.container)).not.toContain('animate-pulse-soft');
+    first.unmount();
+    const second = render(<HoldCountdown holdExpiresAt={expiresIn(4 * 60_000)} />);
+    expect(visualClass(second.container)).toContain('text-warning');
+    expect(visualClass(second.container)).not.toContain('animate-pulse-soft');
+    second.unmount();
+    const third = render(<HoldCountdown holdExpiresAt={expiresIn(59_000)} />);
+    expect(visualClass(third.container)).toContain('text-danger');
+    expect(visualClass(third.container)).toContain('motion-safe:animate-pulse-soft');
+    third.unmount();
   });
 });

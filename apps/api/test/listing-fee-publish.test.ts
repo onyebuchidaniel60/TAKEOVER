@@ -18,8 +18,8 @@ import type { NimiqRpcClient, TxRecord } from '../src/payments/rpc';
 import { getDb, isDatabaseConfigured } from '../../../db/client';
 import { auditEvents, authChallenges, claims, sessions, slots, users } from '../../../db/schema';
 
-const FEE_NIM = '400';
-const FEE_LUNA = '40000000';
+const FEE_NIM = '15';
+const FEE_LUNA = '1500000';
 const FEE_DATA = (slotId: string): string => `TAKEOVER:fee:v1:${slotId}`;
 
 describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () => {

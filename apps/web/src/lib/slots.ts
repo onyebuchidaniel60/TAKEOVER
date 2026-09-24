@@ -275,7 +275,7 @@ export function publishSlot(slotId: string, transactionHash?: string): Promise<{
 }
 
 // NIM listing-fee terms served by GET /api/v1/config (public).
-// amountNim is a decimal NIM string ("400") — Luna never reaches the UI.
+// amountNim is a decimal NIM string ("15") — Luna never reaches the UI.
 export interface ListingFeeConfig {
   required: boolean;
   amountNim: string | null;
