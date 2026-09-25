@@ -8,7 +8,7 @@ import { truncateWalletAddress } from '../auth/nimiq-address';
 import { getClaimHoldTtlSeconds } from '../env';
 import { writeAuditEvent } from '../audit/events';
 import { AppError } from '../http/errors';
-import { loadProviderDisplay } from '../slots/provider-display';
+import { loadProviderCard } from '../slots/provider-display';
 import { toPublicSlot, type PublicSlot } from '../slots/public-slot';
 import {
   isContactNoteVisibleToBuyer,
@@ -171,12 +171,10 @@ export async function createClaim(
     });
     return { claimRow: claim, slotRow: updatedSlot };
   });
+  const card = await loadProviderCard(db, decided.slotRow.providerId);
   return {
     claim: toClaimView(decided.claimRow),
-    slot: toPublicSlot(
-      decided.slotRow,
-      await loadProviderDisplay(db, decided.slotRow.providerId),
-    ),
+    slot: toPublicSlot(decided.slotRow, card.display, card.avatar),
   };
 }
 
@@ -264,9 +262,10 @@ export async function getClaimForBuyer(
   const escrow = escrowRows[0];
   const note =
     escrow && isContactNoteVisibleToBuyer(escrow.status) ? slot.providerContactNote : null;
+  const providerCard = await loadProviderCard(db, slot.providerId);
   return {
     claim: toClaimView(claim, note),
-    slot: toPublicSlot(slot, await loadProviderDisplay(db, slot.providerId)),
+    slot: toPublicSlot(slot, providerCard.display, providerCard.avatar),
   };
 }
 
@@ -333,7 +332,7 @@ export async function listSlotClaimsForProvider(
     throw new AppError(404, 'NOT_FOUND', 'Slot not found.');
   }
   const rows = await db
-    .select({ claim: claims, buyerWallet: users.walletAddress })
+    .select({ claim: claims, buyerWallet: users.walletAddress, buyerAvatar: users.avatarData })
     .from(claims)
     .innerJoin(users, eq(claims.buyerId, users.id))
     .where(eq(claims.slotId, options.slotId))
@@ -341,7 +340,9 @@ export async function listSlotClaimsForProvider(
   const views: ProviderSlotClaimView[] = [];
   const counts: SlotClaimCounts = { ...EMPTY_SLOT_CLAIM_COUNTS };
   for (const row of rows) {
-    views.push(toProviderSlotClaimView(row.claim, truncateWalletAddress(row.buyerWallet)));
+    views.push(
+      toProviderSlotClaimView(row.claim, truncateWalletAddress(row.buyerWallet), row.buyerAvatar),
+    );
     // All 12 claim_status values are bucketed (the shim
     // counted six and dropped escrow states — resolved now).
     counts[row.claim.status as keyof SlotClaimCounts] += 1;

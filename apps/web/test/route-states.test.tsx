@@ -340,8 +340,11 @@ describe('/profile states', () => {
         <Profile />
       </RequireAuth>,
     );
-    // Wallet shows (truncated); no role line anywhere (Phase 4b).
-    await screen.findByText(/NQ07…0000/);
+    // Wallet shows (truncated) — twice now: the avatar header falls
+    // back to the truncated wallet when no display name exists (Phase
+    // 5d), plus the wallet button. No role line anywhere (Phase 4b).
+    const walletCopies = await screen.findAllByText(/NQ07…0000/);
+    expect(walletCopies).toHaveLength(2);
     expect(screen.queryByText(/role:/i)).toBeNull();
   });
 });

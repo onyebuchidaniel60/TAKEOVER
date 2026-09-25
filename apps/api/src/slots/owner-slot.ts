@@ -15,9 +15,13 @@ export interface OwnerSlot extends PublicSlot {
 }
 
 /** Project a slots row onto the locked owner shape. */
-export function toOwnerSlot(row: SlotRow, providerDisplay: string): OwnerSlot {
+export function toOwnerSlot(
+  row: SlotRow,
+  providerDisplay: string,
+  providerAvatar: string | null = null,
+): OwnerSlot {
   return {
-    ...toPublicSlot(row, providerDisplay),
+    ...toPublicSlot(row, providerDisplay, providerAvatar),
     provider_contact_note: row.providerContactNote,
   };
 }

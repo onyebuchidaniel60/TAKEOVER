@@ -19,7 +19,9 @@
 // Seed safety: db/seed.ts uses fixed UUIDs + onConflictDoNothing, so
 // re-runs never duplicate. Seed rows carry SEED-marker wallets that can
 // never authenticate (rejected by wallet canonicalization). Rows are
-// left in place (disposable fixtures by design); re-running is a no-op.
+// left in place during the run (re-running is a no-op); the end-of-phase
+// cleanup step (node scripts/db/cleanup-test-data.mjs) removes them from
+// the shared DB afterwards — see the Phase 5d standing rule.
 // Servers already listening before the run are reused, never killed.
 import { spawn, execFile } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -129,6 +131,6 @@ try {
   for (const child of spawned.reverse()) {
     await killTree(child);
   }
-  console.log('with-backend: teardown complete (spawned servers stopped; seed rows retained by design)');
+  console.log('with-backend: teardown complete (spawned servers stopped; run scripts/db/cleanup-test-data.mjs at phase end to remove seed rows)');
 }
 process.exit(exitCode);

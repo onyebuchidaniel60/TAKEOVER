@@ -7,7 +7,7 @@ import { and, asc, count, eq, gt, gte, ilike, inArray, lte, or, type SQL } from 
 import { getDb } from '../../../../db/client';
 import { slots } from '../../../../db/schema';
 import { AppError } from '../http/errors';
-import { loadProviderDisplay, loadProviderDisplayMap } from './provider-display';
+import { loadProviderCard, loadProviderCardMap } from './provider-display';
 import { toPublicSlot, type PublicSlot } from './public-slot';
 
 type Db = ReturnType<typeof getDb>;
@@ -93,17 +93,17 @@ export async function listPublicSlots(
     .limit(options.limit)
     .offset(options.offset);
   const totalRows = await db.select({ value: count() }).from(slots).where(where);
-  const displays = await loadProviderDisplayMap(
+  const cards = await loadProviderCardMap(
     db,
     rows.map((row) => row.providerId),
   );
   const items = rows.map((row) => {
-    const display = displays.get(row.providerId);
-    if (display === undefined) {
+    const card = cards.get(row.providerId);
+    if (card === undefined) {
       // Unreachable in practice: slots.provider_id references users.id.
       throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
     }
-    return toPublicSlot(row, display);
+    return toPublicSlot(row, card.display, card.avatar);
   });
   return { slots: items, total: totalRows[0]?.value ?? 0 };
 }
@@ -126,5 +126,6 @@ export async function getPublicSlotById(db: Db, id: string, now?: Date): Promise
   if (!row) {
     return null;
   }
-  return toPublicSlot(row, await loadProviderDisplay(db, row.providerId));
+  const card = await loadProviderCard(db, row.providerId);
+  return toPublicSlot(row, card.display, card.avatar);
 }

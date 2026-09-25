@@ -102,7 +102,10 @@ describe('frontend security pass', () => {
         </Routes>
       </MemoryRouter>,
     );
-    await screen.findByText(EVIL_NAME);
+    // The name renders twice (avatar header + provider section) — both
+    // copies must be inert text (Phase 5d AvatarSection).
+    const copies = await screen.findAllByText(EVIL_NAME);
+    expect(copies).toHaveLength(2);
     expectInertHtml(container);
     useAuth.setState({ status: 'unauthenticated', user: null, error: null, initialized: true });
   });

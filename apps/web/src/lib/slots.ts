@@ -4,7 +4,10 @@ import { apiFetch } from './api';
 
 // Mirrors the locked backend projection (snake_case). price_usdt is a STRING.
 // providerDisplay names the provider (profile display_name preferred,
-// truncated wallet fallback) — public-safe in both forms.
+// truncated wallet fallback) — public-safe in both forms. providerAvatar
+// is the provider's picture data URI (null when unset); imageData is the
+// optional opening image (null when none). Both may be absent on stale
+// cache entries — callers treat undefined as null.
 export interface PublicSlot {
   id: string;
   title: string;
@@ -19,6 +22,8 @@ export interface PublicSlot {
   status: string;
   published_at: string | null;
   providerDisplay: string;
+  providerAvatar?: string | null;
+  imageData?: string | null;
 }
 
 export interface SlotsResponse {
@@ -116,6 +121,8 @@ export interface SlotWrite {
   ends_at?: string;
   price_usdt: string;
   total_quantity: number;
+  /** Optional opening image data URI (null clears). Omitted = unchanged. */
+  image_data?: string | null;
 }
 
 // Client-side mirrors of the server validation
@@ -488,6 +495,7 @@ export interface ProviderSlotClaim {
   hold_expires_at: string;
   updated_at: string;
   buyerDisplay: string;
+  buyerAvatar?: string | null;
 }
 
 export interface SlotClaimCounts {
@@ -507,7 +515,8 @@ export function fetchSlotClaims(slotId: string): Promise<{
 }
 
 // Own profile (GET /me). providerProfile is null until the user
-// sets a display name.
+// sets a display name. avatarData is the picture data URI (null when
+// unset; may be absent on stale cache entries).
 export interface MeUser {
   id: string;
   walletAddress: string;
@@ -515,6 +524,7 @@ export interface MeUser {
   status: string;
   hasProviderProfile?: boolean;
   providerProfile: { displayName: string } | null;
+  avatarData?: string | null;
 }
 
 export function fetchMe(): Promise<{ user: MeUser }> {
@@ -527,6 +537,26 @@ export function updateProviderProfile(displayName: string): Promise<{
   return apiFetch('/api/v1/me/provider-profile', {
     method: 'PATCH',
     body: JSON.stringify({ display_name: displayName }),
+  });
+}
+
+// Profile picture set-or-clear (null clears). The data URI comes from
+// lib/image.ts (resized, ≤200KB); the server re-validates.
+export function updateMeAvatar(avatarData: string | null): Promise<{ avatarData: string | null }> {
+  return apiFetch<{ avatarData: string | null }>('/api/v1/me/avatar', {
+    method: 'PATCH',
+    body: JSON.stringify({ avatarData }),
+  });
+}
+
+// Opening image set-or-clear for any owned status (null clears).
+export function updateSlotImage(
+  slotId: string,
+  imageData: string | null,
+): Promise<{ slot: OwnerSlot }> {
+  return apiFetch<{ slot: OwnerSlot }>(`/api/v1/me/slots/${encodeURIComponent(slotId)}/image`, {
+    method: 'PATCH',
+    body: JSON.stringify({ image_data: imageData }),
   });
 }
 

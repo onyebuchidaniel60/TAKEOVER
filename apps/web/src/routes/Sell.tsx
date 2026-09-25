@@ -72,7 +72,7 @@ export default function Sell() {
         <Tile label="Drafts" value={tiles.drafts} />
         <Tile label="Sold out" value={tiles.soldOut} />
       </div>
-      <div className="mt-4 flex gap-2" role="group" aria-label="Filter by status">
+      <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Filter by status">
         {FILTERS.map((f) => (
           <button
             key={f || 'all'}

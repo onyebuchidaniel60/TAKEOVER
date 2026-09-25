@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import Avatar from '../components/Avatar';
 import CancelConfirmDialog from '../components/CancelConfirmDialog';
 import ClaimStatusBadge from '../components/ClaimStatusBadge';
 import EmptyState from '../components/EmptyState';
@@ -26,6 +27,7 @@ import {
   publishSlot,
   updateSlot,
   updateSlotContactNote,
+  updateSlotImage,
   type ListingFeeConfig,
   type OwnerSlot,
   type ProviderSlotClaim,
@@ -170,6 +172,10 @@ export default function SellDetail() {
     mutationFn: ({ id, note }: { id: string; note: string | null }) =>
       updateSlotContactNote(id, note),
   });
+  const imageMutation = useMutation({
+    mutationFn: ({ id, image }: { id: string; image: string | null }) =>
+      updateSlotImage(id, image),
+  });
   const publishMutation = useMutation({
     mutationFn: ({ id, hash }: { id: string; hash: string | undefined }) => publishSlot(id, hash),
   });
@@ -214,14 +220,22 @@ export default function SellDetail() {
       });
   };
 
-  // Note-only save (locked form on published slots): the contact-note
-  // PATCH is open for any owned status, commercial fields stay locked.
-  const handleSaveNote = (note: string | null): void => {
+  // Note + image save (locked form on published slots): both PATCHes
+  // are open for any owned status, commercial fields stay locked. Each
+  // runs only when its value changed (undefined = untouched).
+  const handleSaveNote = (note: string | null, image: string | null | undefined): void => {
     if (!slotId) return;
     setSaving(true);
     setActionError(null);
-    void noteMutation
-      .mutateAsync({ id: slotId, note })
+    const imageStep =
+      image === undefined
+        ? Promise.resolve(null)
+        : imageMutation.mutateAsync({ id: slotId, image }).then(({ slot }) => slot);
+    void imageStep
+      .then((slot) => {
+        if (slot) refreshAfter(slot);
+        return noteMutation.mutateAsync({ id: slotId, note });
+      })
       .then(({ slot }) => {
         refreshAfter(slot);
         invalidateScopes();
@@ -488,7 +502,7 @@ function ManageSlot({
   hasFeeHash: boolean;
   hasStoredHash: boolean;
   onSave: (body: SlotWrite, note: string | null) => void;
-  onSaveNote: (note: string | null) => void;
+  onSaveNote: (note: string | null, image: string | null | undefined) => void;
   onPublish: () => void;
   onRetryPublish: () => void;
   onNewPayment: () => void;
@@ -777,7 +791,10 @@ function ClaimDemandRow({
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-body font-medium text-text">{claim.buyerDisplay}</span>
+        <span className="flex items-center gap-2 text-body font-medium text-text">
+          <Avatar data={claim.buyerAvatar ?? null} name={claim.buyerDisplay} size={24} />
+          {claim.buyerDisplay}
+        </span>
         <ClaimStatusBadge status={claim.status} />
       </div>
       {escrowStatus !== null && escrowStatus !== 'created' ? (

@@ -22,10 +22,18 @@ export interface PublicSlot {
   status: string;
   published_at: string | null;
   providerDisplay: string;
+  /** Provider avatar data URI, or null when the provider set none. */
+  providerAvatar: string | null;
+  /** Optional opening image data URI, or null when the provider attached none. */
+  imageData: string | null;
 }
 
 /** Project a slots row onto the locked public shape. Throws on invalid price. */
-export function toPublicSlot(row: SlotRow, providerDisplay: string): PublicSlot {
+export function toPublicSlot(
+  row: SlotRow,
+  providerDisplay: string,
+  providerAvatar: string | null = null,
+): PublicSlot {
   return {
     id: row.id,
     title: row.title,
@@ -40,5 +48,7 @@ export function toPublicSlot(row: SlotRow, providerDisplay: string): PublicSlot 
     status: row.status,
     published_at: row.publishedAt ? row.publishedAt.toISOString() : null,
     providerDisplay,
+    providerAvatar,
+    imageData: row.imageData,
   };
 }

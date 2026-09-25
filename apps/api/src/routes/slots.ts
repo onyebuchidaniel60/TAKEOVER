@@ -25,9 +25,10 @@ import {
   publishSlot,
   updateDraftSlot,
   updateSlotContactNote,
+  updateSlotImage,
 } from '../slots/lifecycle';
 import { toOwnerSlot } from '../slots/owner-slot';
-import { loadProviderDisplay } from '../slots/provider-display';
+import { loadProviderCard } from '../slots/provider-display';
 import { getPublicSlotById, listPublicSlots } from '../slots/service';
 import {
   contactNoteBodySchema,
@@ -35,6 +36,7 @@ import {
   publishBodySchema,
   slotCreateSchema,
   slotIdParamsSchema,
+  slotImageBodySchema,
   slotPatchSchema,
 } from '../slots/validation';
 import {
@@ -119,8 +121,9 @@ export async function slotRoutes(app: FastifyInstance, opts: SlotRouteOptions = 
     // projection. Everyone else gets the same 404 — no existence leak.
     if (request.user) {
       const owned = await getOwnSlot(db, request.user.id, parsed.data.slotId);
+      const card = await loadProviderCard(db, owned.providerId);
       return successBody(request, {
-        slot: toOwnerSlot(owned, await loadProviderDisplay(db, owned.providerId)),
+        slot: toOwnerSlot(owned, card.display, card.avatar),
       });
     }
     throw new AppError(404, 'NOT_FOUND', 'Slot not found.');
@@ -240,6 +243,32 @@ export async function slotRoutes(app: FastifyInstance, opts: SlotRouteOptions = 
     }
     const db = getDb();
     const slot = await updateSlotContactNote(db, user.id, params.data.slotId, parsed.data.provider_contact_note, {
+      requestId: request.id,
+    });
+    return successBody(request, { slot });
+  });
+
+  // Opening image set-or-clear. Same split as the contact note: the
+  // image is not a commercial field, so the write gate is open (any
+  // owned status). Owner-only (non-owner or missing slot → 404, never
+  // 403), same shape as the existing PATCH response ({ slot } owner
+  // projection).
+  app.patch('/me/slots/:slotId/image', { preHandler: slotMutateLimiter }, async (request) => {
+    const user = await requireAuth(request);
+    const params = slotIdParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      throw new AppError(400, 'INVALID_INPUT', 'Invalid slot id.');
+    }
+    const parsed = slotImageBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(
+        400,
+        'INVALID_INPUT',
+        'Image must be a JPEG, PNG, or WebP data URI of 200KB or less. Use null to clear it.',
+      );
+    }
+    const db = getDb();
+    const slot = await updateSlotImage(db, user.id, params.data.slotId, parsed.data.image_data, {
       requestId: request.id,
     });
     return successBody(request, { slot });

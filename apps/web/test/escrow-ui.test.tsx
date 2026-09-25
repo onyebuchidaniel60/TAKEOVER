@@ -462,6 +462,7 @@ describe('SlotForm contact note field', () => {
       price: '1',
       total_quantity: '2',
       provider_contact_note: note,
+      image_data: null,
     };
   }
 

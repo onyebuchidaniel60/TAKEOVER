@@ -54,6 +54,7 @@ export function isContactNoteVisibleToBuyer(escrowStatus: string): boolean {
 // Provider-facing claim projection. The provider sees their slot's
 // demand with a TRUNCATED buyer identifier only — never the full wallet,
 // never tx hashes, never payment-intent fields, never buyer/slot foreign ids.
+// buyerAvatar is the buyer's profile picture data URI (null when unset).
 export interface ProviderSlotClaimView {
   id: string;
   quantity: number;
@@ -62,10 +63,15 @@ export interface ProviderSlotClaimView {
   hold_expires_at: string;
   updated_at: string;
   buyerDisplay: string;
+  buyerAvatar: string | null;
 }
 
 /** Project a claims row onto the locked provider shape. */
-export function toProviderSlotClaimView(row: ClaimRow, buyerDisplay: string): ProviderSlotClaimView {
+export function toProviderSlotClaimView(
+  row: ClaimRow,
+  buyerDisplay: string,
+  buyerAvatar: string | null = null,
+): ProviderSlotClaimView {
   return {
     id: row.id,
     quantity: row.quantity,
@@ -74,5 +80,6 @@ export function toProviderSlotClaimView(row: ClaimRow, buyerDisplay: string): Pr
     hold_expires_at: row.holdExpiresAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
     buyerDisplay,
+    buyerAvatar,
   };
 }

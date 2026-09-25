@@ -1,6 +1,7 @@
 import type { PublicSlot } from '../lib/slots';
 import { formatUsdt } from '../lib/slots';
 import AvailabilityBadge from './AvailabilityBadge';
+import Avatar from './Avatar';
 import CategoryIcon from './CategoryIcon';
 import TimeBadge from './TimeBadge';
 
@@ -22,10 +23,18 @@ export default function SlotDetail({ slot }: { slot: PublicSlot }) {
   // figures are mono + tabular-nums so Poppins numerals never shift).
   const price = formatUsdt(slot.price_usdt);
   const amount = price.replace(/\s*USDT\s*$/, '');
-  // Initial-based avatar (D5 — no photography).
-  const initial = (slot.providerDisplay.trim().charAt(0) || '?').toUpperCase();
+  const image = slot.imageData ?? null;
   return (
     <article>
+      {/* Opening image (optional): full-width hero above the title. */}
+      {image ? (
+        <img
+          src={image}
+          alt=""
+          aria-hidden="true"
+          className="mb-4 aspect-[16/10] w-full rounded-card object-cover"
+        />
+      ) : null}
       {/* Hero: category identity, title, provider. */}
       <div className="flex items-start gap-3">
         <CategoryIcon category={slot.category} />
@@ -83,14 +92,9 @@ export default function SlotDetail({ slot }: { slot: PublicSlot }) {
         </dl>
       </section>
 
-      {/* Provider: initial avatar + display name. */}
+      {/* Provider: avatar + display name. */}
       <section aria-label="Provider" className="mt-4 flex items-center gap-3">
-        <span
-          aria-hidden="true"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-body font-semibold text-muted"
-        >
-          {initial}
-        </span>
+        <Avatar data={slot.providerAvatar ?? null} name={slot.providerDisplay} size={32} />
         <p className="min-w-0 truncate text-body font-medium text-text">{slot.providerDisplay}</p>
       </section>
     </article>

@@ -41,6 +41,7 @@ const emptyForm: SlotFormValues = {
   price: '',
   total_quantity: '',
   provider_contact_note: '',
+  image_data: null,
 };
 
 const validForm: SlotFormValues = {

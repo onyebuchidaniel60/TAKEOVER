@@ -18,6 +18,10 @@ export const slots = pgTable(
     // the API boundary. Visible to the buyer only once the claim's escrow
     // reaches a funded-side status (see the claim/escrow view gates).
     providerContactNote: text('provider_contact_note'),
+    // Optional opening image as a base64 data URI (same shape + 200KB cap
+    // as users.avatar_data; see images/validation.ts). Not a commercial
+    // field: editable on draft AND published, like the contact note.
+    imageData: text('image_data'),
     category: text('category'),
     locationLabel: text('location_label'),
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),

@@ -1,7 +1,8 @@
 // Provider slot form (create + draft edit). Consumer language only.
 // Price is entered in USDT ("1.5"); the parent converts nothing — this form
 // emits exact base units via parseUsdtToBaseUnits.
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { prepareImage } from '../lib/image';
 import {
   CONTACT_NOTE_MAX_LENGTH,
   parseUsdtToBaseUnits,
@@ -28,6 +29,9 @@ export interface SlotFormValues {
   total_quantity: string;
   /** Buyer contact note (raw field text; empty means none). */
   provider_contact_note: string;
+  /** Opening image data URI (null = none). Compared against the initial
+      value on submit: unchanged images are never re-sent. */
+  image_data: string | null;
 }
 
 const inputClass =
@@ -68,6 +72,7 @@ export function initialValues(slot?: OwnerSlot): SlotFormValues {
     price: slot ? baseUnitsToUsdt(slot.price_usdt) : '',
     total_quantity: slot ? String(slot.total_quantity) : '',
     provider_contact_note: slot?.provider_contact_note ?? '',
+    image_data: slot?.imageData ?? null,
   };
 }
 
@@ -101,17 +106,44 @@ export default function SlotForm({
   onSubmit: (body: SlotWrite, note: string | null) => void;
   /**
    * Locked mode (published slots): commercial fields render disabled and
-   * the note is the only editable field. Submit calls onSubmitNote
-   * instead of onSubmit — commercial values are never sent.
+   * only the note + image are editable. Submit calls onSubmitNote
+   * instead of onSubmit — commercial values are never sent. The image
+   * arg is undefined when unchanged (no re-send), string|null when
+   * set/cleared.
    */
   commercialLocked?: boolean;
-  onSubmitNote?: (note: string | null) => void;
+  onSubmitNote?: (note: string | null, image: string | null | undefined) => void;
 }) {
   const [values, setValues] = useState<SlotFormValues>(initial);
   // Per-field inline reasons mirroring the
   // server rules publish enforces. The server stays authoritative — these
   // only block the request early with a clearer message.
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof SlotFormValues, string>>>({});
+  const [preparingImage, setPreparingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+
+  /** Image data URI when changed vs the initial value, else undefined. */
+  const imageOrUnchanged = (): string | null | undefined =>
+    values.image_data !== initial.image_data ? values.image_data : undefined;
+
+  const handleImageFile = (event: React.ChangeEvent<HTMLInputElement>): void => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setPreparingImage(true);
+    void prepareImage(file, 1200)
+      .then(({ dataUrl }) => {
+        setValues((prev) => ({ ...prev, image_data: dataUrl }));
+        setFieldErrors((prev) => ({ ...prev, image_data: undefined }));
+      })
+      .catch((err: unknown) => {
+        setFieldErrors((prev) => ({
+          ...prev,
+          image_data: err instanceof Error ? err.message : 'Something went wrong.',
+        }));
+      })
+      .finally(() => setPreparingImage(false));
+  };
 
   const set =
     (key: keyof SlotFormValues) =>
@@ -129,13 +161,13 @@ export default function SlotForm({
     event.preventDefault();
     const noteError = validateContactNote(values.provider_contact_note);
     if (commercialLocked) {
-      // Note-only save: commercial fields are disabled and untouched.
+      // Note + image save: commercial fields are disabled and untouched.
       if (noteError) {
         setFieldErrors({ provider_contact_note: noteError });
         return;
       }
       setFieldErrors({});
-      onSubmitNote?.(noteOrNull());
+      onSubmitNote?.(noteOrNull(), imageOrUnchanged());
       return;
     }
     const errors: Partial<Record<keyof SlotFormValues, string>> = {};
@@ -172,6 +204,7 @@ export default function SlotForm({
       return;
     }
     const endsAt = inputToIso(values.ends_at);
+    const image = imageOrUnchanged();
     onSubmit(
       {
         title: values.title.trim(),
@@ -182,6 +215,9 @@ export default function SlotForm({
         ...(endsAt ? { ends_at: endsAt } : {}),
         price_usdt: priceUsdt,
         total_quantity: totalQuantity,
+        // Only re-send the image when it changed (unchanged = key
+        // absent = untouched server-side).
+        ...(image !== undefined ? { image_data: image } : {}),
       },
       noteOrNull(),
     );
@@ -326,6 +362,49 @@ export default function SlotForm({
           />
           {fieldErrors.total_quantity ? <FieldMessage message={fieldErrors.total_quantity} /> : null}
         </div>
+      </div>
+      <div>
+        <label htmlFor="slot-image-input" className={labelClass}>
+          Image
+        </label>
+        <p className="mb-1 text-small text-muted">
+          Optional. Shown at the top of your opening.
+        </p>
+        {values.image_data ? (
+          <div className="mb-2">
+            <img
+              src={values.image_data}
+              alt="Opening preview"
+              className="aspect-[16/9] w-full rounded-lg object-cover"
+            />
+            <button
+              type="button"
+              disabled={submitting || preparingImage}
+              onClick={() => setValues((prev) => ({ ...prev, image_data: null }))}
+              className="mt-2 min-h-touch rounded-lg border border-border-strong bg-surface px-4 py-2 text-body font-medium text-muted disabled:opacity-50"
+            >
+              Remove image
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            disabled={submitting || preparingImage}
+            onClick={() => imageInputRef.current?.click()}
+            className="min-h-touch rounded-lg border border-border-strong bg-surface px-4 py-2 text-body font-medium text-muted disabled:opacity-50"
+          >
+            {preparingImage ? 'Preparing…' : 'Choose image'}
+          </button>
+        )}
+        <input
+          ref={imageInputRef}
+          id="slot-image-input"
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleImageFile}
+        />
+        {fieldErrors.image_data ? <FieldMessage message={fieldErrors.image_data} /> : null}
       </div>
       <div>
         <label htmlFor="slot-contact-note" className={labelClass}>

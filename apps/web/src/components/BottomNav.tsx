@@ -15,7 +15,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Bell, ClipboardList, House, LayoutGrid, User } from 'lucide-react';
+import { Bell, ClipboardList, House, User } from 'lucide-react';
+import OpenSignIcon from './icons/OpenSignIcon';
 import { fetchNotifications } from '../lib/slots';
 import { queryKeys } from '../lib/queryKeys';
 import { useAuth } from '../store/auth';
@@ -44,12 +45,12 @@ function isActive(pathname: string, key: string): boolean {
 
 const ITEMS = [
   { key: 'home', to: '/', label: 'Home', Icon: House },
-  // Sell = the provider's own openings: a grid of their listings.
-  // Claims = the buyer's holds: a clipboard list. Both chunky at
-  // 24px, distinct from House/Bell/User (Phase 4c correction 2:
-  // LayoutGrid replaces the calendar, which read as dates rather
-  // than the provider's own slots).
-  { key: 'sell', to: '/sell', label: 'Sell', Icon: LayoutGrid },
+  // Sell = the provider's own openings: a hanging OPEN sign (custom
+  // SVG — no lucide icon reads as "your open listings"; Phase 5d
+  // correction, replacing the Phase 4c LayoutGrid grid). Claims = the
+  // buyer's holds: a clipboard list. Both chunky at 24px, distinct
+  // from House/Bell/User.
+  { key: 'sell', to: '/sell', label: 'Sell', Icon: OpenSignIcon },
   { key: 'claims', to: '/claims', label: 'Claims', Icon: ClipboardList },
   { key: 'notifications', to: '/notifications', label: 'Notifications', Icon: Bell },
   { key: 'profile', to: '/profile', label: 'Profile', Icon: User },

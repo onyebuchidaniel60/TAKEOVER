@@ -221,7 +221,7 @@ describe.skipIf(!isDatabaseConfigured())('provider dashboards (live)', () => {
     expect(typeof body.requestId).toBe('string');
     expect(body.data.claims).toHaveLength(1);
     expect(Object.keys(body.data.claims[0] ?? {}).sort()).toEqual(
-      ['buyerDisplay', 'claimed_at', 'hold_expires_at', 'id', 'quantity', 'status', 'updated_at'].sort(),
+      ['buyerAvatar', 'buyerDisplay', 'claimed_at', 'hold_expires_at', 'id', 'quantity', 'status', 'updated_at'].sort(),
     );
     expect(body.data.claims[0]?.['buyerDisplay']).toBe(truncateWalletAddress(buyerWallet));
     expect(body.data.claims[0]?.['status']).toBe('active_hold');

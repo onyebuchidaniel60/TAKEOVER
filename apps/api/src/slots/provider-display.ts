@@ -54,3 +54,43 @@ export async function loadProviderDisplay(db: Db, providerId: string): Promise<s
   }
   return display;
 }
+
+/** Provider card: display name plus avatar data URI (null when unset). */
+export interface ProviderCard {
+  display: string;
+  avatar: string | null;
+}
+
+export async function loadProviderCardMap(db: Db, providerIds: string[]): Promise<Map<string, ProviderCard>> {
+  const unique = [...new Set(providerIds)];
+  if (unique.length === 0) {
+    return new Map();
+  }
+  const userRows = await db
+    .select({ id: users.id, walletAddress: users.walletAddress, avatarData: users.avatarData })
+    .from(users)
+    .where(inArray(users.id, unique));
+  const profileRows = await db
+    .select({ userId: providerProfiles.userId, displayName: providerProfiles.displayName })
+    .from(providerProfiles)
+    .where(inArray(providerProfiles.userId, unique));
+  const names = new Map(profileRows.map((row) => [row.userId, row.displayName]));
+  const map = new Map<string, ProviderCard>();
+  for (const user of userRows) {
+    map.set(user.id, {
+      display: resolveProviderDisplay(names.get(user.id), user.walletAddress),
+      avatar: user.avatarData,
+    });
+  }
+  return map;
+}
+
+/** Single-provider card. Throws 500 when the provider row is missing (FK invariant). */
+export async function loadProviderCard(db: Db, providerId: string): Promise<ProviderCard> {
+  const map = await loadProviderCardMap(db, [providerId]);
+  const card = map.get(providerId);
+  if (card === undefined) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+  }
+  return card;
+}

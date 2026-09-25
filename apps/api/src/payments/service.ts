@@ -9,7 +9,7 @@ import { writeAuditEvent } from '../audit/events';
 import { isUniqueViolation } from '../claims/service';
 import { toClaimView, type ClaimView } from '../claims/claim-view';
 import { AppError } from '../http/errors';
-import { loadProviderDisplay } from '../slots/provider-display';
+import { loadProviderCard } from '../slots/provider-display';
 import { toPublicSlot, type PublicSlot } from '../slots/public-slot';
 import { toPaymentIntentView, type PaymentIntentView } from './intent-view';
 
@@ -112,13 +112,11 @@ export async function createPaymentIntent(
     }
     return { intentRow: intent, claimRow: claim, slotRow: slot };
   });
+  const card = await loadProviderCard(db, decided.slotRow.providerId);
   return {
     intent: toPaymentIntentView(decided.intentRow),
     claim: toClaimView(decided.claimRow),
-    slot: toPublicSlot(
-      decided.slotRow,
-      await loadProviderDisplay(db, decided.slotRow.providerId),
-    ),
+    slot: toPublicSlot(decided.slotRow, card.display, card.avatar),
   };
 }
 

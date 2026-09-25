@@ -224,6 +224,11 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): 
       .where(eq(providerProfiles.userId, user.id))
       .limit(1);
     const profile = profiles[0];
+    const userRows = await db
+      .select({ avatarData: users.avatarData })
+      .from(users)
+      .where(eq(users.id, user.id))
+      .limit(1);
     return successBody(request, {
       user: {
         id: user.id,
@@ -232,6 +237,7 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): 
         status: user.status,
         hasProviderProfile: profiles.length > 0,
         providerProfile: profile ? { displayName: profile.displayName } : null,
+        avatarData: userRows[0]?.avatarData ?? null,
       },
     });
   });

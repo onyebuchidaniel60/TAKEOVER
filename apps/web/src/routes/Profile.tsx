@@ -4,18 +4,21 @@
 // No role display (Phase 4b): any user can buy or provide, so the label
 // is meaningless — the fetch stays, only the visible line is gone.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import Avatar from '../components/Avatar';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { ApiError } from '../lib/api';
+import { prepareImage } from '../lib/image';
 import { usePageMeta } from '../lib/meta';
 import { queryKeys } from '../lib/queryKeys';
 import {
   fetchMe,
   fetchMySlots,
   truncateWalletAddress,
+  updateMeAvatar,
   updateProviderProfile,
   validateDisplayName,
   type MeUser,
@@ -79,6 +82,8 @@ export default function Profile() {
         </div>
       ) : (
         <div className="mt-4 flex flex-col gap-4">
+          <AvatarSection user={user} />
+
           <section className="rounded-xl border border-border bg-surface p-4" aria-label="Wallet">
             <p className="text-small font-medium uppercase tracking-wide text-muted">Wallet</p>
             <button
@@ -124,6 +129,98 @@ export default function Profile() {
         </div>
       )}
     </main>
+  );
+}
+
+// Profile picture (Phase 5d): 48px preview next to the display name,
+// file picker on click, client-side resize to ≤200KB before upload.
+// Success refreshes ['me'] plus every slot-scoped cache (feed cards and
+// detail pages render the provider avatar from slot projections).
+function AvatarSection({ user }: { user: MeUser }) {
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const avatar = user.avatarData ?? null;
+  const name = user.providerProfile?.displayName ?? truncateWalletAddress(user.walletAddress);
+
+  const avatarMutation = useMutation({
+    mutationFn: (avatarData: string | null) => updateMeAvatar(avatarData),
+    onSuccess: ({ avatarData }) => {
+      queryClient.setQueryData(queryKeys.me, { user: { ...user, avatarData } });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.me });
+      void queryClient.invalidateQueries({ queryKey: ['slots'] });
+      void queryClient.invalidateQueries({ queryKey: ['slot'] });
+      void queryClient.invalidateQueries({ queryKey: ['my-slots'] });
+      void queryClient.invalidateQueries({ queryKey: ['owner-slot'] });
+      setError(null);
+    },
+    onError: (err: unknown) => {
+      setError(err instanceof ApiError ? err.message : 'Something went wrong.');
+    },
+  });
+  const busy = preparing || avatarMutation.isPending;
+
+  const handleFile = (event: React.ChangeEvent<HTMLInputElement>): void => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setError(null);
+    setPreparing(true);
+    void prepareImage(file, 400)
+      .then(({ dataUrl }) => avatarMutation.mutate(dataUrl))
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Something went wrong.');
+      })
+      .finally(() => setPreparing(false));
+  };
+
+  return (
+    <section className="rounded-xl border border-border bg-surface p-4" aria-label="Profile picture">
+      <div className="flex items-center gap-3">
+        <Avatar data={avatar} name={name} size={48} />
+        <div className="min-w-0">
+          <p className="truncate text-h3 font-semibold text-text">{name}</p>
+          <div className="mt-1 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => fileRef.current?.click()}
+              className="min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50"
+            >
+              {preparing || avatarMutation.isPending
+                ? 'Uploading…'
+                : avatar
+                  ? 'Change picture'
+                  : 'Upload picture'}
+            </button>
+            {avatar ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => avatarMutation.mutate(null)}
+                className="min-h-touch rounded-lg border border-border-strong bg-surface px-4 py-2 text-body font-medium text-muted disabled:opacity-50"
+              >
+                Remove
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        aria-label="Choose a profile picture"
+        onChange={handleFile}
+      />
+      {error ? (
+        <p className="mt-2 text-body font-medium text-danger" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </section>
   );
 }
 

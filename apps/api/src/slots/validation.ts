@@ -3,6 +3,7 @@
 // tested without a database.
 import { z } from 'zod';
 import { AppError } from '../http/errors';
+import { nullableImageDataField, optionalImageDataField } from '../images/validation';
 import { serializePriceUsdt } from './price';
 
 export const slotStatusValues = ['draft', 'published', 'sold_out', 'cancelled', 'expired'] as const;
@@ -28,6 +29,10 @@ const slotFields = {
   ),
   // Upper bound is the Postgres INT4 ceiling, not a business rule.
   total_quantity: z.number().int().min(1).max(2147483647),
+  // Optional opening image (data URI, 200KB cap). Not a commercial field:
+  // accepted on create and draft-patch; published slots use the dedicated
+  // image endpoint instead (same split as the contact note).
+  image_data: optionalImageDataField,
 };
 
 // POST /slots: drafts are a scratchpad, so only shapes are validated here.
@@ -42,6 +47,7 @@ export const slotCreateSchema = z
     ends_at: slotFields.ends_at,
     price_usdt: slotFields.price_usdt,
     total_quantity: slotFields.total_quantity,
+    image_data: slotFields.image_data,
   })
   .strict();
 
@@ -105,6 +111,17 @@ export const contactNoteBodySchema = z
   .strict();
 
 export type ContactNoteInput = z.infer<typeof contactNoteBodySchema>;
+
+// Opening image set-or-clear. Free-form data URI (JPEG/PNG/WebP, 200KB
+// cap); null clears the image. Shape + size run in images/validation.ts;
+// strict here so unknown fields → 400.
+export const slotImageBodySchema = z
+  .object({
+    image_data: nullableImageDataField,
+  })
+  .strict();
+
+export type SlotImageInput = z.infer<typeof slotImageBodySchema>;
 
 export type SlotCreateInput = z.infer<typeof slotCreateSchema>;
 export type SlotPatchInput = z.infer<typeof slotPatchSchema>;

@@ -23,7 +23,7 @@ import {
   type NimiqRpcClient,
 } from '../payments/rpc';
 import { toOwnerSlot, type OwnerSlot } from './owner-slot';
-import { loadProviderDisplay, loadProviderDisplayMap } from './provider-display';
+import { loadProviderCard, loadProviderCardMap } from './provider-display';
 import { serializePriceUsdt } from './price';
 import {
   requireCancellableStatus,
@@ -94,6 +94,7 @@ export async function createSlot(
       priceUsdt: BigInt(serializePriceUsdt(input.price_usdt)),
       totalQuantity: input.total_quantity,
       availableQuantity: input.total_quantity,
+      imageData: input.image_data ?? null,
       status: 'draft',
     })
     .returning();
@@ -101,7 +102,8 @@ export async function createSlot(
   if (!row) {
     throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
   }
-  return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
+  const card = await loadProviderCard(db, row.providerId);
+  return toOwnerSlot(row, card.display, card.avatar);
 }
 
 export async function updateDraftSlot(
@@ -120,6 +122,7 @@ export async function updateDraftSlot(
   if (patch.starts_at !== undefined) values.startsAt = new Date(patch.starts_at);
   if (patch.ends_at !== undefined) values.endsAt = patch.ends_at ? new Date(patch.ends_at) : null;
   if (patch.price_usdt !== undefined) values.priceUsdt = BigInt(serializePriceUsdt(patch.price_usdt));
+  if (patch.image_data !== undefined) values.imageData = patch.image_data;
   if (patch.total_quantity !== undefined) {
     // Drafts hold no demand, so the full quantity stays available.
     values.totalQuantity = patch.total_quantity;
@@ -135,7 +138,8 @@ export async function updateDraftSlot(
   if (!row) {
     throw new AppError(409, 'SLOT_NOT_EDITABLE', 'Only draft slots can be edited.');
   }
-  return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
+  const card = await loadProviderCard(db, row.providerId);
+  return toOwnerSlot(row, card.display, card.avatar);
 }
 
 /**
@@ -192,7 +196,65 @@ export async function updateSlotContactNote(
     });
     return next;
   });
-  return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
+  const card = await loadProviderCard(db, row.providerId);
+  return toOwnerSlot(row, card.display, card.avatar);
+}
+
+/**
+ * Set or clear the opening image. The write gate is deliberately open —
+ * any status the caller owns — because the image is not a commercial
+ * field (same split as the contact note: commercial PATCH stays
+ * draft-only). Same-value re-set is a no-op (no write, no audit). The
+ * audit carries IDs only, never the image data. Input arrives
+ * API-validated (data-URI shape, 200KB cap); the service trusts the
+ * boundary per the lifecycle-layer convention.
+ */
+export async function updateSlotImage(
+  db: Db,
+  ownerId: string,
+  slotId: string,
+  imageData: string | null,
+  audit?: { requestId?: string | null },
+): Promise<OwnerSlot> {
+  const row = await db.transaction(async (tx) => {
+    const rows = await tx
+      .select()
+      .from(slots)
+      .where(and(eq(slots.id, slotId), eq(slots.providerId, ownerId)))
+      .for('update')
+      .limit(1);
+    const current = rows[0];
+    if (!current) {
+      throw new AppError(404, 'NOT_FOUND', 'Slot not found.');
+    }
+    if (current.imageData === imageData) {
+      return current;
+    }
+    const now = new Date();
+    const updated = await tx
+      .update(slots)
+      .set({ imageData, updatedAt: now })
+      .where(and(eq(slots.id, slotId), eq(slots.providerId, ownerId)))
+      .returning();
+    const next = updated[0];
+    if (!next) {
+      throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+    }
+    await writeAuditEvent(tx, {
+      actorUserId: ownerId,
+      eventType: 'slot.image_updated',
+      entityType: 'slot',
+      entityId: next.id,
+      requestId: audit?.requestId ?? null,
+      metadata: {
+        slotId: next.id,
+        hadImage: current.imageData !== null,
+      },
+    });
+    return next;
+  });
+  const card = await loadProviderCard(db, row.providerId);
+  return toOwnerSlot(row, card.display, card.avatar);
 }
 
 export interface PublishFeeOptions {
@@ -283,7 +345,8 @@ async function publishSlotUnpaid(
     });
     return row;
   });
-  return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
+  const card = await loadProviderCard(db, row.providerId);
+  return toOwnerSlot(row, card.display, card.avatar);
 }
 
 /**
@@ -326,7 +389,8 @@ async function publishSlotWithFee(
     throw new AppError(404, 'NOT_FOUND', 'Slot not found.');
   }
   if (pre.status === 'published' && pre.listingFeeTxHash === fee.hash) {
-    return toOwnerSlot(pre, await loadProviderDisplay(db, pre.providerId));
+    const card = await loadProviderCard(db, pre.providerId);
+    return toOwnerSlot(pre, card.display, card.avatar);
   }
   requireDraftForPublish(pre.status);
   const now = new Date();
@@ -479,7 +543,8 @@ async function publishSlotWithFee(
       });
       return row;
     });
-    return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
+    const card = await loadProviderCard(db, row.providerId);
+  return toOwnerSlot(row, card.display, card.avatar);
   } catch (err) {
     if (isUniqueViolation(err)) {
       throw new AppError(409, 'PAYMENT_REPLAY', 'This fee payment was already used.');
@@ -557,7 +622,8 @@ export async function cancelSlot(
     });
     return row;
   });
-  return toOwnerSlot(row, await loadProviderDisplay(db, row.providerId));
+  const card = await loadProviderCard(db, row.providerId);
+  return toOwnerSlot(row, card.display, card.avatar);
 }
 
 export interface ListOwnSlotsOptions {
@@ -583,17 +649,17 @@ export async function listOwnSlots(
     .limit(options.limit)
     .offset(options.offset);
   const totalRows = await db.select({ value: count() }).from(slots).where(where);
-  const displays = await loadProviderDisplayMap(
+  const cards = await loadProviderCardMap(
     db,
     rows.map((row) => row.providerId),
   );
   const items = rows.map((row) => {
-    const display = displays.get(row.providerId);
-    if (display === undefined) {
+    const card = cards.get(row.providerId);
+    if (card === undefined) {
       // Unreachable in practice: slots.provider_id references users.id.
       throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
     }
-    return toOwnerSlot(row, display);
+    return toOwnerSlot(row, card.display, card.avatar);
   });
   return { slots: items, total: totalRows[0]?.value ?? 0 };
 }

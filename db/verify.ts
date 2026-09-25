@@ -37,6 +37,8 @@ async function main(): Promise<void> {
     'reports.resolved_by_user_id',
     'reports.resolution_notes',
     'audit_events.request_id',
+    'users.avatar_data',
+    'slots.image_data',
   ];
   const columns = await db.execute<{ table_name: string; column_name: string }>(sql`
     SELECT table_name, column_name
