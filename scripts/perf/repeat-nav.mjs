@@ -61,8 +61,24 @@ try {
       page.click('main li a'),
     ]);
   });
-  await step('3 home (back)', () => page.goto(`${BASE}/?desktop=1`, { waitUntil: 'domcontentloaded' }));
-  await step('4 same slot (direct revisit)', () => page.goto(`${BASE}/slot/${SLOT}?desktop=1`, { waitUntil: 'domcontentloaded' }));
+  // Client-side revisit: history back (no document reload — the SPA path
+  // real users take; a memory cache CAN serve this).
+  await step('3 home (history back)', async () => {
+    await Promise.all([
+      page.waitForURL(`${BASE}/?desktop=1`, { timeout: 30000 }),
+      page.goBack(),
+    ]);
+  });
+  // Same slot again via card click (client-side navigation).
+  await step('4 same slot (card click revisit)', async () => {
+    await page.waitForSelector('main li a', { timeout: 30000 });
+    await Promise.all([
+      page.waitForURL(`**/slot/*`, { timeout: 30000 }),
+      page.click('main li a'),
+    ]);
+  });
+  // Direct URL entry: full document load (memory cache cannot span it).
+  await step('5 same slot (hard-load revisit)', () => page.goto(`${BASE}/slot/${SLOT}?desktop=1`, { waitUntil: 'domcontentloaded' }));
   await context.close();
 } finally {
   await browser.close();

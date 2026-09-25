@@ -4,7 +4,8 @@
 // round-trips (chip -> URL param -> fetch). The sell form keeps its
 // select (behavior preserved there); a pre-list custom draft value
 // stays visible as a disabled "Custom:" option and submits unchanged.
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -66,7 +67,7 @@ function categoryOptions(): { label: string; value: string }[] {
 
 describe('category filter chips', () => {
   it('renders All plus the six approved categories, none pressed when empty', () => {
-    const { unmount } = render(<SearchFilters values={emptyFilters} onChange={() => {}} onClear={() => {}} />);
+    const { unmount } = renderWithClient(<SearchFilters values={emptyFilters} onChange={() => {}} onClear={() => {}} />);
     try {
       expect(SLOT_CATEGORIES).toEqual(EXPECTED);
       expect(categoryChips()).toEqual([
@@ -81,7 +82,7 @@ describe('category filter chips', () => {
   it('emits the picked category through onChange', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    const { unmount } = render(<SearchFilters values={emptyFilters} onChange={onChange} onClear={() => {}} />);
+    const { unmount } = renderWithClient(<SearchFilters values={emptyFilters} onChange={onChange} onClear={() => {}} />);
     try {
       await user.click(screen.getByRole('button', { name: 'Event' }));
       expect(onChange).toHaveBeenCalledWith({ ...emptyFilters, category: 'Event' });
@@ -97,7 +98,7 @@ describe('category filter chips', () => {
       return { slots: [], total: 0, limit: 20, offset: 0 };
     });
     const user = userEvent.setup();
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <MemoryRouter initialEntries={['/?category=Event']}>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -123,7 +124,7 @@ describe('category filter chips', () => {
 describe('category form dropdown', () => {
   it('renders exactly the six approved options plus No category', () => {
     const onSubmit = vi.fn();
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <SlotForm
         initial={emptyForm}
         submitLabel="Save draft"
@@ -145,7 +146,7 @@ describe('category form dropdown', () => {
   it('submits the picked category', async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <SlotForm
         initial={validForm}
         submitLabel="Save draft"
@@ -168,7 +169,7 @@ describe('category form dropdown', () => {
   it('shows a pre-list custom value as disabled Custom and submits it unchanged', async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <SlotForm
         initial={{ ...validForm, category: 'dining' }}
         submitLabel="Save draft"
@@ -192,7 +193,7 @@ describe('category form dropdown', () => {
   it('lets a custom value be replaced with a list value', async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <SlotForm
         initial={{ ...validForm, category: 'dining' }}
         submitLabel="Save draft"

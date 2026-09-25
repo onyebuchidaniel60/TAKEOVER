@@ -3,7 +3,8 @@
 // Pure validator matrices live in request-bodies.test.ts; these prove the
 // wiring: invalid input blocks submit with an inline reason, valid input
 // submits, and server rejections still surface the server's reason.
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import SlotForm from '../src/components/SlotForm';
@@ -42,7 +43,7 @@ describe('SlotForm client validation', () => {
 
   it('labels the price input in USDT', async () => {
     const onSubmit = vi.fn();
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <SlotForm initial={emptyInitial} submitLabel="Save draft" submitting={false} serverError={null} onSubmit={onSubmit} />,
     );
     try {
@@ -56,7 +57,7 @@ describe('SlotForm client validation', () => {
   it('blocks submit with per-field inline errors and never calls onSubmit', async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <SlotForm initial={emptyInitial} submitLabel="Save draft" submitting={false} serverError={null} onSubmit={onSubmit} />,
     );
     try {
@@ -70,7 +71,7 @@ describe('SlotForm client validation', () => {
 
   it('flags a past start, end-before-start, zero price, zero spots', async () => {
     const onSubmit = vi.fn();
-    const { container, unmount } = render(
+    const { container, unmount } = renderWithClient(
       <SlotForm
         initial={{
           ...emptyInitial,
@@ -105,7 +106,7 @@ describe('SlotForm client validation', () => {
   it('submits valid input with the exact server body', async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <SlotForm
         initial={{
           ...emptyInitial,
@@ -142,7 +143,7 @@ describe('SlotForm client validation', () => {
     // request-bodies.test.ts.
     const onSubmit = vi.fn();
     const user = userEvent.setup();
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <SlotForm
         initial={{
           ...emptyInitial,
@@ -170,7 +171,7 @@ describe('SlotForm client validation', () => {
   });
 
   it('renders a server rejection reason when the server still says no (guardrail 7)', async () => {
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <SlotForm
         initial={emptyInitial}
         submitLabel="Save draft"
@@ -205,7 +206,7 @@ describe('DisplayNameForm client validation', () => {
       }) as typeof fetch,
     );
     const user = userEvent.setup();
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <DisplayNameForm initial="" submitLabel="Set display name" onSaved={onSaved} />,
     );
     try {
@@ -229,7 +230,7 @@ describe('DisplayNameForm client validation', () => {
     const onSaved = vi.fn();
     stubFetchJson({ providerProfile: { displayName: 'Sunrise Yoga' } });
     const user = userEvent.setup();
-    render(<DisplayNameForm initial="" submitLabel="Set display name" onSaved={onSaved} />);
+    renderWithClient(<DisplayNameForm initial="" submitLabel="Set display name" onSaved={onSaved} />);
     fireEvent.change(screen.getByLabelText(/display name/i), { target: { value: 'Sunrise Yoga' } });
     await user.click(screen.getByRole('button', { name: /set display name/i }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith('Sunrise Yoga'));

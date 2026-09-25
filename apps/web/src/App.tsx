@@ -4,8 +4,10 @@ import ErrorBoundary from './components/ErrorBoundary';
 import LoadingSkeleton from './components/LoadingSkeleton';
 import RequireAdmin from './components/RequireAdmin';
 import RequireAuth, { getReturnTo } from './components/RequireAuth';
+import { useQueryClient } from '@tanstack/react-query';
 import BottomNav from './components/BottomNav';
 import TopBar from './components/TopBar';
+import { queryKeys } from './lib/queryKeys';
 import { useDesktopGate } from './hooks/useDesktopGate';
 import { useAuth } from './store/auth';
 
@@ -211,10 +213,16 @@ function Shell() {
 
 export default function App() {
   const refresh = useAuth((s) => s.refresh);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    // The zustand auth flow stays authoritative for gates; on success the
+    // user row also seeds the ['me'] query cache so first paints that read
+    // it (Profile) render instantly instead of refetching.
+    void refresh().then((user) => {
+      if (user) queryClient.setQueryData(queryKeys.me, { user });
+    });
+  }, [refresh, queryClient]);
 
   const gate = useDesktopGate();
   if (gate !== 'in-app') {

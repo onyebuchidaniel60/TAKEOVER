@@ -2,7 +2,8 @@
 // Owner claim-button gate: the viewer who provides the slot sees no claim
 // action — just "This is your opening." Non-owners see the ClaimButton as
 // before; an ownership-probe failure fails open (backend stays authoritative).
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, screen, waitFor } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import SlotDetailPage from '../src/routes/SlotDetailPage';
@@ -62,7 +63,7 @@ function authAsBuyer(): void {
 }
 
 function renderDetail(): void {
-  render(
+  renderWithClient(
     <MemoryRouter initialEntries={['/slot/slot-1']}>
       <Routes>
         <Route path="/slot/:slotId" element={<SlotDetailPage />} />

@@ -1,6 +1,8 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { MapPin } from 'lucide-react';
-import type { PublicSlot } from '../lib/slots';
+import { fetchSlot, type PublicSlot } from '../lib/slots';
+import { queryKeys } from '../lib/queryKeys';
 import AvailabilityBadge from './AvailabilityBadge';
 import CategoryIcon from './CategoryIcon';
 import PriceDisplay from './PriceDisplay';
@@ -11,10 +13,23 @@ import TimeBadge from './TimeBadge';
 // is scale(0.99). Category identity rides the icon chip (D5); title in
 // h2; time + location meta; price left, availability right — every
 // figure in mono + tabular-nums.
+//
+// Hover/touch-start prefetches the detail query so the slot page often
+// opens on warm cache. Visuals and navigation are untouched.
 export default function SlotCard({ slot }: { slot: PublicSlot }) {
+  const queryClient = useQueryClient();
+  const prefetch = (): void => {
+    void queryClient.prefetchQuery({
+      queryKey: queryKeys.slot(slot.id),
+      queryFn: () => fetchSlot(slot.id).then((r) => r.slot),
+      staleTime: 30_000,
+    });
+  };
   return (
     <Link
       to={`/slot/${slot.id}`}
+      onMouseEnter={prefetch}
+      onPointerDown={prefetch}
       className="block rounded-card border border-border bg-surface p-4 transition-transform duration-press ease-out-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.99] motion-reduce:transition-none"
     >
       <div className="flex items-start gap-3">

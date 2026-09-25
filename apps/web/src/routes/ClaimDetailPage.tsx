@@ -4,6 +4,7 @@
 // USDT escrow buyer loop replaces the deprecated direct-payment
 // panel for escrow-active states; legacy payment_pending/review branches stay
 // until zero legacy rows remain (§5 deprecation gates).
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import CategoryIcon from '../components/CategoryIcon';
@@ -17,6 +18,7 @@ import PriceDisplay from '../components/PriceDisplay';
 import TimeBadge from '../components/TimeBadge';
 import { ApiError } from '../lib/api';
 import { usePageMeta } from '../lib/meta';
+import { queryKeys } from '../lib/queryKeys';
 import {
   createPaymentIntent,
   fetchClaim,
@@ -36,37 +38,34 @@ type State =
 export default function ClaimDetailPage() {
   usePageMeta({ title: 'Claim — TAKEOVER' });
   const { claimId } = useParams<{ claimId: string }>();
-  const [state, setState] = useState<State>({ kind: 'loading' });
-  const [retryKey, setRetryKey] = useState(0);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    let cancelled = false;
-    setState({ kind: 'loading' });
-    if (!claimId) {
-      setState({ kind: 'not-found' });
-      return;
-    }
-    void fetchClaim(claimId)
-      .then(({ claim, slot }) => {
-        if (!cancelled) setState({ kind: 'ready', claim, slot });
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        if (err instanceof ApiError && (err.status === 404 || err.code === 'CLAIM_NOT_FOUND')) {
-          setState({ kind: 'not-found' });
-          return;
-        }
-        setState({
-          kind: 'error',
-          message: err instanceof ApiError ? err.message : 'Something went wrong.',
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [claimId, retryKey]);
+  const claimQuery = useQuery({
+    queryKey: queryKeys.claim(claimId ?? ''),
+    queryFn: () => fetchClaim(claimId ?? '').then((r) => ({ claim: r.claim, slot: r.slot })),
+    enabled: !!claimId,
+  });
+  const pair = claimQuery.data ?? null;
+  const queryError = claimQuery.error;
+  const state: State =
+    !claimId ||
+    (queryError instanceof ApiError && (queryError.status === 404 || queryError.code === 'CLAIM_NOT_FOUND'))
+      ? { kind: 'not-found' }
+      : queryError
+        ? {
+            kind: 'error',
+            message: queryError instanceof ApiError ? queryError.message : 'Something went wrong.',
+          }
+        : pair === null
+          ? { kind: 'loading' }
+          : { kind: 'ready', claim: pair.claim, slot: pair.slot };
 
-  const refresh = (): void => setRetryKey((k) => k + 1);
+  // State changes from panels and poll boxes (funded, released,
+  // disputed…) arrive here as invalidations: the cached claim refetches
+  // and the panel switches without a skeleton flash.
+  const refresh = (): void => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.claim(claimId ?? '') });
+  };
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
@@ -77,7 +76,7 @@ export default function ClaimDetailPage() {
         {state.kind === 'loading' ? (
           <LoadingSkeleton rows={1} />
         ) : state.kind === 'error' ? (
-          <ErrorState message={state.message} onRetry={refresh} />
+          <ErrorState message={state.message} onRetry={() => void claimQuery.refetch()} />
         ) : state.kind === 'not-found' ? (
           <EmptyState
             title="Hold not found"

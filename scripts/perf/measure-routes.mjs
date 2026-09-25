@@ -11,6 +11,10 @@
 //
 // Viewport is a 390px phone (the product surface): no desktop gate,
 // no bypass param, no filter-param side effects.
+//
+// Browser-context globals used inside page.evaluate() callbacks —
+// those functions execute in Chromium, not Node.
+/* global document */
 import { chromium } from 'playwright';
 
 function arg(name, fallback) {

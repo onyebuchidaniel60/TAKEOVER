@@ -3,7 +3,8 @@
 // states, both gate variants, and App mounting. jsdom has no
 // matchMedia, so these exercise the resize-fallback path; real
 // browsers use matchMedia (same verdict function).
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, screen, waitFor } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
 import DesktopGate from '../src/components/DesktopGate';
@@ -41,7 +42,7 @@ function Probe() {
 describe('useDesktopGate', () => {
   it('shows the app first, then gates a wide provider-less viewport', async () => {
     setWidth(1280);
-    render(<Probe />);
+    renderWithClient(<Probe />);
     // First render never gates (the provider may arrive late).
     expect(screen.getByTestId('gate-state').textContent).toBe('in-app');
     await waitFor(
@@ -52,7 +53,7 @@ describe('useDesktopGate', () => {
 
   it('gates a narrow provider-less viewport with the mobile variant', async () => {
     setWidth(375);
-    render(<Probe />);
+    renderWithClient(<Probe />);
     await waitFor(
       () => expect(screen.getByTestId('gate-state').textContent).toBe('mobile-gate'),
       { timeout: 3000 },
@@ -62,7 +63,7 @@ describe('useDesktopGate', () => {
   it('shows the app when the provider exists, even when wide', async () => {
     setWidth(1440);
     (window as unknown as { nimiq?: unknown }).nimiq = {};
-    render(<Probe />);
+    renderWithClient(<Probe />);
     await waitFor(
       () => expect(screen.getByTestId('gate-state').textContent).toBe('in-app'),
       { timeout: 3000 },
@@ -72,7 +73,7 @@ describe('useDesktopGate', () => {
   it('honors the ?desktop=1 bypass on a wide viewport', async () => {
     setWidth(1280);
     setUrl('/?desktop=1');
-    render(<Probe />);
+    renderWithClient(<Probe />);
     await new Promise((r) => setTimeout(r, 700));
     expect(screen.getByTestId('gate-state').textContent).toBe('in-app');
   });
@@ -81,7 +82,7 @@ describe('useDesktopGate', () => {
 describe('DesktopGate desktop variant', () => {
   it('explains Nimiq Pay with QR, manual URL, download, and footer', async () => {
     setUrl('/slot/slot-1');
-    render(<DesktopGate variant="desktop-gate" />);
+    renderWithClient(<DesktopGate variant="desktop-gate" />);
     expect(await screen.findByText('Mobile only')).toBeTruthy();
     expect(screen.getByRole('heading', { name: /TAKEOVER runs inside Nimiq Pay/i })).toBeTruthy();
     expect(screen.getByText(/mobile wallet for Nimiq/i)).toBeTruthy();
@@ -98,7 +99,7 @@ describe('DesktopGate desktop variant', () => {
 
   it('has no critical/serious axe violations', async () => {
     setUrl('/');
-    const { container } = render(<DesktopGate variant="desktop-gate" />);
+    const { container } = renderWithClient(<DesktopGate variant="desktop-gate" />);
     await screen.findByRole('heading', { name: /TAKEOVER runs inside Nimiq Pay/i });
     const triage = await runAxe(container);
     assertZeroCriticalOrSerious(triage, 'desktop gate');
@@ -108,7 +109,7 @@ describe('DesktopGate desktop variant', () => {
 describe('DesktopGate mobile variant', () => {
   it('swaps the QR for an Open-in-Nimiq-Pay deeplink CTA', async () => {
     setUrl('/slot/slot-1');
-    const { container } = render(<DesktopGate variant="mobile-gate" />);
+    const { container } = renderWithClient(<DesktopGate variant="mobile-gate" />);
     expect(await screen.findByRole('heading', { name: /TAKEOVER runs inside Nimiq Pay/i })).toBeTruthy();
     const cta = screen.getByRole('link', { name: /open in nimiq pay/i });
     expect(cta.getAttribute('href')).toBe(`nimiqpay://miniapp?url=${window.location.host}`);
@@ -124,7 +125,7 @@ describe('DesktopGate mobile variant', () => {
 
   it('has no critical/serious axe violations', async () => {
     setUrl('/');
-    const { container } = render(<DesktopGate variant="mobile-gate" />);
+    const { container } = renderWithClient(<DesktopGate variant="mobile-gate" />);
     await screen.findByRole('link', { name: /open in nimiq pay/i });
     const triage = await runAxe(container);
     assertZeroCriticalOrSerious(triage, 'mobile gate');
@@ -136,7 +137,7 @@ describe('App gate mounting', () => {
     setGuest();
     setWidth(1280);
     mockFetch(() => ({ slots: [], total: 0, limit: 12, offset: 0 }));
-    render(<App />);
+    renderWithClient(<App />);
     await waitFor(
       () => expect(screen.queryByRole('heading', { name: /TAKEOVER runs inside Nimiq Pay/i })).toBeTruthy(),
       { timeout: 3000 },
@@ -149,7 +150,7 @@ describe('App gate mounting', () => {
     setWidth(1280);
     setUrl('/?desktop=1');
     mockFetch(() => ({ slots: [], total: 0, limit: 12, offset: 0 }));
-    render(<App />);
+    renderWithClient(<App />);
     // Generous wait: the Home route chunk loads asynchronously.
     await screen.findByText(/nothing available right now/i, undefined, { timeout: 5000 });
     expect(screen.queryByRole('heading', { name: /TAKEOVER runs inside Nimiq Pay/i })).toBeNull();
@@ -159,7 +160,7 @@ describe('App gate mounting', () => {
     setGuest();
     setWidth(375);
     mockFetch(() => ({ slots: [], total: 0, limit: 12, offset: 0 }));
-    render(<App />);
+    renderWithClient(<App />);
     await waitFor(
       () => expect(screen.queryByRole('link', { name: /open in nimiq pay/i })).toBeTruthy(),
       { timeout: 3000 },

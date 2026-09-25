@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // error boundaries: a throwing child renders the branded fallback
 // with a working reload action; nothing raw ever reaches the screen.
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import ErrorBoundary from '../src/components/ErrorBoundary';
@@ -18,7 +19,7 @@ describe('ErrorBoundary', () => {
   it('renders the branded fallback with a reload button', () => {
     const silence = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
-      render(
+      renderWithClient(
         <ErrorBoundary section="Test section" onReload={() => {}}>
           <Exploding />
         </ErrorBoundary>,
@@ -36,7 +37,7 @@ describe('ErrorBoundary', () => {
     const silence = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
       const onReload = vi.fn();
-      render(
+      renderWithClient(
         <ErrorBoundary section="Test section" onReload={onReload}>
           <Exploding />
         </ErrorBoundary>,
@@ -49,7 +50,7 @@ describe('ErrorBoundary', () => {
   });
 
   it('passes children through when nothing throws', () => {
-    render(
+    renderWithClient(
       <ErrorBoundary section="Test section" onReload={() => {}}>
         <p>healthy content</p>
       </ErrorBoundary>,

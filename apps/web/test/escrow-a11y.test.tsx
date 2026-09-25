@@ -4,7 +4,8 @@
 // a11y-routes). Follows the a11y-helpers harness (mockFetch, fixtures).
 // Interactive checks: every control named, validation announced via
 // role=alert, busy/disabled states exposed as text, tab order sane.
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import ConfirmReceiptBox from '../src/components/ConfirmReceiptBox';
@@ -144,7 +145,7 @@ describe('EscrowPanel across all 8 escrow states', () => {
         }
         throw new Error('unexpected fetch: ' + url);
       });
-      const { container } = render(
+      const { container } = renderWithClient(
         <EscrowPanel claim={escrowClaim() as never} onUpdate={() => {}} />,
       );
       // Settles past the loading state into the status branch.
@@ -163,7 +164,7 @@ describe('EscrowPanel across all 8 escrow states', () => {
       }
       throw new Error('unexpected fetch: ' + url);
     });
-    const { container } = render(
+    const { container } = renderWithClient(
       <EscrowPanel claim={escrowClaim() as never} onUpdate={() => {}} />,
     );
     expect(await screen.findByText('Provider contact')).toBeDefined();
@@ -181,7 +182,7 @@ describe('VerifyDepositBox', () => {
       }
       throw new Error('unexpected fetch: ' + url);
     });
-    const { container } = render(<VerifyDepositBox claimId={CLAIM_ID} onFunded={() => {}} />);
+    const { container } = renderWithClient(<VerifyDepositBox claimId={CLAIM_ID} onFunded={() => {}} />);
     expect(await screen.findByText('Confirming payment…')).toBeDefined();
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     await checkAxe('verify-deposit-box-pending', container);
@@ -195,7 +196,7 @@ describe('VerifyDepositBox', () => {
       }
       throw new Error('unexpected fetch: ' + url);
     });
-    const { container } = render(<VerifyDepositBox claimId={CLAIM_ID} onFunded={() => {}} />);
+    const { container } = renderWithClient(<VerifyDepositBox claimId={CLAIM_ID} onFunded={() => {}} />);
     expect(await screen.findByText("We couldn't confirm your payment. Try again.")).toBeDefined();
     expect(screen.getByText(/do not pay again/)).toBeDefined();
     const manual = screen.getByRole('button', { name: 'Try again' });
@@ -212,7 +213,7 @@ describe('ConfirmReceiptBox', () => {
   it('labels confirm + dispute actions and keeps both keyboard-focusable', async () => {
     setBuyer();
     stubApi(() => { throw new Error('unexpected fetch'); });
-    const { container } = render(
+    const { container } = renderWithClient(
       <ConfirmReceiptBox claimId={CLAIM_ID} escrow={deliveredEscrow() as never} onUpdate={() => {}} />,
     );
     const confirm = await screen.findByRole('button', { name: 'Confirm receipt' });
@@ -237,7 +238,7 @@ describe('ConfirmReceiptBox', () => {
       }
       throw new Error('unexpected fetch: ' + url);
     });
-    const { container } = render(
+    const { container } = renderWithClient(
       <ConfirmReceiptBox claimId={CLAIM_ID} escrow={deliveredEscrow() as never} onUpdate={() => {}} />,
     );
     const user = userEvent.setup();
@@ -259,7 +260,7 @@ describe('ConfirmReceiptBox', () => {
       }
       throw new Error('unexpected fetch: ' + url);
     });
-    render(
+    renderWithClient(
       <ConfirmReceiptBox claimId={CLAIM_ID} escrow={deliveredEscrow() as never} onUpdate={() => {}} />,
     );
     const user = userEvent.setup();
@@ -275,7 +276,7 @@ describe('MarkDeliveredForm', () => {
   it('associates the address label and announces validation via role=alert', async () => {
     setBuyer();
     stubApi(() => { throw new Error('unexpected fetch'); });
-    const { container } = render(<MarkDeliveredForm claimId={CLAIM_ID} onDelivered={() => {}} />);
+    const { container } = renderWithClient(<MarkDeliveredForm claimId={CLAIM_ID} onDelivered={() => {}} />);
     const input = screen.getByLabelText('Provider payout address (Polygon)');
     expect(input instanceof HTMLInputElement).toBe(true);
     const user = userEvent.setup();
@@ -291,7 +292,7 @@ describe('SlotForm contact note field', () => {
   it('labels the textarea, announces the char count, and alerts on links', async () => {
     setBuyer();
     stubApi(() => { throw new Error('unexpected fetch'); });
-    const { container } = render(
+    const { container } = renderWithClient(
       <SlotForm
         initial={{ ...initialValues(), title: 'T', starts_at: '2030-01-01T10:00', price: '1', total_quantity: '1' }}
         submitLabel="Save draft"
@@ -316,7 +317,7 @@ describe('SlotForm contact note field', () => {
   it('locks commercial fields but keeps the note editable in locked mode', async () => {
     setBuyer();
     stubApi(() => { throw new Error('unexpected fetch'); });
-    const { container } = render(
+    const { container } = renderWithClient(
       <SlotForm
         initial={{ ...initialValues(), title: 'T', starts_at: '2030-01-01T10:00', price: '1', total_quantity: '1' }}
         submitLabel="Save note"
@@ -335,7 +336,7 @@ describe('SlotForm contact note field', () => {
 
 describe('PublishButton fee states', () => {
   it('keeps an accessible name in every fee label state, including disabled', async () => {
-    const { container, rerender } = render(<PublishButton onPublish={() => {}} publishing={false} />);
+    const { container, rerender } = renderWithClient(<PublishButton onPublish={() => {}} publishing={false} />);
     expect(screen.getByRole('button', { name: 'Publish' })).toBeDefined();
     rerender(
       <PublishButton onPublish={() => {}} publishing={false} label="Approve payment & publish" />,

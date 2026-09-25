@@ -3,13 +3,15 @@
 // SDK usage here — display and form state only, server stays authoritative.
 // No role display (Phase 4b): any user can buy or provide, so the label
 // is meaningless — the fetch stays, only the visible line is gone.
-import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { ApiError } from '../lib/api';
 import { usePageMeta } from '../lib/meta';
+import { queryKeys } from '../lib/queryKeys';
 import {
   fetchMe,
   fetchMySlots,
@@ -23,33 +25,29 @@ import { useAuth } from '../store/auth';
 export default function Profile() {
   usePageMeta({ title: 'Profile — TAKEOVER' });
   const logout = useAuth((s) => s.logout);
-  const [user, setUser] = useState<MeUser | null>(null);
-  const [hasSlots, setHasSlots] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
+  const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    void Promise.all([fetchMe(), fetchMySlots({ limit: 1 })])
-      .then(([me, mine]) => {
-        if (cancelled) return;
-        setUser(me.user);
-        setHasSlots(mine.total > 0);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : 'Something went wrong.');
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [retryKey]);
+  // The ['me'] entry is usually pre-seeded by the App refresh; the
+  // existence probe stays its own tiny query.
+  const meQuery = useQuery({ queryKey: queryKeys.me, queryFn: fetchMe });
+  const slotsQuery = useQuery({
+    queryKey: queryKeys.mySlots('profile-check'),
+    queryFn: () => fetchMySlots({ limit: 1 }),
+  });
+  const user: MeUser | null = meQuery.data?.user ?? null;
+  const hasSlots = (slotsQuery.data?.total ?? 0) > 0;
+  const loading = meQuery.isPending || slotsQuery.isPending;
+  const firstError = meQuery.error ?? slotsQuery.error;
+  const error = firstError
+    ? firstError instanceof ApiError
+      ? firstError.message
+      : 'Something went wrong.'
+    : null;
+
+  const setUser = (next: MeUser | null): void => {
+    if (next) queryClient.setQueryData(queryKeys.me, { user: next });
+  };
 
   const handleCopy = (): void => {
     if (!user) return;
@@ -71,7 +69,13 @@ export default function Profile() {
         </div>
       ) : error || !user ? (
         <div className="mt-4">
-          <ErrorState message={error ?? 'Something went wrong.'} onRetry={() => setRetryKey((k) => k + 1)} />
+          <ErrorState
+            message={error ?? 'Something went wrong.'}
+            onRetry={() => {
+              void meQuery.refetch();
+              void slotsQuery.refetch();
+            }}
+          />
         </div>
       ) : (
         <div className="mt-4 flex flex-col gap-4">
@@ -179,8 +183,23 @@ export function DisplayNameForm({
   onSaved: (displayName: string) => void;
 }) {
   const [value, setValue] = useState(initial);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  // Display-name save: on success the parent refreshes its user row and
+  // the ['me'] cache is invalidated so every consumer agrees.
+  const saveMutation = useMutation({
+    mutationFn: (displayName: string) => updateProviderProfile(displayName),
+    onSuccess: ({ providerProfile }) => {
+      onSaved(providerProfile.displayName);
+      setValue('');
+      void queryClient.invalidateQueries({ queryKey: queryKeys.me });
+    },
+    onError: (err: unknown) => {
+      setError(err instanceof ApiError ? err.message : 'Something went wrong.');
+    },
+  });
+  const saving = saveMutation.isPending;
 
   const handleSubmit = (event: React.FormEvent): void => {
     event.preventDefault();
@@ -193,17 +212,7 @@ export function DisplayNameForm({
       return;
     }
     setError(null);
-    setSaving(true);
-    void updateProviderProfile(value)
-      .then(({ providerProfile }) => {
-        onSaved(providerProfile.displayName);
-        setValue('');
-        setSaving(false);
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof ApiError ? err.message : 'Something went wrong.');
-        setSaving(false);
-      });
+    saveMutation.mutate(value);
   };
 
   return (

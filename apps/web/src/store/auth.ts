@@ -26,7 +26,8 @@ interface AuthState {
   initialized: boolean;
   login: () => Promise<void>;
   logout: () => Promise<void>;
-  refresh: () => Promise<void>;
+  /** Re-reads the session; resolves the user (or null) for cache seeding. */
+  refresh: () => Promise<AuthUser | null>;
 }
 
 function messageOf(err: unknown): string {
@@ -86,8 +87,10 @@ export const useAuth = create<AuthState>()((set) => ({
     try {
       const me = await apiFetch<{ user: AuthUser }>('/api/v1/me');
       set({ status: 'authenticated', user: me.user, error: null, initialized: true });
+      return me.user;
     } catch {
       set({ status: 'unauthenticated', user: null, error: null, initialized: true });
+      return null;
     }
   },
 }));

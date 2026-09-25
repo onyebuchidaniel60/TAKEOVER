@@ -1,6 +1,7 @@
 // Buyer report dialog (opened from the slot detail page). Reports
 // never notify the reported party and trigger no automatic action — an admin
 // reviews them later.
+import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError } from '../lib/api';
 import { createReport, REPORT_REASON_LABELS, REPORT_REASONS, type ReportReason } from '../lib/admin';
@@ -18,25 +19,31 @@ export default function ReportDialog({
   const [reason, setReason] = useState<ReportReason>('misleading_listing');
   const [details, setDetails] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const panelRef = useDialogFocus<HTMLDivElement>(true, onClose);
+
+  // Reports land in the admin queue (manual reads, uncached) — no
+  // invalidation needed; the mutation wrapper keeps the busy/error
+  // states uniform with every other user action.
+  const reportMutation = useMutation({
+    mutationFn: (input: { reason: ReportReason; details?: string }) =>
+      createReport({ slotId, reason: input.reason, details: input.details }),
+    onSuccess: () => {
+      onReported();
+      onClose();
+    },
+    onError: (err: unknown) => {
+      setError(err instanceof ApiError ? err.message : 'Something went wrong.');
+    },
+  });
+  const busy = reportMutation.isPending;
 
   async function handleSubmit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
     setError(null);
-    setBusy(true);
-    try {
-      await createReport({
-        slotId,
-        reason,
-        details: details.trim() ? details.trim() : undefined,
-      });
-      onReported();
-      onClose();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Something went wrong.');
-      setBusy(false);
-    }
+    reportMutation.mutate({
+      reason,
+      details: details.trim() ? details.trim() : undefined,
+    });
   }
 
   return (

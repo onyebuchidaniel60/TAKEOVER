@@ -1,7 +1,8 @@
 // Provider's own openings in every status, plus entry to creation.
 // Summary tiles plus per-card demand counts (single source: the
 // same /me/slots endpoint for tiles; the provider claims endpoint for counts).
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
@@ -9,50 +10,46 @@ import LoadingSkeleton from '../components/LoadingSkeleton';
 import StatusBadge from '../components/StatusBadge';
 import { ApiError } from '../lib/api';
 import { usePageMeta } from '../lib/meta';
-import { fetchMySlots, fetchSlotClaims, type OwnerSlot } from '../lib/slots';
+import { queryKeys } from '../lib/queryKeys';
+import { fetchMySlots, fetchSlotClaims } from '../lib/slots';
 
 const FILTERS = ['', 'draft', 'published', 'cancelled'] as const;
 
 export default function Sell() {
   usePageMeta({ title: 'My openings — TAKEOVER' });
-  const [slots, setSlots] = useState<OwnerSlot[]>([]);
-  const [total, setTotal] = useState(0);
-  const [tiles, setTiles] = useState({ active: 0, drafts: 0, soldOut: 0 });
   const [status, setStatus] = useState<(typeof FILTERS)[number]>('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    void Promise.all([
-      fetchMySlots({ status: status || undefined, limit: 50 }),
-      fetchMySlots({ limit: 50 }),
-    ])
-      .then(([filtered, all]) => {
-        if (cancelled) return;
-        setSlots(filtered.slots);
-        setTotal(filtered.total);
-        // Tiles count live supply by lifecycle state (Active = published;
-        // sold-out gets its own tile instead of double-counting).
-        setTiles({
-          active: all.slots.filter((s) => s.status === 'published').length,
-          drafts: all.slots.filter((s) => s.status === 'draft').length,
-          soldOut: all.slots.filter((s) => s.status === 'sold_out').length,
-        });
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : 'Something went wrong.');
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [status, retryKey]);
+  // List query (server-filtered) plus the tiles query (unfiltered). When
+  // no filter is active both read the same cache entry — the old code
+  // fired the identical request twice.
+  const listQuery = useQuery({
+    queryKey: queryKeys.mySlots(status),
+    queryFn: () => fetchMySlots({ status: status || undefined, limit: 50 }),
+  });
+  const showAll = status === '';
+  const tilesQuery = useQuery({
+    queryKey: queryKeys.mySlots('all'),
+    queryFn: () => fetchMySlots({ limit: 50 }),
+    enabled: !showAll,
+  });
+  const list = listQuery.data;
+  const all = showAll ? listQuery.data : tilesQuery.data;
+  const slots = list?.slots ?? [];
+  const total = list?.total ?? 0;
+  // Tiles count live supply by lifecycle state (Active = published;
+  // sold-out gets its own tile instead of double-counting).
+  const tiles = {
+    active: (all?.slots ?? []).filter((s) => s.status === 'published').length,
+    drafts: (all?.slots ?? []).filter((s) => s.status === 'draft').length,
+    soldOut: (all?.slots ?? []).filter((s) => s.status === 'sold_out').length,
+  };
+  const loading = listQuery.isPending || (!showAll && tilesQuery.isPending);
+  const firstError = listQuery.error ?? (!showAll ? tilesQuery.error : null);
+  const error = firstError
+    ? firstError instanceof ApiError
+      ? firstError.message
+      : 'Something went wrong.'
+    : null;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
@@ -96,7 +93,13 @@ export default function Sell() {
         {loading ? (
           <LoadingSkeleton />
         ) : error ? (
-          <ErrorState message={error} onRetry={() => setRetryKey((k) => k + 1)} />
+          <ErrorState
+            message={error}
+            onRetry={() => {
+              void listQuery.refetch();
+              if (!showAll) void tilesQuery.refetch();
+            }}
+          />
         ) : slots.length === 0 ? (
           <EmptyState
             title="No openings yet"
@@ -155,21 +158,11 @@ function Tile({ label, value }: { label: string; value: number }) {
 // Demand line per card, shown only when at least one hold exists. Counts come
 // from the provider claims endpoint — the same source as the counts it shows.
 function SlotClaimCount({ slotId }: { slotId: string }) {
-  const [count, setCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetchSlotClaims(slotId)
-      .then(({ claims }) => {
-        if (!cancelled) setCount(claims.length);
-      })
-      .catch(() => {
-        if (!cancelled) setCount(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [slotId]);
+  const countsQuery = useQuery({
+    queryKey: queryKeys.slotClaims(slotId),
+    queryFn: () => fetchSlotClaims(slotId),
+  });
+  const count = countsQuery.data ? countsQuery.data.claims.length : null;
 
   if (count === null || count === 0) {
     return null;

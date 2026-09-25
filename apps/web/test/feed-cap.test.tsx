@@ -1,9 +1,10 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 // Homepage 12-cap (Phase 4b correction 4): Home fetches limit=12 and,
 // when more exist, links to /openings (filters preserved) instead of
 // paging in place. /openings renders the same feed uncapped with the
 // show-more button.
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, screen, waitFor } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -41,7 +42,7 @@ describe('homepage feed cap', () => {
   it('fetches 12 and links to /openings when more exist', { timeout: 10000 }, async () => {
     setGuest();
     const { seen } = stubPaged(twentyFive());
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/']}>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -59,7 +60,7 @@ describe('homepage feed cap', () => {
   it('carries active filters into the /openings link', { timeout: 10000 }, async () => {
     setGuest();
     stubPaged(twentyFive());
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/?category=Event']}>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -73,7 +74,7 @@ describe('homepage feed cap', () => {
   it('shows neither see-all nor show-more when everything fits', { timeout: 10000 }, async () => {
     setGuest();
     stubPaged(twentyFive().slice(0, 8));
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/']}>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -92,7 +93,7 @@ describe('/openings full list', () => {
     setGuest();
     const { seen } = stubPaged(twentyFive());
     const user = userEvent.setup();
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/openings']}>
         <Routes>
           <Route path="/openings" element={<Openings />} />

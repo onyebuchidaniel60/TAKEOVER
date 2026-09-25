@@ -4,8 +4,10 @@
 // stored lowercased and immutably). Idempotent resubmits of the same address
 // are 200 no-ops; a different address is 409 CONFLICT (immutable after the
 // first success — surfaced as support copy, never auto-corrected).
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError, markDelivered } from '../lib/escrow';
+import { queryKeys } from '../lib/queryKeys';
 
 function isEvmAddress(value: string): boolean {
   return /^0[xX][0-9a-fA-F]{40}$/.test(value.trim());
@@ -19,9 +21,33 @@ export default function MarkDeliveredForm({
   onDelivered: () => void;
 }) {
   const [address, setAddress] = useState('');
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Delivery flips claim + escrow states: invalidate both plus the
+  // provider demand list (counts change). The parent refresh covers
+  // the list; invalidations cover every cache.
+  const deliverMutation = useMutation({
+    mutationFn: (payoutAddress: string) => markDelivered(claimId, payoutAddress),
+    onSuccess: () => {
+      setDone(true);
+      onDelivered();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.escrow(claimId) });
+      void queryClient.invalidateQueries({ queryKey: ['slot-claims'] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.claim(claimId) });
+    },
+    onError: (err: unknown) => {
+      if (err instanceof ApiError && err.code === 'CONFLICT') {
+        setError(
+          'This escrow already has a different payout address recorded. Payout addresses can’t be changed after delivery — contact support if this is wrong.',
+        );
+      } else {
+        setError(err instanceof ApiError ? err.message : 'Something went wrong.');
+      }
+    },
+  });
+  const busy = deliverMutation.isPending;
 
   const submit = (): void => {
     const trimmed = address.trim();
@@ -30,22 +56,7 @@ export default function MarkDeliveredForm({
       return;
     }
     setError(null);
-    setBusy(true);
-    void markDelivered(claimId, trimmed)
-      .then(() => {
-        setDone(true);
-        onDelivered();
-      })
-      .catch((err: unknown) => {
-        if (err instanceof ApiError && err.code === 'CONFLICT') {
-          setError(
-            'This escrow already has a different payout address recorded. Payout addresses can’t be changed after delivery — contact support if this is wrong.',
-          );
-        } else {
-          setError(err instanceof ApiError ? err.message : 'Something went wrong.');
-        }
-      })
-      .finally(() => setBusy(false));
+    deliverMutation.mutate(trimmed);
   };
 
   if (done) {

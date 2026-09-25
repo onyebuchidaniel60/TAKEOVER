@@ -2,7 +2,8 @@
 // keyboard + focus tests: semantic controls everywhere, Enter
 // activates, Escape closes every dialog, focus traps inside dialogs and
 // returns to the trigger on close.
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
@@ -53,7 +54,7 @@ describe('semantic interactive elements', () => {
       }
       return undefined;
     });
-    const { container } = render(
+    const { container } = renderWithClient(
       <MemoryRouter initialEntries={['/']}>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -77,7 +78,7 @@ describe('semantic interactive elements', () => {
     const SellNew = (await import('../src/routes/SellNew')).default;
     setBuyer();
     mockFetch(() => undefined);
-    const { container } = render(
+    const { container } = renderWithClient(
       <MemoryRouter initialEntries={['/sell/new']}>
         <Routes>
           <Route path="/sell/new" element={<SellNew />} />
@@ -109,7 +110,7 @@ describe('keyboard activation', () => {
       return undefined;
     });
     const user = userEvent.setup();
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/slot/slot-1']}>
         <Routes>
           <Route path="/slot/:slotId" element={<SlotDetailPage />} />
@@ -131,7 +132,7 @@ describe('keyboard activation', () => {
       return undefined;
     });
     const user = userEvent.setup();
-    const { container } = render(
+    const { container } = renderWithClient(
       <MemoryRouter initialEntries={['/slot/slot-1']}>
         <Routes>
           <Route path="/slot/:slotId" element={<SlotDetailPage />} />
@@ -163,7 +164,7 @@ describe('dialog focus management', () => {
       return undefined;
     });
     const user = userEvent.setup();
-    const { container } = render(
+    const { container } = renderWithClient(
       <MemoryRouter initialEntries={['/slot/slot-1']}>
         <Routes>
           <Route path="/slot/:slotId" element={<SlotDetailPage />} />
@@ -182,7 +183,7 @@ describe('dialog focus management', () => {
   it('Tab cycles inside the report dialog instead of escaping it', async () => {
     setBuyer();
     const user = userEvent.setup();
-    render(<ReportDialog slotId="slot-1" onClose={() => {}} onReported={() => {}} />);
+    renderWithClient(<ReportDialog slotId="slot-1" onClose={() => {}} onReported={() => {}} />);
     const dialog = await screen.findByRole('dialog', { name: /report this opening/i });
     const controls = [...dialog.querySelectorAll('select, textarea, button')];
     expect(controls.length).toBe(4);
@@ -207,7 +208,7 @@ describe('dialog focus management', () => {
       return undefined;
     });
     const user = userEvent.setup();
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/sell/slot-1']}>
         <Routes>
           <Route path="/sell/:slotId" element={<SellDetail />} />
@@ -227,7 +228,7 @@ describe('dialog focus management', () => {
   it('standalone CancelConfirmDialog traps focus and closes on Escape', async () => {
     const user = userEvent.setup();
     let dismissed = 0;
-    render(<CancelConfirmDialog onConfirm={() => {}} onDismiss={() => { dismissed += 1; }} cancelling={false} />);
+    renderWithClient(<CancelConfirmDialog onConfirm={() => {}} onDismiss={() => { dismissed += 1; }} cancelling={false} />);
     const dialog = await screen.findByRole('alertdialog');
     const buttons = [...dialog.querySelectorAll('button')];
     expect(buttons.length).toBe(2);

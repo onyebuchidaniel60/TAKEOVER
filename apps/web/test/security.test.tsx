@@ -8,7 +8,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import SlotCard from '../src/components/SlotCard';
@@ -50,7 +51,7 @@ function expectInertHtml(container: HTMLElement): void {
 
 describe('frontend security pass', () => {
   it('xss: SlotCard renders hostile fields as inert text', () => {
-    const { container } = render(
+    const { container } = renderWithClient(
       <MemoryRouter>
         <SlotCard slot={hostileSlot()} />
       </MemoryRouter>,
@@ -68,7 +69,7 @@ describe('frontend security pass', () => {
   });
 
   it('xss: SlotDetail renders hostile fields as inert text', () => {
-    const { container } = render(<SlotDetail slot={hostileSlot()} />);
+    const { container } = renderWithClient(<SlotDetail slot={hostileSlot()} />);
     expectInertHtml(container);
     const text = container.textContent ?? '';
     expect(text).toContain(EVIL_TITLE);
@@ -94,7 +95,7 @@ describe('frontend security pass', () => {
       }
       return { user: evilMe };
     });
-    const { container } = render(
+    const { container } = renderWithClient(
       <MemoryRouter initialEntries={['/profile']}>
         <Routes>
           <Route path="/profile" element={<Profile />} />
@@ -110,7 +111,7 @@ describe('frontend security pass', () => {
     setBuyer();
     const evilMessage = `<script>alert('xss-err')</script>`;
     mockFetch(() => err(500, 'INTERNAL_ERROR', evilMessage));
-    const { container } = render(
+    const { container } = renderWithClient(
       <MemoryRouter initialEntries={['/slot/slot-9']}>
         <Routes>
           <Route path="/slot/:slotId" element={<SlotDetailPage />} />

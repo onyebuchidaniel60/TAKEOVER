@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // 1 Polish tests: token layer values, TopBar mobile alignment,
 // and feed badge rendering. Structural asserts only — no pixels.
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error - tailwind.config.js is untyped JS; values asserted below
@@ -44,7 +45,7 @@ describe('design tokens', () => {
 
 describe('chrome alignment', () => {
   it('TopBar is sticky and matches page padding on mobile', () => {
-    const { container } = render(
+    const { container } = renderWithClient(
       <MemoryRouter>
         <TopBar />
       </MemoryRouter>,
@@ -59,14 +60,14 @@ describe('chrome alignment', () => {
 
 describe('feed badges', () => {
   it('TimeBadge renders a clock icon instead of the dot glyph', () => {
-    const { container } = render(<TimeBadge startsAt="2030-06-12T18:00:00.000Z" endsAt={null} />);
+    const { container } = renderWithClient(<TimeBadge startsAt="2030-06-12T18:00:00.000Z" endsAt={null} />);
     expect(container.querySelector('svg')).toBeTruthy();
     expect(container.textContent).not.toContain('●');
     expect(container.textContent).toContain('Jun');
   });
 
   it('AvailabilityBadge covers all four tiers as text', () => {
-    const { container, rerender } = render(<AvailabilityBadge available={0} />);
+    const { container, rerender } = renderWithClient(<AvailabilityBadge available={0} />);
     expect(container.textContent).toBe('Sold out');
     rerender(<AvailabilityBadge available={1} />);
     expect(container.textContent).toBe('Only 1 left');
@@ -77,7 +78,7 @@ describe('feed badges', () => {
   });
 
   it('PriceDisplay uses tabular numerals with size tracking', () => {
-    const { container } = render(<PriceDisplay priceUsdt="1500000" large />);
+    const { container } = renderWithClient(<PriceDisplay priceUsdt="1500000" large />);
     const span = container.querySelector('span');
     expect(span?.className).toContain('tabular-nums');
     // The exposed text is the accessible name (no aria-label wrapper).
@@ -105,7 +106,7 @@ function cardFixture(overrides: Partial<PublicSlot> = {}): PublicSlot {
 }
 
 function renderCard(slot: PublicSlot = cardFixture()) {
-  return render(
+  return renderWithClient(
     <MemoryRouter>
       <SlotCard slot={slot} />
     </MemoryRouter>,
@@ -131,7 +132,7 @@ describe('feed card', () => {
   });
 
   it('maps each canonical category to its icon, unknown to Tag', () => {
-    const { container, rerender } = render(<CategoryIcon category="Restaurant / food" />);
+    const { container, rerender } = renderWithClient(<CategoryIcon category="Restaurant / food" />);
     expect(container.querySelector('svg')).toBeTruthy();
     expect(screen.getByRole('img', { name: 'Restaurant / food' })).toBeTruthy();
     rerender(<CategoryIcon category="mystery" />);
@@ -144,7 +145,7 @@ describe('feed card', () => {
 describe('feed list motion', () => {
   it('staggers the first eight cards, renders the rest instantly', () => {
     const slots = Array.from({ length: 10 }, (_, i) => cardFixture({ id: `slot-${i}` }));
-    const { container } = render(
+    const { container } = renderWithClient(
       <MemoryRouter>
         <SlotList slots={slots} />
       </MemoryRouter>,
@@ -164,14 +165,14 @@ describe('feed list motion', () => {
 
 describe('feed states', () => {
   it('empty carries the neutral spec copy', () => {
-    const { container } = render(<EmptyState />);
+    const { container } = renderWithClient(<EmptyState />);
     expect(container.textContent).toContain('Nothing available right now.');
     expect(container.textContent).toContain('Check back soon.');
     expect(container.textContent).not.toMatch(/!/);
   });
 
   it('error uses the accent pill CTA, never danger', () => {
-    const { container: err } = render(<ErrorState onRetry={() => {}} />);
+    const { container: err } = renderWithClient(<ErrorState onRetry={() => {}} />);
     expect(err.textContent).toContain("Couldn't reach the server. Try again.");
     const button = err.querySelector('button');
     expect(button?.className).toContain('bg-accent');

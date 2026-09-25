@@ -3,7 +3,8 @@
 // card (feed) and the slot detail page — for the profile-name path AND the
 // truncated-wallet fallback path. The field was already in the PublicSlot
 // type but neither component rendered it.
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import SlotCard from '../src/components/SlotCard';
@@ -17,7 +18,7 @@ function cardSlot(display: string): PublicSlot {
 
 describe('provider display (Item 2)', () => {
   it('SlotCard shows the profile display name', () => {
-    render(
+    renderWithClient(
       <MemoryRouter>
         <SlotCard slot={cardSlot('Sunrise Yoga')} />
       </MemoryRouter>,
@@ -26,7 +27,7 @@ describe('provider display (Item 2)', () => {
   });
 
   it('SlotCard shows the truncated-wallet fallback neutrally', () => {
-    render(
+    renderWithClient(
       <MemoryRouter>
         <SlotCard slot={cardSlot('NQ32…X8K1')} />
       </MemoryRouter>,
@@ -38,12 +39,12 @@ describe('provider display (Item 2)', () => {
   });
 
   it('SlotDetail shows the profile display name', () => {
-    render(<SlotDetail slot={cardSlot('Sunrise Yoga')} />);
+    renderWithClient(<SlotDetail slot={cardSlot('Sunrise Yoga')} />);
     expect(screen.getByText('By Sunrise Yoga')).toBeTruthy();
   });
 
   it('SlotDetail shows the truncated-wallet fallback neutrally', () => {
-    render(<SlotDetail slot={cardSlot('NQ32…X8K1')} />);
+    renderWithClient(<SlotDetail slot={cardSlot('NQ32…X8K1')} />);
     const line = screen.getByText('By NQ32…X8K1');
     expect(line).toBeTruthy();
     expect(line.textContent ?? '').not.toMatch(/wallet|address/i);

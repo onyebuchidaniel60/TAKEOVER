@@ -6,7 +6,8 @@
 // misconfigured fee disables publish; Luna conversion of the real
 // sendListingFee (via importActual — the module mock below only swaps the
 // two functions SellDetail calls).
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -41,11 +42,21 @@ function publishedSlot(): Record<string, unknown> {
 
 describe('NIM listing fee publish flow', () => {
   const publishBodies: Array<unknown> = [];
-  let publishHandler: () => unknown = () => ({ slot: publishedSlot() });
+  // Server truth converges on publish: once a publish POST succeeds, the
+  // slot GET serves the published row (invalidation refetches it).
+  let publishedNow = false;
+  let publishHandler: () => unknown = () => {
+    publishedNow = true;
+    return { slot: publishedSlot() };
+  };
 
   beforeEach(() => {
     publishBodies.length = 0;
-    publishHandler = () => ({ slot: publishedSlot() });
+    publishedNow = false;
+    publishHandler = () => {
+      publishedNow = true;
+      return { slot: publishedSlot() };
+    };
     vi.mocked(connectWallet).mockReset();
     vi.mocked(sendListingFee).mockReset();
     vi.mocked(connectWallet).mockResolvedValue({ provider: {} as NimiqProvider, accounts: ['NQ07'] });
@@ -65,11 +76,11 @@ describe('NIM listing fee publish flow', () => {
         return publishHandler();
       }
       if (url.includes(`/api/v1/slots/${SLOT_ID}`)) {
-        return { slot: draftSlot() };
+        return { slot: publishedNow ? publishedSlot() : draftSlot() };
       }
       return err(404, 'NOT_FOUND', 'Slot not found.');
     });
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={[`/sell/${SLOT_ID}`]}>
         <Routes>
           <Route path="/sell/:slotId" element={<SellDetail />} />
@@ -108,10 +119,13 @@ describe('NIM listing fee publish flow', () => {
   });
 
   it('shows the retry banner after a verify failure and retries with the same hash (D6)', async () => {
-    publishHandler = () =>
-      publishBodies.length === 1
-        ? err(409, 'PAYMENT_NOT_CONFIRMED', 'Fee payment needs 3 confirmations (1 so far).')
-        : { slot: publishedSlot() };
+    publishHandler = () => {
+      if (publishBodies.length === 1) {
+        return err(409, 'PAYMENT_NOT_CONFIRMED', 'Fee payment needs 3 confirmations (1 so far).');
+      }
+      publishedNow = true;
+      return { slot: publishedSlot() };
+    };
     renderWithConfig(requiredFee);
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Approve payment & publish' }));

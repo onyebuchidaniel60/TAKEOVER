@@ -6,7 +6,8 @@
 // When capped, pagination stops at pageSize and a "See all openings"
 // secondary CTA carries the current filters to /openings. When
 // uncapped, the existing show-more button pages forward.
-import { useCallback, useEffect, useState } from 'react';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { useCallback } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import EmptyState from './EmptyState';
@@ -15,7 +16,8 @@ import LoadingSkeleton from './LoadingSkeleton';
 import SearchFilters, { type FilterValues } from './SearchFilters';
 import SlotList from './SlotList';
 import { ApiError } from '../lib/api';
-import { fetchSlots, type PublicSlot } from '../lib/slots';
+import { queryKeys } from '../lib/queryKeys';
+import { fetchSlots } from '../lib/slots';
 
 function isoToInput(value: string | null): string {
   if (!value) return '';
@@ -38,13 +40,6 @@ export default function FeedSection({ pageSize, capped }: { pageSize: number; ca
       ? String((location.state as { notice: unknown }).notice)
       : null;
   const [searchParams, setSearchParams] = useSearchParams();
-  const [slots, setSlots] = useState<PublicSlot[]>([]);
-  const [total, setTotal] = useState(0);
-  const [offset, setOffset] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
 
   const paramKey = searchParams.toString();
   const values: FilterValues = {
@@ -55,36 +50,42 @@ export default function FeedSection({ pageSize, capped }: { pageSize: number; ca
     to: isoToInput(searchParams.get('to')),
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    const params = new URLSearchParams(paramKey);
-    void fetchSlots({
-      q: params.get('q') ?? undefined,
-      category: params.get('category') ?? undefined,
-      location: params.get('location') ?? undefined,
-      from: params.get('from') ?? undefined,
-      to: params.get('to') ?? undefined,
-      limit: pageSize,
-      offset: 0,
-    })
-      .then((res) => {
-        if (cancelled) return;
-        setSlots(res.slots);
-        setTotal(res.total);
-        setOffset(0);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : 'Something went wrong.');
-        setLoading(false);
+  // Paged feed keyed by the filter string: revisits inside the 30s stale
+  // window render cached pages with zero fetches; filter edits key a
+  // fresh (skeleton) load, exactly as before.
+  const feedQuery = useInfiniteQuery({
+    queryKey: queryKeys.slots(paramKey),
+    queryFn: ({ pageParam }: { pageParam: number }) => {
+      const params = new URLSearchParams(paramKey);
+      return fetchSlots({
+        q: params.get('q') ?? undefined,
+        category: params.get('category') ?? undefined,
+        location: params.get('location') ?? undefined,
+        from: params.get('from') ?? undefined,
+        to: params.get('to') ?? undefined,
+        limit: pageSize,
+        offset: pageParam,
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [paramKey, retryKey, pageSize]);
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((n, p) => n + p.slots.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
+    },
+  });
+
+  const pages = feedQuery.data?.pages ?? [];
+  const slots = pages.flatMap((p) => p.slots);
+  const total = pages.length > 0 ? (pages[pages.length - 1]?.total ?? 0) : 0;
+  // First load with no data → skeleton. Background refetch with data →
+  // keep the list (stale-while-revalidate, never flash a skeleton).
+  const loading = feedQuery.isPending;
+  const loadingMore = feedQuery.isFetchingNextPage;
+  const error = feedQuery.error
+    ? feedQuery.error instanceof ApiError
+      ? feedQuery.error.message
+      : 'Something went wrong.'
+    : null;
 
   const handleChange = useCallback(
     (next: FilterValues) => {
@@ -106,30 +107,10 @@ export default function FeedSection({ pageSize, capped }: { pageSize: number; ca
   }, [setSearchParams]);
 
   const handleShowMore = useCallback(() => {
-    const params = new URLSearchParams(paramKey);
-    const nextOffset = offset + pageSize;
-    setLoadingMore(true);
-    void fetchSlots({
-      q: params.get('q') ?? undefined,
-      category: params.get('category') ?? undefined,
-      location: params.get('location') ?? undefined,
-      from: params.get('from') ?? undefined,
-      to: params.get('to') ?? undefined,
-      limit: pageSize,
-      offset: nextOffset,
-    })
-      .then((res) => {
-        setSlots((prev) => [...prev, ...res.slots]);
-        setTotal(res.total);
-        setOffset(nextOffset);
-        setLoadingMore(false);
-      })
-      .catch(() => {
-        setLoadingMore(false);
-      });
-  }, [offset, paramKey, pageSize]);
+    void feedQuery.fetchNextPage();
+  }, [feedQuery]);
 
-  const hasMore = slots.length < total;
+  const hasMore = feedQuery.hasNextPage ?? false;
   const hasActiveFilters = paramKey.length > 0;
 
   return (
@@ -152,7 +133,7 @@ export default function FeedSection({ pageSize, capped }: { pageSize: number; ca
         {loading ? (
           <LoadingSkeleton />
         ) : error ? (
-          <ErrorState message={error} onRetry={() => setRetryKey((k) => k + 1)} />
+          <ErrorState message={error} onRetry={() => void feedQuery.refetch()} />
         ) : slots.length === 0 ? (
           <EmptyState
             action={

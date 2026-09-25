@@ -4,7 +4,8 @@
 // numberless lime dot on the Notifications pill item (plus a count in
 // its accessible label); the list renders at /notifications via
 // NotificationsPage; the top row holds only brand + wallet.
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, screen, waitFor } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -77,7 +78,7 @@ describe('pill nav notifications item', () => {
       }
       return { status: 200, body: { data: {}, requestId: 't' } };
     });
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/']}>
         <TopBar />
         <BottomNav />
@@ -100,7 +101,7 @@ describe('pill nav notifications item', () => {
       }
       return { status: 200, body: { data: {}, requestId: 't' } };
     });
-    const { container } = render(
+    const { container } = renderWithClient(
       <MemoryRouter initialEntries={['/']}>
         <BottomNav />
       </MemoryRouter>,
@@ -120,7 +121,7 @@ describe('pill nav notifications item', () => {
       }
       return { status: 200, body: { data: {}, requestId: 't' } };
     });
-    const { container } = render(
+    const { container } = renderWithClient(
       <MemoryRouter initialEntries={['/']}>
         <BottomNav />
       </MemoryRouter>,
@@ -140,7 +141,7 @@ describe('pill nav notifications item', () => {
       }
       return { status: 200, body: { data: {}, requestId: 't' } };
     });
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/']}>
         <Routes>
           <Route path="/" element={<BottomNav />} />
@@ -160,7 +161,7 @@ describe('pill nav notifications item', () => {
       }
       return { status: 200, body: { data: {}, requestId: 't' } };
     });
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/notifications']}>
         <Routes>
           <Route path="/notifications" element={<NotificationsPage />} />
@@ -197,7 +198,7 @@ describe('pill nav notifications item', () => {
       }
       return { status: 200, body: { data: {}, requestId: 't' } };
     });
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/profile']}>
         <Routes>
           <Route path="/profile" element={<Profile />} />
@@ -224,7 +225,7 @@ describe('NotificationsSection', () => {
       }
       return { status: 200, body: { data: {}, requestId: 't' } };
     });
-    const { container } = render(
+    const { container } = renderWithClient(
       <MemoryRouter>
         <NotificationsSection />
       </MemoryRouter>,
@@ -241,6 +242,9 @@ describe('NotificationsSection', () => {
     authAsBuyer();
     useNotifications.setState({ unread: 2 });
     let unread = 2;
+    // Server truth converges like production: after mark-all, the list
+    // comes back read (the invalidation refetch must see it).
+    const readAt = (): string | null => (unread === 0 ? new Date().toISOString() : null);
     const { seen } = stubFetch((url) => {
       if (url.includes('/api/v1/me/notifications/read-all')) {
         unread = 0;
@@ -249,12 +253,18 @@ describe('NotificationsSection', () => {
       if (url.includes('/api/v1/me/notifications')) {
         return {
           status: 200,
-          body: { data: { notifications: [note(), note({ id: 'note-2' })], unreadCount: unread }, requestId: 't' },
+          body: {
+            data: {
+              notifications: [note({ read_at: readAt() }), note({ id: 'note-2', read_at: readAt() })],
+              unreadCount: unread,
+            },
+            requestId: 't',
+          },
         };
       }
       return { status: 200, body: { data: {}, requestId: 't' } };
     });
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/profile']}>
         <TopBar />
         <BottomNav />
@@ -284,7 +294,7 @@ describe('NotificationsSection', () => {
       }
       return { status: 200, body: { data: {}, requestId: 't' } };
     });
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/profile']}>
         <Routes>
           <Route
@@ -322,7 +332,7 @@ describe('NotificationsSection', () => {
       }
       return { status: 200, body: { data: {}, requestId: 't' } };
     });
-    render(
+    renderWithClient(
       <MemoryRouter>
         <NotificationsSection />
       </MemoryRouter>,

@@ -6,6 +6,7 @@
 // only — claimability itself is gated by the page) is surface-2 +
 // text-faint with no scale. The in-flight spinner sits inside the
 // button beside the unchanged label so the button keeps its size.
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError } from '../lib/api';
@@ -13,20 +14,30 @@ import { createClaim } from '../lib/slots';
 
 export default function ClaimButton({ slotId }: { slotId: string }) {
   const navigate = useNavigate();
-  const [claiming, setClaiming] = useState(false);
+  const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
 
+  // Money mutation: on success the slot (availability changed), the
+  // buyer's holds, and every feed list are stale — invalidate all
+  // three, then navigate. Invalidations run fire-and-forget so the
+  // navigation never waits on refetches.
+  const claimMutation = useMutation({
+    mutationFn: (id: string) => createClaim(id),
+    onSuccess: ({ claim }) => {
+      void queryClient.invalidateQueries({ queryKey: ['slot', slotId] });
+      void queryClient.invalidateQueries({ queryKey: ['my-claims'] });
+      void queryClient.invalidateQueries({ queryKey: ['slots'] });
+      navigate(`/claim/${claim.id}`);
+    },
+    onError: (err: unknown) => {
+      setError(err instanceof ApiError ? err.message : 'Something went wrong.');
+    },
+  });
+  const claiming = claimMutation.isPending;
+
   const handleClick = (): void => {
-    setClaiming(true);
     setError(null);
-    void createClaim(slotId)
-      .then(({ claim }) => {
-        navigate(`/claim/${claim.id}`);
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof ApiError ? err.message : 'Something went wrong.');
-        setClaiming(false);
-      });
+    claimMutation.mutate(slotId);
   };
 
   return (

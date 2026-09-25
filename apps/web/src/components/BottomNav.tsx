@@ -12,9 +12,12 @@
 // Icons stay at lucide's 2px default: 1.5px turns hairline-fragile at
 // 12–16px render sizes, and the set reads thin enough against the dark
 // surfaces (reference comparison in the phase report).
+import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Bell, ClipboardList, House, LayoutGrid, User } from 'lucide-react';
+import { fetchNotifications } from '../lib/slots';
+import { queryKeys } from '../lib/queryKeys';
 import { useAuth } from '../store/auth';
 import { useNotifications } from '../store/notifications';
 
@@ -56,14 +59,21 @@ export default function BottomNav() {
   const pathname = useLocation().pathname;
   const authenticated = useAuth((s) => s.status === 'authenticated');
   const unread = useNotifications((s) => s.unread);
-  const refreshUnread = useNotifications((s) => s.refresh);
 
-  // Badge refresh trigger: re-read the unread count after every
-  // navigation. No polling loop, no realtime channel ( scope).
+  // Badge reads the shared ['notifications'] cache: fresh within the
+  // 30s stale window (zero fetches on revisit), background-refreshed
+  // after. The store mirror keeps non-query consumers working.
+  const notificationsQuery = useQuery({
+    queryKey: queryKeys.notifications,
+    queryFn: fetchNotifications,
+    enabled: authenticated,
+  });
+  const setUnread = useNotifications.setState;
   useEffect(() => {
-    if (!authenticated) return;
-    void refreshUnread();
-  }, [pathname, authenticated, refreshUnread]);
+    if (notificationsQuery.data) {
+      setUnread({ unread: notificationsQuery.data.unreadCount });
+    }
+  }, [notificationsQuery.data, setUnread]);
 
   const count = unread ?? 0;
 

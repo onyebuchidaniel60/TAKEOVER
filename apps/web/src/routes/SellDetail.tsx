@@ -1,6 +1,7 @@
 // Manage one owned opening. Drafts are editable + publishable;
 // drafts and published openings are cancellable. Auth-guarded.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import CancelConfirmDialog from '../components/CancelConfirmDialog';
 import ClaimStatusBadge from '../components/ClaimStatusBadge';
@@ -16,6 +17,7 @@ import { ApiError } from '../lib/api';
 import { fetchEscrow } from '../lib/escrow';
 import { usePageMeta } from '../lib/meta';
 import { connectWallet, sendListingFee } from '../lib/nimiq';
+import { invalidateSlotScopes, queryKeys } from '../lib/queryKeys';
 import {
   cancelSlot,
   fetchConfig,
@@ -96,70 +98,84 @@ export default function SellDetail() {
     setNoteBannerDismissed(true);
     navigate(location.pathname, { replace: true });
   };
-  const [state, setState] = useState<State>({ kind: 'loading' });
-  const [retryKey, setRetryKey] = useState(0);
   const [formKey, setFormKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  // NIM listing-fee state. feeConfig null = not loaded (or the
-  // config read failed — then plain publish is attempted and the backend,
-  // which is authoritative, enforces the fee). feeHash is the one-time
-  // payment: once set, the approve path is gone for this session and
-  // every attempt reuses the same hash (double-charge impossible).
-  // feeFailure carries the last publish failure WITH a hash (code drives
-  // the retryable/fatal banner copy). hasStoredHash marks a hash
-  // restored from sessionStorage after a reload (no failure seen yet).
-  const [feeConfig, setFeeConfig] = useState<ListingFeeConfig | null>(null);
+  // NIM listing-fee state. feeHash is the one-time payment: once set,
+  // the approve path is gone for this session and every attempt reuses
+  // the same hash (double-charge impossible). feeFailure carries the
+  // last publish failure WITH a hash (code drives the retryable/fatal
+  // banner copy). hasStoredHash marks a hash restored from
+  // sessionStorage after a reload (no failure seen yet).
   const [feeStep, setFeeStep] = useState<'paying' | 'verifying' | null>(null);
   const [feeHash, setFeeHash] = useState<string | null>(null);
   const [feeFailure, setFeeFailure] = useState<{ code: string; message: string } | null>(null);
   const [hasStoredHash, setHasStoredHash] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    void fetchConfig()
-      .then(({ listingFee }) => {
-        if (!cancelled) setFeeConfig(listingFee);
-      })
-      .catch(() => {
-        if (!cancelled) setFeeConfig(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const queryClient = useQueryClient();
 
-  const load = useCallback(() => {
-    if (!slotId) {
-      setState({ kind: 'not-found' });
-      return;
-    }
-    setState({ kind: 'loading' });
-    void fetchOwnerSlot(slotId)
-      .then(({ slot }) => setState({ kind: 'ready', slot }))
-      .catch((err: unknown) => {
-        if (err instanceof ApiError && (err.status === 404 || err.code === 'NOT_FOUND')) {
-          setState({ kind: 'not-found' });
-          return;
-        }
-        setState({
-          kind: 'error',
-          message: err instanceof ApiError ? err.message : 'Something went wrong.',
-        });
-      });
-  }, [slotId]);
+  // Fee terms: static per session. A failed read degrades to null (plain
+  // publish attempted; the backend stays authoritative on the fee).
+  const configQuery = useQuery({
+    queryKey: queryKeys.config,
+    queryFn: fetchConfig,
+  });
+  const feeConfig = configQuery.data?.listingFee ?? null;
 
-  useEffect(() => {
-    load();
-  }, [load, retryKey]);
+  const ownerQuery = useQuery({
+    queryKey: queryKeys.ownerSlot(slotId ?? ''),
+    queryFn: () => fetchOwnerSlot(slotId ?? ''),
+    enabled: !!slotId,
+  });
+  const ownerSlot = ownerQuery.data?.slot ?? null;
+  const ownerError = ownerQuery.error;
+  const state: State =
+    !slotId ||
+    (ownerError instanceof ApiError && (ownerError.status === 404 || ownerError.code === 'NOT_FOUND'))
+      ? { kind: 'not-found' }
+      : ownerError
+        ? {
+            kind: 'error',
+            message: ownerError instanceof ApiError ? ownerError.message : 'Something went wrong.',
+          }
+        : ownerSlot === null
+          ? { kind: 'loading' }
+          : { kind: 'ready', slot: ownerSlot };
 
   const refreshAfter = (slot: OwnerSlot): void => {
-    setState({ kind: 'ready', slot });
+    if (slotId) queryClient.setQueryData(queryKeys.ownerSlot(slotId), { slot });
     setFormKey((k) => k + 1);
   };
+
+  const invalidateScopes = (): void => {
+    if (slotId) {
+      void invalidateSlotScopes(
+        (key) => queryClient.invalidateQueries({ queryKey: key }),
+        slotId,
+      );
+    }
+  };
+
+  // Slot mutations as mutateAsync transports: the Phase 4c state
+  // machine around them (fee hash guard, banners, form reset rules) is
+  // untouched — only the call shape changes, plus cache invalidation on
+  // every success path (slot scopes cover feed, detail, owner, lists).
+  const updateSlotMutation = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: SlotWrite }) => updateSlot(id, body),
+  });
+  const noteMutation = useMutation({
+    mutationFn: ({ id, note }: { id: string; note: string | null }) =>
+      updateSlotContactNote(id, note),
+  });
+  const publishMutation = useMutation({
+    mutationFn: ({ id, hash }: { id: string; hash: string | undefined }) => publishSlot(id, hash),
+  });
+  const cancelMutation = useMutation({
+    mutationFn: (id: string) => cancelSlot(id),
+  });
 
   // Draft save: commercial PATCH first, then the contact-note PATCH in
   // the same user action when the note differs (the slot PATCH endpoint
@@ -168,22 +184,26 @@ export default function SellDetail() {
     if (!slotId) return;
     setSaving(true);
     setActionError(null);
-    void updateSlot(slotId, body)
+    void updateSlotMutation
+      .mutateAsync({ id: slotId, body })
       .then(({ slot }) => {
         if (note === (slot.provider_contact_note ?? null)) {
           refreshAfter(slot);
+          invalidateScopes();
           setSaving(false);
           return;
         }
-        void updateSlotContactNote(slotId, note)
+        void noteMutation
+          .mutateAsync({ id: slotId, note })
           .then(({ slot: withNote }) => {
             refreshAfter(withNote);
+            invalidateScopes();
             setSaving(false);
           })
           .catch((err: unknown) => {
             // Slot saved, note failed: keep the form un-reset so the
             // typed note survives for retry; surface the reason.
-            setState({ kind: 'ready', slot });
+            queryClient.setQueryData(queryKeys.ownerSlot(slotId), { slot });
             setActionError(err instanceof ApiError ? err.message : 'Something went wrong.');
             setSaving(false);
           });
@@ -200,9 +220,11 @@ export default function SellDetail() {
     if (!slotId) return;
     setSaving(true);
     setActionError(null);
-    void updateSlotContactNote(slotId, note)
+    void noteMutation
+      .mutateAsync({ id: slotId, note })
       .then(({ slot }) => {
         refreshAfter(slot);
+        invalidateScopes();
         setSaving(false);
       })
       .catch((err: unknown) => {
@@ -212,9 +234,11 @@ export default function SellDetail() {
   };
 
   const postPublish = (id: string, hash: string | undefined, broadcasted: boolean): void => {
-    void publishSlot(id, hash)
+    void publishMutation
+      .mutateAsync({ id, hash })
       .then(({ slot }) => {
         refreshAfter(slot);
+        invalidateScopes();
         setPublishing(false);
         setFeeStep(null);
         setFeeHash(null);
@@ -344,9 +368,11 @@ export default function SellDetail() {
     if (!slotId) return;
     setCancelling(true);
     setActionError(null);
-    void cancelSlot(slotId)
+    void cancelMutation
+      .mutateAsync(slotId)
       .then(({ slot }) => {
         refreshAfter(slot);
+        invalidateScopes();
         setCancelling(false);
         setConfirmingCancel(false);
       })
@@ -365,7 +391,7 @@ export default function SellDetail() {
         {state.kind === 'loading' ? (
           <LoadingSkeleton rows={1} />
         ) : state.kind === 'error' ? (
-          <ErrorState message={state.message} onRetry={() => setRetryKey((k) => k + 1)} />
+          <ErrorState message={state.message} onRetry={() => void ownerQuery.refetch()} />
         ) : state.kind === 'not-found' ? (
           <EmptyState
             title="Opening not found"
@@ -672,28 +698,17 @@ function FeeRetryBanner({
 // identifiers server-side); each row resolves its own escrow state for
 // the mark-delivered gate. Drafts have no demand section.
 function DemandSection({ slotId }: { slotId: string }) {
-  const [claims, setClaims] = useState<ProviderSlotClaim[] | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetchSlotClaims(slotId)
-      .then((result) => {
-        if (cancelled) return;
-        if (!result || !Array.isArray(result.claims)) {
-          setFailed(true);
-          return;
-        }
-        setClaims(result.claims);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [slotId, refreshKey]);
+  const queryClient = useQueryClient();
+  const claimsQuery = useQuery({
+    queryKey: queryKeys.slotClaims(slotId),
+    queryFn: () => fetchSlotClaims(slotId),
+  });
+  const result = claimsQuery.data ?? null;
+  const claims: ProviderSlotClaim[] | null = result?.claims ?? null;
+  // Defensive preserved: a malformed payload renders the failed state,
+  // never crashes the demand section.
+  const failed =
+    claimsQuery.isError || (result !== null && !Array.isArray(result.claims));
 
   if (failed) {
     return (
@@ -703,7 +718,7 @@ function DemandSection({ slotId }: { slotId: string }) {
       </section>
     );
   }
-  if (claims === null) {
+  if (claimsQuery.isPending || claims === null) {
     return (
       <section aria-label="Demand" className="rounded-xl border border-border bg-surface p-4">
         <h2 className="text-h2 font-bold text-text">Demand</h2>
@@ -727,7 +742,9 @@ function DemandSection({ slotId }: { slotId: string }) {
           <li key={item.id} className="rounded-lg bg-surface-2 p-3">
             <ClaimDemandRow
               claim={item}
-              onDelivered={() => setRefreshKey((k) => k + 1)}
+              onDelivered={() => {
+                void queryClient.invalidateQueries({ queryKey: queryKeys.slotClaims(slotId) });
+              }}
             />
           </li>
         ))}
@@ -743,23 +760,19 @@ function ClaimDemandRow({
   claim: ProviderSlotClaim;
   onDelivered: () => void;
 }) {
-  const [escrowStatus, setEscrowStatus] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    // Provider-scoped read (slot ownership authorizes it server-side).
-    // No escrow yet → 404, which simply means "nothing to deliver".
-    void fetchEscrow(claim.id)
-      .then(({ escrow }) => {
-        if (!cancelled) setEscrowStatus(escrow && typeof escrow.status === 'string' ? escrow.status : null);
-      })
-      .catch(() => {
-        if (!cancelled) setEscrowStatus(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [claim.id]);
+  // Provider-scoped read (slot ownership authorizes it server-side).
+  // No escrow yet → 404, which simply means "nothing to deliver".
+  // Shares the ['escrow', claimId] cache with the buyer claim page.
+  const escrowQuery = useQuery({
+    queryKey: queryKeys.escrow(claim.id),
+    queryFn: () =>
+      fetchEscrow(claim.id)
+        .then(({ escrow }) => escrow)
+        .catch(() => null),
+  });
+  const escrow = escrowQuery.data ?? null;
+  const escrowStatus =
+    escrow && typeof escrow.status === 'string' ? escrow.status : null;
 
   return (
     <div>

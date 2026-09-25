@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // Brand mark + homepage sections. Structural asserts only.
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -18,7 +19,7 @@ afterEach(() => {
 
 describe('BrandMark', () => {
   it('renders the D9 lockup: box, line, condensed wordmark', () => {
-    const { container } = render(<BrandMark height={24} />);
+    const { container } = renderWithClient(<BrandMark height={24} />);
     const svg = container.querySelector('svg');
     expect(svg).toBeTruthy();
     expect(svg?.getAttribute('aria-hidden')).toBe('true');
@@ -34,7 +35,7 @@ describe('BrandMark', () => {
 
 describe('HowItWorks', () => {
   it('renders three steps in consumer language', () => {
-    render(<HowItWorks />);
+    renderWithClient(<HowItWorks />);
     expect(screen.getByRole('heading', { name: /how it works/i })).toBeTruthy();
     const list = screen.getByRole('list');
     const items = within(list).getAllByRole('listitem');
@@ -47,7 +48,7 @@ describe('HowItWorks', () => {
   });
 
   it('anchors steps in large display numbers, not icons', () => {
-    const { container } = render(<HowItWorks />);
+    const { container } = renderWithClient(<HowItWorks />);
     for (const n of ['01', '02', '03']) {
       expect(screen.getByText(n)).toBeTruthy();
     }
@@ -62,7 +63,7 @@ describe('HowItWorks', () => {
 
 describe('WhyTakeover jumps', () => {
   it('maps each mark to a real section anchor with a 44px hit area', () => {
-    const { container } = render(<WhyTakeover />);
+    const { container } = renderWithClient(<WhyTakeover />);
     const jumps = [
       ['Jump to How it works', '#how-it-works'],
       ['Jump to Features', '#features'],
@@ -81,7 +82,7 @@ describe('WhyTakeover jumps', () => {
 describe('Faq', () => {
   it('renders six questions and expands disclosures on click', async () => {
     const user = userEvent.setup();
-    render(<Faq />);
+    renderWithClient(<Faq />);
     expect(screen.getByRole('heading', { name: /questions, answered/i })).toBeTruthy();
     const questions = [
       'What is TAKEOVER?',
@@ -104,7 +105,7 @@ describe('Faq', () => {
 
 describe('Contact', () => {
   it('links a valid support mailto and points at the report flow', () => {
-    render(<Contact />);
+    renderWithClient(<Contact />);
     expect(screen.getByRole('heading', { name: /talk to us/i })).toBeTruthy();
     const link = screen.getByRole('link', { name: SUPPORT_EMAIL });
     expect(link.getAttribute('href')).toBe(`mailto:${SUPPORT_EMAIL}`);
@@ -120,7 +121,7 @@ describe('Home section order', () => {
       }
       return undefined;
     });
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/']}>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -156,7 +157,7 @@ describe('Home section order', () => {
       }
       return undefined;
     });
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/']}>
         <Routes>
           <Route path="/" element={<Home />} />

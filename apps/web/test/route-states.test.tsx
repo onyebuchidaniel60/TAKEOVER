@@ -8,7 +8,8 @@
 // assumption) instead of a synchronous expect — the content commit and the
 // effect commit are not guaranteed to flush together (diagnosed: sync assert
 // read the pre-effect 'Slot — TAKEOVER' loading title at 73ms).
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
@@ -41,7 +42,7 @@ import {
 } from './a11y-helpers';
 
 function renderAt(path: string, route: string, element: React.ReactNode): void {
-  render(
+  renderWithClient(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path={route} element={<>{element}</>} />
@@ -62,7 +63,7 @@ describe('/ states', () => {
   it('empty shows contextual copy, error shows message + retry', async () => {
     setGuest();
     mockFetch(() => ({ slots: [], total: 0, limit: 20, offset: 0 }));
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <MemoryRouter initialEntries={['/']}>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -166,7 +167,7 @@ describe('/claims states', () => {
   it('empty and error render contextually', async () => {
     setBuyer();
     mockFetch(() => ({ claims: [], total: 0, limit: 50, offset: 0 }));
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <MemoryRouter initialEntries={['/claims']}>
         <Routes>
           <Route
@@ -202,7 +203,7 @@ describe('/sell states', () => {
   it('empty and error render contextually', async () => {
     setBuyer();
     mockFetch(() => ({ slots: [], total: 0, limit: 50, offset: 0 }));
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <MemoryRouter initialEntries={['/sell']}>
         <Routes>
           <Route
@@ -258,7 +259,7 @@ describe('/sell/:id states', () => {
   it('not-found and error render distinctly', async () => {
     setBuyer();
     mockFetch(() => err(404, 'NOT_FOUND', 'Slot not found.'));
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <MemoryRouter initialEntries={['/sell/nope']}>
         <Routes>
           <Route
@@ -309,7 +310,7 @@ describe('/profile states', () => {
   it('error shows retry; loaded profile shows wallet and no role', async () => {
     setBuyer();
     mockFetch(() => err(500, 'INTERNAL_ERROR', 'Something went wrong.'));
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <MemoryRouter initialEntries={['/profile']}>
         <Routes>
           <Route
@@ -403,7 +404,7 @@ describe('admin route states', () => {
   it('leaving admin clears the robots tag', async () => {
     setAdmin();
     mockFetch(() => ({ reports: [], total: 0, limit: 20, offset: 0 }));
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <MemoryRouter initialEntries={['/admin/reports']}>
         <Routes>
           <Route path="/admin/reports" element={<AdminReports />} />
@@ -450,7 +451,7 @@ describe('claim payment states', () => {
       }
       return { claim: claimFixture('active_hold'), slot: slotFixture() };
     });
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <MemoryRouter initialEntries={['/claim/claim-1']}>
         <Routes>
           <Route

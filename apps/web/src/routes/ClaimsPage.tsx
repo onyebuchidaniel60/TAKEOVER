@@ -1,6 +1,6 @@
 // Holds grouped into collapsible status buckets (newest data from
 // one unfiltered fetch). Reuses the shared claim components throughout.
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import ClaimCard from '../components/ClaimCard';
 import EmptyState from '../components/EmptyState';
@@ -8,36 +8,24 @@ import ErrorState from '../components/ErrorState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { ApiError } from '../lib/api';
 import { usePageMeta } from '../lib/meta';
+import { queryKeys } from '../lib/queryKeys';
 import { fetchMyClaims, groupClaimsForBuckets } from '../lib/slots';
 
 export default function ClaimsPage() {
   usePageMeta({ title: 'My holds — TAKEOVER' });
-  const [buckets, setBuckets] = useState<ReturnType<typeof groupClaimsForBuckets>>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    void fetchMyClaims({ limit: 50 })
-      .then((res) => {
-        if (cancelled) return;
-        setBuckets(groupClaimsForBuckets(res.claims));
-        setTotal(res.total);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : 'Something went wrong.');
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [retryKey]);
+  const claimsQuery = useQuery({
+    queryKey: queryKeys.myClaims,
+    queryFn: () => fetchMyClaims({ limit: 50 }),
+  });
+  const claims = claimsQuery.data?.claims ?? [];
+  const buckets = groupClaimsForBuckets(claims);
+  const total = claimsQuery.data?.total ?? 0;
+  const loading = claimsQuery.isPending;
+  const error = claimsQuery.error
+    ? claimsQuery.error instanceof ApiError
+      ? claimsQuery.error.message
+      : 'Something went wrong.'
+    : null;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
@@ -49,7 +37,7 @@ export default function ClaimsPage() {
         {loading ? (
           <LoadingSkeleton />
         ) : error ? (
-          <ErrorState message={error} onRetry={() => setRetryKey((k) => k + 1)} />
+          <ErrorState message={error} onRetry={() => void claimsQuery.refetch()} />
         ) : total === 0 ? (
           <EmptyState
             title="You haven't claimed anything yet."

@@ -10,7 +10,8 @@
 //
 // Flow mechanics (approve → deposit → receipt → submit; polling
 // cadences) are unchanged — only the visual states around them.
-import { useCallback, useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -26,7 +27,6 @@ import {
   createEscrowIntent,
   fetchEscrow,
   submitDepositReference,
-  type DepositInstruction,
   type EscrowView,
 } from '../lib/escrow';
 import {
@@ -38,6 +38,7 @@ import {
   waitForReceipt,
 } from '../lib/evm';
 import { formatUsdt, type ClaimView } from '../lib/slots';
+import { queryKeys } from '../lib/queryKeys';
 import ConfirmReceiptBox from './ConfirmReceiptBox';
 import VerifyDepositBox from './VerifyDepositBox';
 
@@ -176,42 +177,48 @@ export default function EscrowPanel({
   claim: ClaimView;
   onUpdate: () => void;
 }) {
-  const [load, setLoad] = useState<LoadState>({ kind: 'loading' });
+  const queryClient = useQueryClient();
+  const escrowQuery = useQuery({
+    queryKey: queryKeys.escrow(claim.id),
+    queryFn: () =>
+      fetchEscrow(claim.id)
+        .then(({ escrow, claim: escrowClaim }) => {
+          // Defensive: a malformed 200 without an escrow projection is
+          // treated as "no escrow yet" (instruction step), and a missing
+          // escrow row (ESCROW_NOT_FOUND) is a state, not an error.
+          if (!escrow || typeof escrow.status !== 'string') return null;
+          // Render-what-it-gets: the backend gates note visibility;
+          // a non-empty string renders, anything else hides.
+          const contactNote =
+            typeof escrowClaim?.provider_contact_note === 'string' &&
+            escrowClaim.provider_contact_note !== ''
+              ? escrowClaim.provider_contact_note
+              : null;
+          return { escrow, contactNote };
+        })
+        .catch((err: unknown) => {
+          if (err instanceof ApiError && err.code === 'ESCROW_NOT_FOUND') return null;
+          throw err;
+        }),
+  });
 
-  const refresh = useCallback(() => {
-    setLoad((current) => (current.kind === 'loading' ? current : { kind: 'loading' }));
-    void fetchEscrow(claim.id)
-      .then(({ escrow, claim: escrowClaim }) => {
-        // Defensive: a malformed 200 without an escrow projection is treated
-        // as "no escrow yet" (instruction step) rather than crashing.
-        if (!escrow || typeof escrow.status !== 'string') {
-          setLoad({ kind: 'no-escrow' });
-          return;
-        }
-        // Render-what-it-gets: the backend gates note visibility;
-        // a non-empty string renders, anything else hides.
-        const contactNote =
-          typeof escrowClaim?.provider_contact_note === 'string' &&
-          escrowClaim.provider_contact_note !== ''
-            ? escrowClaim.provider_contact_note
-            : null;
-        setLoad({ kind: 'ready', escrow, contactNote });
-      })
-      .catch((err: unknown) => {
-        if (err instanceof ApiError && err.code === 'ESCROW_NOT_FOUND') {
-          setLoad({ kind: 'no-escrow' });
-          return;
-        }
-        setLoad({
+  const load: LoadState = escrowQuery.isPending
+    ? { kind: 'loading' }
+    : escrowQuery.error
+      ? {
           kind: 'error',
-          message: err instanceof ApiError ? err.message : 'Something went wrong.',
-        });
-      });
-  }, [claim.id]);
+          message:
+            escrowQuery.error instanceof ApiError
+              ? escrowQuery.error.message
+              : 'Something went wrong.',
+        }
+      : escrowQuery.data == null
+        ? { kind: 'no-escrow' }
+        : { kind: 'ready', escrow: escrowQuery.data.escrow, contactNote: escrowQuery.data.contactNote };
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  const refresh = (): void => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.escrow(claim.id) });
+  };
 
   const handleUpdate = (): void => {
     onUpdate();
@@ -331,7 +338,7 @@ function PanelShell({
   );
 }
 
-type FundStep = 'loading' | 'ready' | 'approving' | 'depositing' | 'submitting';
+type FundStep = 'ready' | 'approving' | 'depositing' | 'submitting';
 
 function InstructionStep({
   claimId,
@@ -340,40 +347,37 @@ function InstructionStep({
   claimId: string;
   onSubmitted: () => void;
 }) {
-  const [step, setStep] = useState<FundStep>('loading');
-  const [instruction, setInstruction] = useState<DepositInstruction | null>(null);
+  // Idempotent intent read, cached: remounts (e.g. after a failed wallet
+  // attempt) reuse the instruction instead of re-creating server state.
+  const intentQuery = useQuery({
+    queryKey: queryKeys.escrowIntent(claimId),
+    queryFn: () => createEscrowIntent(claimId),
+  });
+  const [step, setStep] = useState<FundStep>('ready');
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    void createEscrowIntent(claimId)
-      .then(({ depositInstruction }) => {
-        if (cancelled) return;
-        if (
-          !depositInstruction ||
-          typeof depositInstruction.usdtAmount !== 'string' ||
-          typeof depositInstruction.contractAddress !== 'string'
-        ) {
-          setError('Payment details are unavailable. Please try again.');
-          setStep('ready');
-          return;
-        }
-        setInstruction(depositInstruction);
-        setStep('ready');
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : 'Something went wrong.');
-        setStep('ready');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [claimId]);
+  const depositInstruction = intentQuery.data?.depositInstruction ?? null;
+  const instruction =
+    depositInstruction &&
+    typeof depositInstruction.usdtAmount === 'string' &&
+    typeof depositInstruction.contractAddress === 'string'
+      ? depositInstruction
+      : null;
+  const intentError = intentQuery.isPending
+    ? null
+    : intentQuery.error
+      ? intentQuery.error instanceof ApiError
+        ? intentQuery.error.message
+        : 'Something went wrong.'
+      : !instruction
+        ? 'Payment details are unavailable. Please try again.'
+        : null;
+  // Wallet-attempt errors (local state) take precedence; intent errors
+  // render once loading settles.
+  const shownError = error ?? intentError;
 
   const busy = step === 'approving' || step === 'depositing' || step === 'submitting';
-  const busyLabel =
-    step === 'submitting' ? 'Confirming…' : step === 'loading' ? 'Loading…' : 'Opening wallet…';
+  const busyLabel = step === 'submitting' ? 'Confirming…' : 'Opening wallet…';
   const payLabel = instruction ? `Pay ${formatUsdt(instruction.usdtAmount)}` : 'Pay';
 
   const handlePay = (): void => {
@@ -424,12 +428,12 @@ function InstructionStep({
         <p className="mt-3 text-body leading-relaxed text-text">
           {instruction ? `Pay ${formatUsdt(instruction.usdtAmount)} to hold this slot.` : 'Loading payment details…'}
         </p>
-        {error ? (
+        {shownError ? (
           <p className="mt-2 text-body font-medium text-danger" role="alert">
-            {error}
+            {shownError}
           </p>
         ) : null}
-        {step !== 'loading' && instruction ? (
+        {!intentQuery.isPending && instruction ? (
           <button
             type="button"
             onClick={handlePay}

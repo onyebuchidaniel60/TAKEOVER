@@ -1,6 +1,11 @@
 // Public slot detail. Handles loading, error, not-found, and
 // sold-out states. Authenticated buyers can claim a live opening.
-import { useEffect, useState } from 'react';
+//
+// Data via TanStack Query: revisits inside the stale window render the
+// cached slot with zero fetches (stale-while-revalidate — the skeleton
+// shows on first load only, never on a cached revisit).
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import ClaimButton from '../components/ClaimButton';
 import ErrorState from '../components/ErrorState';
@@ -9,6 +14,7 @@ import SlotDetail from '../components/SlotDetail';
 import { isAdminUser } from '../lib/admin';
 import { ApiError } from '../lib/api';
 import { usePageMeta } from '../lib/meta';
+import { queryKeys } from '../lib/queryKeys';
 import { fetchSlot, formatUsdt, fetchSlotOwnership, type PublicSlot } from '../lib/slots';
 import { useAuth } from '../store/auth';
 
@@ -68,14 +74,31 @@ export default function SlotDetailPage() {
   const { slotId } = useParams<{ slotId: string }>();
   const authenticated = useAuth((s) => s.status === 'authenticated');
   const user = useAuth((s) => s.user);
-  const [state, setState] = useState<State>({ kind: 'loading' });
-  const [retryKey, setRetryKey] = useState(0);
   const [reporting, setReporting] = useState(false);
   const [reported, setReported] = useState(false);
-  // Owner gate for the claim action (UX only — the claim transaction
-  // rejects owners with CANNOT_CLAIM_OWN_SLOT regardless). Null while
-  // unknown: no action is offered until ownership resolves.
-  const [isOwner, setIsOwner] = useState<boolean | null>(null);
+
+  const slotQuery = useQuery({
+    queryKey: queryKeys.slot(slotId ?? ''),
+    queryFn: () => fetchSlot(slotId ?? '').then((r) => r.slot),
+    enabled: !!slotId,
+  });
+  const slot = slotQuery.data ?? null;
+  const queryError = slotQuery.error;
+  const notFound =
+    !slotId ||
+    (queryError instanceof ApiError && (queryError.status === 404 || queryError.code === 'NOT_FOUND'));
+  // Same four states as before, derived from the query: skeleton only
+  // while pending with no data; cached revisits render instantly.
+  const state: State = notFound
+    ? { kind: 'not-found' }
+    : queryError
+      ? {
+          kind: 'error',
+          message: queryError instanceof ApiError ? queryError.message : 'Something went wrong.',
+        }
+      : slot === null
+        ? { kind: 'loading' }
+        : { kind: 'ready', slot };
 
   // Shared-link preview: title, price, and time once the opening loads.
   const readySlot = state.kind === 'ready' ? state.slot : null;
@@ -92,50 +115,18 @@ export default function SlotDetailPage() {
       : { title: 'Slot — TAKEOVER' },
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    setState({ kind: 'loading' });
-    if (!slotId) {
-      setState({ kind: 'not-found' });
-      return;
-    }
-    void fetchSlot(slotId)
-      .then(({ slot }) => {
-        if (!cancelled) setState({ kind: 'ready', slot });
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        if (err instanceof ApiError && (err.status === 404 || err.code === 'NOT_FOUND')) {
-          setState({ kind: 'not-found' });
-          return;
-        }
-        setState({
-          kind: 'error',
-          message: err instanceof ApiError ? err.message : 'Something went wrong.',
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [slotId, retryKey]);
-
   // Ownership resolves only for authenticated viewers on a loaded slot.
   // Fail-open lives inside fetchSlotOwnership; the backend is the boundary.
   const readySlotId = state.kind === 'ready' ? state.slot.id : null;
-  useEffect(() => {
-    if (!authenticated || !readySlotId) {
-      setIsOwner(null);
-      return;
-    }
-    let cancelled = false;
-    setIsOwner(null);
-    void fetchSlotOwnership(readySlotId).then(({ isOwner: owned }) => {
-      if (!cancelled) setIsOwner(owned);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [authenticated, readySlotId, retryKey]);
+  const ownershipQuery = useQuery({
+    queryKey: queryKeys.slotOwnership(readySlotId ?? ''),
+    queryFn: () => fetchSlotOwnership(readySlotId ?? '').then((r) => r.isOwner),
+    enabled: authenticated && readySlotId !== null,
+  });
+  // Owner gate for the claim action (UX only — the claim transaction
+  // rejects owners with CANNOT_CLAIM_OWN_SLOT regardless). Null while
+  // unknown: no action is offered until ownership resolves.
+  const isOwner = !authenticated || !readySlotId ? null : (ownershipQuery.data ?? null);
 
   const showStickyCta =
     state.kind === 'ready' && authenticated && isClaimable(state.slot) && isOwner === false;
@@ -152,7 +143,7 @@ export default function SlotDetailPage() {
           <div>
             <ErrorState
               message="Couldn't load this slot. Try again."
-              onRetry={() => setRetryKey((k) => k + 1)}
+              onRetry={() => void slotQuery.refetch()}
             />
             {/*
               Server detail stays visible (never hide errors silently):

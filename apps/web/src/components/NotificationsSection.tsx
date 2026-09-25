@@ -2,7 +2,8 @@
 // the nav-tab move). Own fetch (loading/error states local to the
 // section); newest first; unread rows carry a dot; tapping a row marks
 // it read and navigates to the related claim or slot.
-import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError } from '../lib/api';
 import {
@@ -11,7 +12,7 @@ import {
   markNotificationRead,
   type NotificationView,
 } from '../lib/slots';
-import { useNotifications } from '../store/notifications';
+import { queryKeys } from '../lib/queryKeys';
 
 /** Where a tap goes: providers review their slot, buyers open their claim. */
 export function notificationTarget(n: NotificationView): string {
@@ -22,55 +23,77 @@ export function notificationTarget(n: NotificationView): string {
 }
 
 export default function NotificationsSection() {
-  const refreshBadge = useNotifications((s) => s.refresh);
-  const [items, setItems] = useState<NotificationView[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
+  const queryClient = useQueryClient();
   const [markingAll, setMarkingAll] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    void fetchNotifications()
-      .then((res) => {
-        if (cancelled) return;
-        // Defensive: a malformed payload must render the empty state,
-        // never crash the Notifications page.
-        setItems(Array.isArray(res.notifications) ? res.notifications : []);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : 'Something went wrong.');
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [retryKey]);
+  const notificationsQuery = useQuery({
+    queryKey: queryKeys.notifications,
+    queryFn: fetchNotifications,
+  });
+  // Defensive preserved: a malformed payload renders the empty state,
+  // never crashes the Notifications page.
+  const raw = notificationsQuery.data?.notifications;
+  const items: NotificationView[] = Array.isArray(raw) ? raw : [];
+  const loading = notificationsQuery.isPending;
+  const queryError = notificationsQuery.error;
+  const error = queryError
+    ? queryError instanceof ApiError
+      ? queryError.message
+      : 'Something went wrong.'
+    : null;
+
+  // Read mutations update the shared cache optimistically (instant dot
+  // clearing, including the nav badge) and confirm against the server;
+  // failures roll back to the last server state.
+  const touchRead = (id: string | null): void => {
+    const now = new Date().toISOString();
+    queryClient.setQueryData(
+      queryKeys.notifications,
+      (prev: { notifications: NotificationView[]; unreadCount: number } | undefined) => {
+        if (!prev || !Array.isArray(prev.notifications)) return prev;
+        const notifications =
+          id === null
+            ? prev.notifications.map((n) => (n.read_at ? n : { ...n, read_at: now }))
+            : prev.notifications.map((n) => (n.id === id && !n.read_at ? { ...n, read_at: now } : n));
+        return { ...prev, notifications, unreadCount: notifications.filter((n) => !n.read_at).length };
+      },
+    );
+  };
+
+  const readMutation = useMutation({
+    mutationFn: (id: string) => markNotificationRead(id),
+    onMutate: (id: string) => touchRead(id),
+    onError: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
+    },
+  });
+
+  const readAllMutation = useMutation({
+    mutationFn: () => markAllNotificationsRead(),
+    onMutate: () => touchRead(null),
+    onError: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
+      setMarkingAll(false);
+    },
+  });
 
   const handleOpen = (item: NotificationView): void => {
     if (!item.read_at) {
-      setItems((prev) => prev.map((n) => (n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n)));
-      // Fire-and-forget: the Link navigates immediately; the badge refreshes
-      // from the response (or the next route change refreshes it anyway).
-      void markNotificationRead(item.id)
-        .then(() => refreshBadge())
-        .catch(() => refreshBadge());
+      // Fire-and-forget: the Link navigates immediately; the optimistic
+      // cache update clears the dot and the badge at once.
+      readMutation.mutate(item.id);
     }
   };
 
   const handleMarkAll = (): void => {
     setMarkingAll(true);
-    void markAllNotificationsRead()
-      .then(() => {
-        setItems((prev) => prev.map((n) => (n.read_at ? n : { ...n, read_at: new Date().toISOString() })));
-        return refreshBadge();
-      })
-      .catch(() => refreshBadge())
-      .finally(() => setMarkingAll(false));
+    readAllMutation.mutate();
   };
 
   const unreadCount = items.filter((n) => !n.read_at).length;
@@ -98,7 +121,7 @@ export default function NotificationsSection() {
             <p className="text-body text-muted">{error}</p>
             <button
               type="button"
-              onClick={() => setRetryKey((k) => k + 1)}
+              onClick={() => void notificationsQuery.refetch()}
               className="mt-2 min-h-touch rounded-lg border border-border-strong px-3 py-1 text-body font-medium text-muted bg-surface"
             >
               Try again

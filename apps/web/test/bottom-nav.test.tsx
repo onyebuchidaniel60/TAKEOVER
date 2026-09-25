@@ -2,7 +2,8 @@
 // Floating pill bottom nav (D2): header holds brand + wallet only,
 // five icon-only pill items (icon-only: even active-only labels bleed
 // at 320px — measured), active lime pill, unread dot, navigation.
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, screen, waitFor } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -46,7 +47,7 @@ function authAs(role: string): void {
 }
 
 function renderShell(initial = '/'): void {
-  render(
+  renderWithClient(
     <MemoryRouter initialEntries={[initial]}>
       <Routes>
         <Route path="/" element={<><TopBar /><BottomNav /><p>home page</p></>} />
@@ -74,7 +75,7 @@ describe('header chrome', () => {
   });
 
   it('is a 56px sticky row on the deep base', () => {
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/']}>
         <TopBar />
       </MemoryRouter>,
@@ -125,7 +126,7 @@ describe('pill bottom nav', () => {
     expect(screen.getByRole('link', { name: 'Home' }).getAttribute('aria-current')).toBe('page');
     cleanup();
     useNotifications.setState({ unread: null });
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/slot/slot-1']}>
         <Routes>
           <Route path="/slot/:slotId" element={<BottomNav />} />
@@ -149,7 +150,7 @@ describe('pill bottom nav', () => {
   it('shows the numberless lime dot on Notifications only while unread > 0', async () => {
     authAs('buyer');
     stubFetch(3);
-    const { container, unmount } = render(
+    const { container, unmount } = renderWithClient(
       <MemoryRouter initialEntries={['/']}>
         <BottomNav />
       </MemoryRouter>,
@@ -164,7 +165,7 @@ describe('pill bottom nav', () => {
     useNotifications.setState({ unread: null });
     stubFetch(0);
     authAs('buyer');
-    const second = render(
+    const second = renderWithClient(
       <MemoryRouter initialEntries={['/']}>
         <BottomNav />
       </MemoryRouter>,

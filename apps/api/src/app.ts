@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import compress from '@fastify/compress';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import { randomUUID } from 'node:crypto';
@@ -63,6 +64,11 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
   });
 
   void app.register(cookie);
+
+  // Response compression (Phase 5c): gzip payloads over 1KB globally.
+  // Tiny responses (health, config, single rows) skip it; list and
+  // escrow payloads shrink. No logic impact — middleware only.
+  void app.register(compress, { global: true, threshold: 1024 });
 
   app.addHook('onSend', async (request, reply, payload) => {
     void reply.header('x-request-id', request.id);

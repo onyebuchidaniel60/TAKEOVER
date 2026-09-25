@@ -6,7 +6,8 @@
 // Readiness waits for the loading skeleton to LEAVE the
 // DOM (MutationObserver-driven) instead of sleeping a fixed 50ms — no
 // elapsed-time assumption, so CPU contention can no longer beat the wait.
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -52,7 +53,7 @@ import {
 const triageNotes: { route: string; moderate: number; minor: number }[] = [];
 
 function renderAt(path: string, route: string, element: React.ReactNode): HTMLElement {
-  const { container } = render(
+  const { container } = renderWithClient(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path={route} element={<>{element}</>} />
@@ -475,7 +476,7 @@ describe('axe on error states', () => {
       return undefined;
     });
     const user = userEvent.setup();
-    const { container } = render(
+    const { container } = renderWithClient(
       <MemoryRouter initialEntries={['/slot/slot-1']}>
         <Routes>
           <Route path="/slot/:slotId" element={<SlotDetailPage />} />
@@ -544,7 +545,7 @@ function renderShell(path = '/'): HTMLElement {
     if (url === '/api/v1/me/notifications') return { notifications: [], unreadCount: 3 };
     return undefined;
   });
-  const { container } = render(
+  const { container } = renderWithClient(
     <MemoryRouter initialEntries={[path]}>
       <TopBar />
       <main>
@@ -944,7 +945,7 @@ describe('axe on routes (dark-only re-assertion)', () => {
       return undefined;
     });
     const user = userEvent.setup();
-    const { container } = render(
+    const { container } = renderWithClient(
       <MemoryRouter initialEntries={['/slot/slot-1']}>
         <Routes>
           <Route path="/slot/:slotId" element={<SlotDetailPage />} />

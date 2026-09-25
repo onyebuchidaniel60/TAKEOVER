@@ -2,7 +2,8 @@
 // Escrow buyer-loop component tests. window.ethereum is
 // mocked at the lib/evm module boundary; the backend is a stubbed fetch
 // serving ARCHITECTURE.md §13 envelopes. No network, no wallet.
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, screen, waitFor } from '@testing-library/react';
+import { renderWithClient } from './test-utils';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -189,7 +190,7 @@ describe('EscrowPanel status dispatch', () => {
       backend.escrow = escrow ?? null;
       backend.escrowError = escrowError ?? null;
       const onUpdate = vi.fn();
-      const { unmount } = render(
+      const { unmount } = renderWithClient(
         <EscrowPanel claim={claim('active_hold') as never} onUpdate={onUpdate} />,
       );
       expect(await screen.findByText(copy)).toBeTruthy();
@@ -204,7 +205,7 @@ describe('approve & deposit flow', () => {
     backend.escrow = null;
     backend.escrowError = 'ESCROW_NOT_FOUND';
     const onSubmitted = vi.fn();
-    render(<EscrowPanel claim={claim('active_hold') as never} onUpdate={onSubmitted} />);
+    renderWithClient(<EscrowPanel claim={claim('active_hold') as never} onUpdate={onSubmitted} />);
     await screen.findByText('Pay 1.5 USDT');
     await user.click(screen.getByText('Pay 1.5 USDT'));
     await waitFor(() => expect(evm.approve).toHaveBeenCalledTimes(1));
@@ -229,7 +230,7 @@ describe('approve & deposit flow', () => {
   it('shows the deposit instruction and exact-amount CTA copy', async () => {
     backend.escrow = null;
     backend.escrowError = 'ESCROW_NOT_FOUND';
-    render(<EscrowPanel claim={claim('active_hold') as never} onUpdate={vi.fn()} />);
+    renderWithClient(<EscrowPanel claim={claim('active_hold') as never} onUpdate={vi.fn()} />);
     expect(await screen.findByText('Pay 1.5 USDT to hold this slot.')).toBeTruthy();
     expect(await screen.findByText('Pay 1.5 USDT')).toBeTruthy();
   });
@@ -239,14 +240,14 @@ describe('VerifyDepositBox', () => {
   it('calls onFunded on {status:funded}', async () => {
     backend.verify = { status: 'funded' };
     const onFunded = vi.fn();
-    render(<VerifyDepositBox claimId={CLAIM_ID} onFunded={onFunded} />);
+    renderWithClient(<VerifyDepositBox claimId={CLAIM_ID} onFunded={onFunded} />);
     await waitFor(() => expect(onFunded).toHaveBeenCalledTimes(1));
   });
 
   it('shows mismatch copy without funding on {status:mismatch}', async () => {
     backend.verify = { status: 'mismatch', reason: 'amount' };
     const onFunded = vi.fn();
-    render(<VerifyDepositBox claimId={CLAIM_ID} onFunded={onFunded} />);
+    renderWithClient(<VerifyDepositBox claimId={CLAIM_ID} onFunded={onFunded} />);
     expect(await screen.findByText("We couldn't confirm your payment. Try again.")).toBeTruthy();
     expect(onFunded).not.toHaveBeenCalled();
   });
@@ -257,7 +258,7 @@ describe('ConfirmReceiptBox', () => {
     const user = userEvent.setup();
     backend.confirm = { status: 'released' };
     const onUpdate = vi.fn();
-    render(
+    renderWithClient(
       <ConfirmReceiptBox claimId={CLAIM_ID} escrow={escrowRow('delivered') as never} onUpdate={onUpdate} />,
     );
     await user.click(screen.getByText('Confirm receipt'));
@@ -268,7 +269,7 @@ describe('ConfirmReceiptBox', () => {
   it('polls an in-flight release to released', async () => {
     backend.confirm = { status: 'released', confirmations: 3 };
     const onUpdate = vi.fn();
-    render(
+    renderWithClient(
       <ConfirmReceiptBox
         claimId={CLAIM_ID}
         escrow={escrowRow('delivered', { release_tx_hash: DEPOSIT_TX }) as never}
@@ -286,7 +287,7 @@ describe('ConfirmReceiptBox', () => {
       disputeInstruction: { contractAddress: CONTRACT, onChainEscrowId: EID, callData: '0xadd98c70' },
     };
     const onUpdate = vi.fn();
-    render(
+    renderWithClient(
       <ConfirmReceiptBox claimId={CLAIM_ID} escrow={escrowRow('delivered') as never} onUpdate={onUpdate} />,
     );
     await user.click(screen.getByText('Something wrong? Dispute this.'));
@@ -318,21 +319,21 @@ describe('escrow badges + cards', () => {
 
   for (const [status, label] of labels) {
     it(`badge renders "${label}" for ${status}`, () => {
-      const { unmount } = render(<ClaimStatusBadge status={status} />);
+      const { unmount } = renderWithClient(<ClaimStatusBadge status={status} />);
       expect(screen.getByText(label)).toBeTruthy();
       unmount();
     });
   }
 
   it('card links to the escrow for escrow statuses, to the hold otherwise', () => {
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <MemoryRouter>
         <ClaimCard claim={claim('delivered') as never} />
       </MemoryRouter>,
     );
     expect(screen.getByText('View escrow')).toBeTruthy();
     unmount();
-    const second = render(
+    const second = renderWithClient(
       <MemoryRouter>
         <ClaimCard claim={claim('active_hold') as never} />
       </MemoryRouter>,
@@ -366,7 +367,7 @@ describe('EscrowPanel contact-note display (P2, render-what-it-gets)', () => {
 
   it('renders a non-null note under the status', async () => {
     panelWithNote('Meet at the side entrance and ask for Maria.');
-    render(<EscrowPanel claim={claim('escrow_funded') as never} onUpdate={vi.fn()} />);
+    renderWithClient(<EscrowPanel claim={claim('escrow_funded') as never} onUpdate={vi.fn()} />);
     expect(await screen.findByText('Provider contact')).toBeTruthy();
     expect(
       await screen.findByText('Meet at the side entrance and ask for Maria.'),
@@ -375,7 +376,7 @@ describe('EscrowPanel contact-note display (P2, render-what-it-gets)', () => {
 
   it('hides the note block when null', async () => {
     panelWithNote(null);
-    render(<EscrowPanel claim={claim('escrow_funded') as never} onUpdate={vi.fn()} />);
+    renderWithClient(<EscrowPanel claim={claim('escrow_funded') as never} onUpdate={vi.fn()} />);
     expect(await screen.findByText('Held until delivery')).toBeTruthy();
     expect(screen.queryByText('Provider contact')).toBeNull();
   });
@@ -395,7 +396,7 @@ describe('MarkDeliveredForm', () => {
         return (original as typeof fetch)(url, init);
       }) as unknown as typeof fetch,
     );
-    render(<MarkDeliveredForm claimId={CLAIM_ID} onDelivered={vi.fn()} />);
+    renderWithClient(<MarkDeliveredForm claimId={CLAIM_ID} onDelivered={vi.fn()} />);
     await user.type(screen.getByLabelText(/payout address/i), 'not-an-address');
     await user.click(screen.getByText('Mark delivered'));
     expect(await screen.findByText(/valid payout address/i)).toBeTruthy();
@@ -420,7 +421,7 @@ describe('MarkDeliveredForm', () => {
       }) as unknown as typeof fetch,
     );
     const onDelivered = vi.fn();
-    render(<MarkDeliveredForm claimId={CLAIM_ID} onDelivered={onDelivered} />);
+    renderWithClient(<MarkDeliveredForm claimId={CLAIM_ID} onDelivered={onDelivered} />);
     await user.type(screen.getByLabelText(/payout address/i), `  ${PAYOUT}  `);
     await user.click(screen.getByText('Mark delivered'));
     await waitFor(() => expect(bodies).toHaveLength(1));
@@ -442,7 +443,7 @@ describe('MarkDeliveredForm', () => {
         return (original as typeof fetch)(url, init);
       }) as unknown as typeof fetch,
     );
-    render(<MarkDeliveredForm claimId={CLAIM_ID} onDelivered={vi.fn()} />);
+    renderWithClient(<MarkDeliveredForm claimId={CLAIM_ID} onDelivered={vi.fn()} />);
     await user.type(screen.getByLabelText(/payout address/i), PAYOUT);
     await user.click(screen.getByText('Mark delivered'));
     expect(await screen.findByText(/can’t be changed after delivery/i)).toBeTruthy();
@@ -473,7 +474,7 @@ describe('SlotForm contact note field', () => {
   });
 
   it('renders the field with escrow-gated helper and a live count', () => {
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <SlotForm
         initial={validInitial('')}
         submitLabel="Save changes"
@@ -494,7 +495,7 @@ describe('SlotForm contact note field', () => {
   it('passes the trimmed note as the second submit arg', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <SlotForm
         initial={validInitial('  Meet at gate B.  ')}
         submitLabel="Save changes"
@@ -516,7 +517,7 @@ describe('SlotForm contact note field', () => {
   it('submits a null note when the field is empty', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <SlotForm
         initial={validInitial('')}
         submitLabel="Save changes"
@@ -537,7 +538,7 @@ describe('SlotForm contact note field', () => {
   it('blocks URL-ish notes client-side without submitting', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
-    const { unmount } = render(
+    const { unmount } = renderWithClient(
       <SlotForm
         initial={validInitial('see https://x.example/y')}
         submitLabel="Save changes"
@@ -618,7 +619,7 @@ describe('SellDetail demand section (P2)', () => {
   it('lists the funded claim with a Mark delivered form; delivering updates the row', async () => {
     const user = userEvent.setup();
     demandFetch();
-    render(
+    renderWithClient(
       <MemoryRouter initialEntries={['/sell/slot-9']}>
         <Routes>
           <Route path="/sell/:slotId" element={<SellDetail />} />
