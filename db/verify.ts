@@ -39,6 +39,16 @@ async function main(): Promise<void> {
     'audit_events.request_id',
     'users.avatar_data',
     'slots.image_data',
+    // Phase 5g dual identity: nullable identity columns on users.
+    'users.email',
+    'users.email_verified_at',
+    'users.password_hash',
+    'users.google_sub',
+    'users.username',
+    'users.bio',
+    'users.phone',
+    'users.dob',
+    'users.location',
   ];
   const columns = await db.execute<{ table_name: string; column_name: string }>(sql`
     SELECT table_name, column_name
@@ -164,6 +174,20 @@ async function main(): Promise<void> {
   console.log(`slots.price_nim absent: ${!present.has('slots.price_nim')}`);
   if (!present.has('slots.price_usdt') || present.has('slots.price_nim')) {
     throw new Error('slots price column rename (price_nim → price_usdt) not applied');
+  }
+
+  // Phase 5g: users.wallet_address must be nullable (dual identity —
+  // email/password users have no wallet until they link one).
+  const nullability = await db.execute<{ column_name: string; is_nullable: string }>(sql`
+    SELECT column_name, is_nullable
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users'
+      AND column_name = 'wallet_address'
+  `);
+  const walletNullable = nullability.rows[0]?.is_nullable === 'YES';
+  console.log(`users.wallet_address nullable: ${walletNullable}`);
+  if (!walletNullable) {
+    throw new Error('users.wallet_address is still NOT NULL (Phase 5g migration not applied)');
   }
 }
 

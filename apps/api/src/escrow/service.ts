@@ -598,13 +598,16 @@ export async function verifyDeposit(
         .where(eq(slots.id, fresh.slotId))
         .limit(1);
       const buyerRows = await tx
-        .select({ walletAddress: users.walletAddress })
+        .select({ walletAddress: users.walletAddress, username: users.username })
         .from(users)
         .where(eq(users.id, fresh.buyerId))
         .limit(1);
-      const buyerDisplay = buyerRows[0]
-        ? truncateWalletAddress(buyerRows[0].walletAddress)
-        : 'a buyer';
+      const buyerRow = buyerRows[0];
+      // Funded claims always carry a wallet buyer (the createClaim gate);
+      // the username branch is dead-path defense over the nullable column.
+      const buyerDisplay = buyerRow?.walletAddress
+        ? truncateWalletAddress(buyerRow.walletAddress)
+        : (buyerRow?.username ? `@${buyerRow.username}` : 'a buyer');
       await writeNotification(tx, {
         userId: freshEscrow.providerId,
         type: 'slot_funded',

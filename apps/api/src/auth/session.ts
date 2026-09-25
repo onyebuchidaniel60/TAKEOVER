@@ -3,12 +3,25 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
 import { sessions, users } from '../../../../db/schema';
 import { AppError } from '../http/errors';
-import { parseBearerToken, parseSessionToken, SESSION_COOKIE_NAME, sessionHashMatches } from './session-token';
+import {
+  createSessionToken,
+  parseBearerToken,
+  parseSessionToken,
+  SESSION_COOKIE_NAME,
+  sessionHashMatches,
+} from './session-token';
+import { SESSION_TTL_MS } from './challenge';
+
+type Db = ReturnType<typeof getDb>;
 
 export interface AuthUser {
   sessionId: string;
   id: string;
-  walletAddress: string;
+  // Nullable since Phase 5g (dual identity): email/password users have no
+  // wallet until they link one. Auth identity checks treat null as
+  // "no wallet" (never an error); payment-adjacent paths gate on it
+  // (WALLET_REQUIRED); display paths fall back to username/email.
+  walletAddress: string | null;
   role: 'buyer' | 'provider' | 'admin';
   status: 'active' | 'disabled';
 }
@@ -116,6 +129,28 @@ export async function requireAuth(request: FastifyRequest): Promise<AuthUser> {
 
 export function setSessionCookie(reply: FastifyReply, token: string): void {
   reply.setCookie(SESSION_COOKIE_NAME, token, sessionCookieOptions());
+}
+
+/**
+ * Shared session-issuance path (Phase 5g): wallet verify, email register,
+ * and email login all mint the SAME session row shape (opaque
+ * `<sessionId>.<secret>` token, SHA-256 stored, 7-day TTL). The session
+ * layer keys on user.id and never inspects HOW the user authenticated.
+ * Callers set the cookie (and, for the verify/register/login responses,
+ * return the raw token as `sessionToken` for cookie-blocking WebViews).
+ */
+export async function issueSession(
+  db: Pick<Db, 'insert'>,
+  userId: string,
+): Promise<{ token: string }> {
+  const token = createSessionToken();
+  await db.insert(sessions).values({
+    id: token.sessionId,
+    userId,
+    tokenHash: token.secretHash,
+    expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+  });
+  return { token: token.token };
 }
 
 export function clearSessionCookie(reply: FastifyReply): void {

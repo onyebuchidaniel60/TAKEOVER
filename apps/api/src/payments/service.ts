@@ -78,6 +78,12 @@ export async function createPaymentIntent(
     if (!buyer) {
       throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
     }
+    // Unreachable in practice (claims require a wallet since Phase 5g, and
+    // this deprecated path is claim-scoped), but fail closed with the
+    // payment-adjacent code rather than a 500 on corrupt input.
+    if (buyer.walletAddress === null) {
+      throw new AppError(409, 'WALLET_REQUIRED', 'Connect a wallet to pay for a claim.');
+    }
     const values = {
       claimId: claim.id,
       expectedAmountNim: slot.priceUsdt,

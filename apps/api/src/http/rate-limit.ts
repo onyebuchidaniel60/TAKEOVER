@@ -30,6 +30,22 @@ export const DEFAULT_PROVIDER_CLAIMS_READ_RATE_LIMIT: RateLimitOptions = {
 };
 export const DEFAULT_ADMIN_RATE_LIMIT: RateLimitOptions = { windowMs: 60_000, max: 120 };
 export const DEFAULT_NOTIFICATIONS_RATE_LIMIT: RateLimitOptions = { windowMs: 60_000, max: 60 };
+// Phase 5g email identity budgets: registration is a strict per-IP hourly
+// budget (signup-abuse backstop behind the EMAIL_TAKEN usability signal);
+// login is per-IP per 15 minutes plus a smaller per-email budget counted
+// on FAILURES only (stops targeted brute force without locking legitimate
+// retries out of a shared IP); username-available is a live-typing
+// endpoint (generous per-minute tripwire, not a hard user cap).
+export const DEFAULT_REGISTER_RATE_LIMIT: RateLimitOptions = { windowMs: 3_600_000, max: 5 };
+export const DEFAULT_LOGIN_RATE_LIMIT: RateLimitOptions = { windowMs: 15 * 60_000, max: 10 };
+export const DEFAULT_LOGIN_EMAIL_FAILURE_RATE_LIMIT: RateLimitOptions = {
+  windowMs: 15 * 60_000,
+  max: 5,
+};
+export const DEFAULT_USERNAME_AVAILABLE_RATE_LIMIT: RateLimitOptions = {
+  windowMs: 60_000,
+  max: 30,
+};
 
 /** Fixed-window per-IP limiter. Throws 429 RATE_LIMITED when the budget is spent. */
 export function createRateLimiter(options: RateLimitOptions) {
@@ -54,6 +70,39 @@ export function createRateLimiter(options: RateLimitOptions) {
     if (entry.count > options.max) {
       throw new AppError(429, 'RATE_LIMITED', 'Too many requests. Please try again later.');
     }
+  };
+}
+
+/**
+ * Keyed fixed-window budget. Unlike the request-keyed limiters above, the
+ * caller supplies the bucket key explicitly (e.g. a normalized email for
+ * failures-only login tracking, where the outcome — and therefore the key
+ * lifetime — is known only inside the handler). Throws 429 RATE_LIMITED
+ * when the key's budget is spent; each consume() call counts one unit.
+ */
+export function createKeyedRateLimiter(options: RateLimitOptions) {
+  const hits = new Map<string, { count: number; resetAt: number }>();
+
+  return {
+    consume(key: string): void {
+      const now = Date.now();
+      if (hits.size > 10000) {
+        for (const [stored, entry] of hits) {
+          if (entry.resetAt <= now) {
+            hits.delete(stored);
+          }
+        }
+      }
+      let entry = hits.get(key);
+      if (!entry || entry.resetAt <= now) {
+        entry = { count: 0, resetAt: now + options.windowMs };
+        hits.set(key, entry);
+      }
+      entry.count += 1;
+      if (entry.count > options.max) {
+        throw new AppError(429, 'RATE_LIMITED', 'Too many requests. Please try again later.');
+      }
+    },
   };
 }
 

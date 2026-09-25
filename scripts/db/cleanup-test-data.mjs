@@ -4,6 +4,10 @@
 //   * users with SEED-marker wallet addresses (NQ00 SEEDFIXTURE… — db/seed.ts,
 //     scripts/audit/seed-phase5.ts). The SEED marker breaks the Nimiq IBAN
 //     checksum, so these wallets can never authenticate and never look real.
+//   * users with Phase 5g test emails (domain @test.local — the convention
+//     every email-auth test uses; @example.test also matched as a safety
+//     superset) or test usernames (leading `test_` — underscore, not hyphen,
+//     because usernames only allow [a-z0-9_] so `test-` is unrepresentable)
 //   * slots owned by those users
 //   * slots with a `test-` or `seed-` title prefix (any owner)
 //   * slots whose description carries the audit-fixture marker
@@ -61,9 +65,15 @@ try {
   await client.query('BEGIN');
 
   // 1. Seed users: the SEED marker can never authenticate (checksum break).
+  //    Plus Phase 5g email-identity test users: @test.local is the convention
+  //    every email-auth test uses (@example.test matched as a safety
+  //    superset); test usernames lead with `test_`. Domain match is
+  //    end-anchored so test.localevil.com-style addresses never match.
   const seedUserIds = await collectIds(
     client,
-    `SELECT id FROM users WHERE wallet_address LIKE '%SEED%'`,
+    `SELECT id FROM users WHERE wallet_address LIKE '%SEED%'
+       OR email ~* '@(test\\.local|example\\.test)$'
+       OR LEFT(username, 5) = 'test_'`,
   );
   counts.users_matched = seedUserIds.length;
 

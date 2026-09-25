@@ -13,12 +13,21 @@ type Db = ReturnType<typeof getDb>;
 /** Resolve one display string: profile display_name wins, else truncated wallet. */
 export function resolveProviderDisplay(
   displayName: string | null | undefined,
-  walletAddress: string,
+  walletAddress: string | null | undefined,
+  fallback?: string | null,
 ): string {
   if (typeof displayName === 'string' && displayName.trim() !== '') {
     return displayName;
   }
-  return truncateWalletAddress(walletAddress);
+  // Wallet-less users (Phase 5g email identity): show the username handle
+  // when the caller passes one, never a crash on null.
+  if (typeof walletAddress === 'string' && walletAddress !== '') {
+    return truncateWalletAddress(walletAddress);
+  }
+  if (typeof fallback === 'string' && fallback.trim() !== '') {
+    return fallback;
+  }
+  return 'Someone';
 }
 
 export async function loadProviderDisplayMap(
@@ -30,7 +39,7 @@ export async function loadProviderDisplayMap(
     return new Map();
   }
   const userRows = await db
-    .select({ id: users.id, walletAddress: users.walletAddress })
+    .select({ id: users.id, walletAddress: users.walletAddress, username: users.username })
     .from(users)
     .where(inArray(users.id, unique));
   const profileRows = await db
@@ -40,7 +49,14 @@ export async function loadProviderDisplayMap(
   const names = new Map(profileRows.map((row) => [row.userId, row.displayName]));
   const map = new Map<string, string>();
   for (const user of userRows) {
-    map.set(user.id, resolveProviderDisplay(names.get(user.id), user.walletAddress));
+    map.set(
+      user.id,
+      resolveProviderDisplay(
+        names.get(user.id),
+        user.walletAddress,
+        user.username ? `@${user.username}` : null,
+      ),
+    );
   }
   return map;
 }
@@ -67,7 +83,12 @@ export async function loadProviderCardMap(db: Db, providerIds: string[]): Promis
     return new Map();
   }
   const userRows = await db
-    .select({ id: users.id, walletAddress: users.walletAddress, avatarData: users.avatarData })
+    .select({
+      id: users.id,
+      walletAddress: users.walletAddress,
+      username: users.username,
+      avatarData: users.avatarData,
+    })
     .from(users)
     .where(inArray(users.id, unique));
   const profileRows = await db
@@ -78,7 +99,11 @@ export async function loadProviderCardMap(db: Db, providerIds: string[]): Promis
   const map = new Map<string, ProviderCard>();
   for (const user of userRows) {
     map.set(user.id, {
-      display: resolveProviderDisplay(names.get(user.id), user.walletAddress),
+      display: resolveProviderDisplay(
+        names.get(user.id),
+        user.walletAddress,
+        user.username ? `@${user.username}` : null,
+      ),
       avatar: user.avatarData,
     });
   }

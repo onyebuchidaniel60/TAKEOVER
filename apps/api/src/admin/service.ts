@@ -21,6 +21,21 @@ import type { EscrowContractClient } from '../../../../packages/shared/src/escro
 
 type Db = ReturnType<typeof getDb>;
 
+/**
+ * Admin identity label (Phase 5g dual identity): truncated wallet when the
+ * account has one, else the @username handle, else an em-dash for
+ * neither. Display-only; never throws on null.
+ */
+function identityDisplay(walletAddress: string | null, username: string | null): string {
+  if (walletAddress) {
+    return truncateWalletAddress(walletAddress);
+  }
+  if (username) {
+    return `@${username}`;
+  }
+  return '—';
+}
+
 // ---------------------------------------------------------------------------
 // Reports
 // ---------------------------------------------------------------------------
@@ -56,7 +71,7 @@ export async function listReports(
   const views: AdminReportView[] = [];
   for (const { report } of rows) {
     const reporterRows = await db
-      .select({ id: users.id, walletAddress: users.walletAddress })
+      .select({ id: users.id, walletAddress: users.walletAddress, username: users.username })
       .from(users)
       .where(eq(users.id, report.reporterId))
       .limit(1);
@@ -78,14 +93,14 @@ export async function listReports(
     let targetUser: AdminReportView['targetUser'] = null;
     if (report.targetUserId !== null) {
       const targetRows = await db
-        .select({ id: users.id, walletAddress: users.walletAddress })
+        .select({ id: users.id, walletAddress: users.walletAddress, username: users.username })
         .from(users)
         .where(eq(users.id, report.targetUserId))
         .limit(1);
       if (targetRows[0]) {
         targetUser = {
           id: targetRows[0].id,
-          walletDisplay: truncateWalletAddress(targetRows[0].walletAddress),
+          walletDisplay: identityDisplay(targetRows[0].walletAddress, targetRows[0].username),
         };
       }
     }
@@ -98,7 +113,10 @@ export async function listReports(
       reviewed_at: report.reviewedAt ? report.reviewedAt.toISOString() : null,
       resolution_notes: report.resolutionNotes,
       resolved_by_user_id: report.resolvedByUserId,
-      reporter: { id: reporter.id, walletDisplay: truncateWalletAddress(reporter.walletAddress) },
+      reporter: {
+        id: reporter.id,
+        walletDisplay: identityDisplay(reporter.walletAddress, reporter.username),
+      },
       slot,
       targetUser,
     });
@@ -158,7 +176,7 @@ export async function resolveReport(
     throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
   }
   const reporterRows = await db
-    .select({ id: users.id, walletAddress: users.walletAddress })
+    .select({ id: users.id, walletAddress: users.walletAddress, username: users.username })
     .from(users)
     .where(eq(users.id, report.reporterId))
     .limit(1);
@@ -180,14 +198,14 @@ export async function resolveReport(
   let targetUser: AdminReportView['targetUser'] = null;
   if (report.targetUserId !== null) {
     const targetRows = await db
-      .select({ id: users.id, walletAddress: users.walletAddress })
+      .select({ id: users.id, walletAddress: users.walletAddress, username: users.username })
       .from(users)
       .where(eq(users.id, report.targetUserId))
       .limit(1);
     if (targetRows[0]) {
       targetUser = {
         id: targetRows[0].id,
-        walletDisplay: truncateWalletAddress(targetRows[0].walletAddress),
+        walletDisplay: identityDisplay(targetRows[0].walletAddress, targetRows[0].username),
       };
     }
   }
@@ -200,7 +218,10 @@ export async function resolveReport(
     reviewed_at: report.reviewedAt ? report.reviewedAt.toISOString() : null,
     resolution_notes: report.resolutionNotes,
     resolved_by_user_id: report.resolvedByUserId,
-    reporter: { id: reporter.id, walletDisplay: truncateWalletAddress(reporter.walletAddress) },
+    reporter: {
+      id: reporter.id,
+      walletDisplay: identityDisplay(reporter.walletAddress, reporter.username),
+    },
     slot,
     targetUser,
   };
@@ -611,14 +632,14 @@ export async function listAuditEvents(
     let actor: AuditEventView['actor'] = null;
     if (event.actorUserId !== null) {
       const actorRows = await db
-        .select({ id: users.id, walletAddress: users.walletAddress })
+        .select({ id: users.id, walletAddress: users.walletAddress, username: users.username })
         .from(users)
         .where(eq(users.id, event.actorUserId))
         .limit(1);
       if (actorRows[0]) {
         actor = {
           id: actorRows[0].id,
-          walletDisplay: truncateWalletAddress(actorRows[0].walletAddress),
+          walletDisplay: identityDisplay(actorRows[0].walletAddress, actorRows[0].username),
         };
       }
     }

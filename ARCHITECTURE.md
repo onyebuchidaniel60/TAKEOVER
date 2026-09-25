@@ -75,7 +75,15 @@ backend key, no signing, no ledger, no custody.)
 
 ### 4.1 Identity
 
-The canonical user identity is a verified Nimiq wallet address.
+The canonical user identity is a verified Nimiq wallet address OR an
+email/password account (dual identity since Phase 5g). Either identifies
+the user; each can be linked later. Email is stored lowercased and
+unverified (no email service in MVP); `email_verified_at` is reserved for
+a future verification flow. Usernames are required, unique, stored
+lowercased, and immutable after set (stable public handle; the
+`provider_profiles.display_name` stays the mutable friendly name).
+Account linking is first-claim-wins with no merges: an email or wallet
+already on any account is rejected (`EMAIL_TAKEN` / `WALLET_TAKEN`).
 
 The Mini App obtains wallet access through the injected Nimiq provider. The app requests a challenge from the server, signs that challenge using the Nimiq provider, and submits the signature for verification.
 
@@ -421,7 +429,18 @@ cleanup removed them.
 ### users
 
 - id UUID PK
-- wallet_address TEXT NOT NULL UNIQUE
+- wallet_address TEXT NULL UNIQUE (nullable since Phase 5g: email users
+  link a wallet later; Postgres UNIQUE treats NULLs as distinct)
+- email TEXT NULL UNIQUE (stored lowercased; NULL for wallet-only users)
+- email_verified_at TIMESTAMPTZ NULL (reserved; always NULL under option B)
+- password_hash TEXT NULL (scrypt PHC string
+  `scrypt$N$r$p$salt-b64$hash-b64`, N=16384/r=8/p=1/keyLen=64; NULL for
+  wallet-only users)
+- google_sub TEXT NULL UNIQUE (reserved for Google OAuth)
+- username TEXT NULL UNIQUE (stored lowercased, immutable after set)
+- bio TEXT NULL (plain text, ~160 chars, no URLs)
+- phone TEXT NULL, dob DATE NULL (optional, private — never on public projections)
+- location TEXT NULL (free text)
 - role ENUM(user_role: buyer, provider, admin) NOT NULL DEFAULT buyer (server-controlled)
 - status ENUM(user_status: active, disabled) NOT NULL DEFAULT active
 - disabled_at TIMESTAMPTZ NULL
@@ -740,6 +759,52 @@ Auth: session.
 
 Revokes current session.
 
+### POST /api/v1/auth/register
+
+Auth: none.
+
+Request:
+
+```json
+{ "email": "a@b.c", "password": "...", "username": "handle" }
+```
+
+Email (RFC-lite shape, stored lowercased), password (min 8 chars, must
+not equal the email/username; scrypt-hashed, never stored or logged in
+plaintext), username (3-20 chars, `[a-z0-9_]+`, letter-first, reserved
+list enforced). Duplicate email → 409 `EMAIL_TAKEN`; duplicate username
+→ 409 `USERNAME_TAKEN` (UNIQUE backstop maps registration races to the
+same codes). Creates a wallet-less user (`wallet_address` NULL,
+`role` buyer) plus a session via the same issuance path, cookie, and
+body `sessionToken` field as the wallet flow. Rate limited (5/IP/hour).
+Audits `user.created` with `auth_method: 'email'` (no password, no email
+in metadata).
+
+### POST /api/v1/auth/login
+
+Auth: none.
+
+Request:
+
+```json
+{ "email": "a@b.c", "password": "..." }
+```
+
+Unknown email and wrong password produce the identical 401
+`UNAUTHENTICATED` (no enumeration; wallet-only accounts fail the same
+way). Disabled users hear 401 `ACCOUNT_DISABLED`. Same session mechanism
+and response shape as register. Rate limited (10/IP/15min plus a
+failures-only 5/email/15min budget). Audits `user.logged_in` with
+`auth_method: 'email'`.
+
+### GET /api/v1/auth/username-available?username=<name>
+
+Auth: none (public; usernames are public handles).
+
+Returns `{ available: true }` for a valid unused handle, else
+`{ available: false, reason: 'format' | 'reserved' | 'taken' }`. Rate
+limited (30/IP/min, live-typing budget).
+
 ### GET /api/v1/me
 
 Auth: session.
@@ -886,6 +951,13 @@ Request:
 ```
 
 Must use a transaction and row lock.
+
+A wallet-less (email-only) user is rejected BEFORE the lock with 409
+`WALLET_REQUIRED` ("Connect a wallet to claim an opening."). Browsing,
+detail views, and provider listing stay wallet-free; downstream
+money paths (escrow-intent, submission, deposit verification, payment
+intent) are claim-scoped and fail closed (404) for users who own no
+claims.
 
 Idempotency-Key required.
 
@@ -1253,6 +1325,7 @@ Minimum stable codes:
 - INVALID_INPUT
 - AUTH_REQUIRED
 - AUTH_INVALID
+- UNAUTHENTICATED
 - AUTH_EXPIRED
 - FORBIDDEN
 - FORBIDDEN_ORIGIN
@@ -1285,6 +1358,9 @@ Minimum stable codes:
 - CANNOT_DISABLE_SELF
 - CLAIM_NOT_IN_REVIEW
 - ACCOUNT_DISABLED
+- EMAIL_TAKEN
+- USERNAME_TAKEN
+- WALLET_REQUIRED
 - CONFLICT
 - RATE_LIMITED
 - INTERNAL_ERROR

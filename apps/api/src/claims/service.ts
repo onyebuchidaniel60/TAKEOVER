@@ -86,6 +86,22 @@ export async function createClaim(
   const now = options.now ?? new Date();
   const ttlSeconds = options.ttlSeconds ?? getClaimHoldTtlSeconds();
   const decided = await db.transaction(async (tx) => {
+    // Wallet gate (Phase 5g D5): claiming is the payment-adjacent action,
+    // so a wallet-less (email-only) user is rejected BEFORE locking the
+    // slot row — no stranded hold, no burned inventory lock. Browsing,
+    // detail views, and provider listing stay wallet-free.
+    const buyerRows = await tx
+      .select({ walletAddress: users.walletAddress })
+      .from(users)
+      .where(eq(users.id, options.buyerId))
+      .limit(1);
+    const buyer = buyerRows[0];
+    if (!buyer) {
+      throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+    }
+    if (buyer.walletAddress === null) {
+      throw new AppError(409, 'WALLET_REQUIRED', 'Connect a wallet to claim an opening.');
+    }
     const locked = await tx.select().from(slots).where(eq(slots.id, options.slotId)).for('update');
     const slot = locked[0];
     if (!slot) {
@@ -332,7 +348,12 @@ export async function listSlotClaimsForProvider(
     throw new AppError(404, 'NOT_FOUND', 'Slot not found.');
   }
   const rows = await db
-    .select({ claim: claims, buyerWallet: users.walletAddress, buyerAvatar: users.avatarData })
+    .select({
+      claim: claims,
+      buyerWallet: users.walletAddress,
+      buyerUsername: users.username,
+      buyerAvatar: users.avatarData,
+    })
     .from(claims)
     .innerJoin(users, eq(claims.buyerId, users.id))
     .where(eq(claims.slotId, options.slotId))
@@ -340,14 +361,31 @@ export async function listSlotClaimsForProvider(
   const views: ProviderSlotClaimView[] = [];
   const counts: SlotClaimCounts = { ...EMPTY_SLOT_CLAIM_COUNTS };
   for (const row of rows) {
-    views.push(
-      toProviderSlotClaimView(row.claim, truncateWalletAddress(row.buyerWallet), row.buyerAvatar),
-    );
+    views.push(toProviderSlotClaimView(row.claim, buyerDisplayForClaim(row), row.buyerAvatar));
     // All 12 claim_status values are bucketed (the shim
     // counted six and dropped escrow states — resolved now).
     counts[row.claim.status as keyof SlotClaimCounts] += 1;
   }
   return { claims: views, counts };
+}
+
+/**
+ * Provider-facing buyer label. Claim buyers always hold a wallet (the
+ * createClaim gate enforces it; all pre-5g rows predate wallet-less
+ * users), so the username/'a buyer' branches are dead-path defense that
+ * keeps the projection total over a nullable column.
+ */
+function buyerDisplayForClaim(row: {
+  buyerWallet: string | null;
+  buyerUsername: string | null;
+}): string {
+  if (row.buyerWallet) {
+    return truncateWalletAddress(row.buyerWallet);
+  }
+  if (row.buyerUsername) {
+    return `@${row.buyerUsername}`;
+  }
+  return 'a buyer';
 }
 
 export interface ListBuyerClaimsOptions {
