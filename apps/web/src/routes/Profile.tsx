@@ -105,19 +105,11 @@ export default function Profile() {
             }
           />
 
-          <section className="flex flex-wrap gap-2" aria-label="Shortcuts">
-            <Link
-              to="/sell"
-              className="inline-block min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink"
-            >
-              My openings
-            </Link>
-            <Link
-              to="/claims"
-              className="inline-block min-h-touch rounded-lg border border-border-strong bg-surface px-4 py-2 text-body font-medium text-muted"
-            >
-              My holds
-            </Link>
+          {/* Account: logout only (Phase 5e). The openings/holds
+              shortcuts were redundant with the bottom nav (Sell/Claims)
+              and are gone; the section keeps its place so spacing stays
+              intentional. */}
+          <section className="flex flex-wrap gap-2" aria-label="Account">
             <button
               type="button"
               onClick={() => void logout()}

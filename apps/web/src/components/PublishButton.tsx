@@ -13,12 +13,15 @@ export default function PublishButton({
   /** Busy label override (e.g. "Paying…" / "Verifying…"). */
   busyLabel?: string;
 }) {
+  // Primary CTA of the draft page (Phase 5e): publishing is the goal,
+  // so this is the largest interactive element — centered by the parent,
+  // accent fill, larger type + padding than any other button on the page.
   return (
     <button
       type="button"
       onClick={onPublish}
       disabled={publishing || disabled}
-      className="min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface focus-visible:ring-accent focus-visible:ring-offset-surface"
+      className="min-h-touch rounded-lg bg-accent px-8 py-3 text-h3 font-semibold text-accent-ink disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface focus-visible:ring-accent focus-visible:ring-offset-surface"
     >
       {publishing ? (busyLabel ?? 'Publishing…') : (label ?? 'Publish')}
     </button>

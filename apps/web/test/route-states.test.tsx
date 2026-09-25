@@ -30,11 +30,13 @@ import SellDetail from '../src/routes/SellDetail';
 import SellNew from '../src/routes/SellNew';
 import SlotDetailPage from '../src/routes/SlotDetailPage';
 import {
+  assertZeroCriticalOrSerious,
   claimFixture,
   err,
   meFixture,
   mockFetch,
   pendingForever,
+  runAxe,
   setAdmin,
   setBuyer,
   setGuest,
@@ -303,6 +305,42 @@ describe('/sell/:id states', () => {
     );
     await screen.findByLabelText(/title/i);
     await screen.findByRole('button', { name: /^publish$/i });
+  });
+
+  it('draft inverts the button hierarchy: publish primary + centered, save secondary (Phase 5e)', async () => {
+    setBuyer();
+    mockFetch(() => ({
+      slot: { ...slotFixture(), payout_wallet: 'NQ0700000000000000000000000000000000', status: 'draft' },
+    }));
+    const { container } = renderWithClient(
+      <MemoryRouter initialEntries={['/sell/slot-1']}>
+        <Routes>
+          <Route
+            path="/sell/:slotId"
+            element={
+              <RequireAuth>
+                <SellDetail />
+              </RequireAuth>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const publish = await screen.findByRole('button', { name: /^publish$/i });
+    const save = await screen.findByRole('button', { name: /save changes/i });
+    // Publish is the largest CTA: accent fill, larger type + padding.
+    expect(publish.className).toContain('bg-accent');
+    expect(publish.className).toContain('text-h3');
+    expect(publish.className).toContain('px-8');
+    // Save is the outline utility, side-aligned, muted text.
+    expect(save.className).toContain('border-border-strong');
+    expect(save.className).toContain('bg-surface');
+    expect(save.className).toContain('self-start');
+    expect(save.className).not.toContain('bg-accent');
+    // Order on the page: secondary save (in the form) above the
+    // centered primary publish.
+    expect(save.compareDocumentPosition(publish) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    assertZeroCriticalOrSerious(await runAxe(container), 'draft hierarchy');
   });
 });
 

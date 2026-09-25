@@ -260,13 +260,19 @@ describe('cards + detail with images', () => {
     return container;
   }
 
-  it('feed card renders the 16:10 image header when present, nothing when absent', () => {
+  it('feed card never renders the opening image, even when the slot has one (Phase 5e)', () => {
     const withImage = renderCard(slotWith({ imageData: SLOT_IMAGE, providerAvatar: AVATAR_DATA }));
-    const img = withImage.querySelector('img');
-    expect(img?.className).toContain('aspect-[16/10]');
+    // The only img on the card is the 24px provider avatar — no 16:10
+    // opening-image header anywhere.
+    const imgs = [...withImage.querySelectorAll('img')];
+    expect(imgs).toHaveLength(1);
+    expect(imgs[0]?.className).toContain('rounded-full');
+    expect(imgs[0]?.getAttribute('src')).toBe(AVATAR_DATA);
+    expect(withImage.querySelector('.aspect-\\[16\\/10\\]')).toBeNull();
+    // The card keeps its category chip and title.
+    expect(withImage.textContent).toContain('Table for two');
     const without = renderCard(slotWith({ imageData: null, providerAvatar: null }));
     expect(without.querySelector('img')).toBeNull();
-    // Imageless cards keep their category-chip fallback visual.
     expect(without.textContent).toContain('Table for two');
   });
 
@@ -283,7 +289,7 @@ describe('cards + detail with images', () => {
 
   it('card + detail with images have no critical/serious violations', async () => {
     const card = renderCard(slotWith({ imageData: SLOT_IMAGE, providerAvatar: AVATAR_DATA }));
-    assertZeroCriticalOrSerious(await runAxe(card), 'feed card with image');
+    assertZeroCriticalOrSerious(await runAxe(card), 'feed card (image ignored)');
     const detail = renderWithClient(
       <SlotDetail slot={slotWith({ imageData: SLOT_IMAGE, providerAvatar: AVATAR_DATA })} />,
     );
@@ -328,6 +334,24 @@ describe('Profile with avatar', () => {
     const preview = container.querySelector('section[aria-label="Profile picture"] img');
     expect(preview?.getAttribute('width')).toBe('48');
     assertZeroCriticalOrSerious(await runAxe(container), 'profile with avatar');
+  });
+
+  it('has no openings/holds shortcuts — the bottom nav is the navigation (Phase 5e)', async () => {
+    setBuyer();
+    mockFetch((url) => {
+      if (url === '/api/v1/me') return { user: meFixture() };
+      if (url.startsWith('/api/v1/me/slots')) return { slots: [], total: 0, limit: 1, offset: 0 };
+      return undefined;
+    });
+    renderWithClient(
+      <MemoryRouter>
+        <Profile />
+      </MemoryRouter>,
+    );
+    await screen.findByRole('button', { name: /upload picture/i });
+    expect(screen.queryByRole('link', { name: /my openings/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /my holds/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /log out/i })).toBeTruthy();
   });
 
   it('shows the upload CTA and initial fallback without an avatar', async () => {

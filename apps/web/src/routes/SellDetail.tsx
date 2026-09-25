@@ -540,6 +540,9 @@ function ManageSlot({
       </div>
       {isDraft ? (
         <>
+          {/* Save is the secondary utility here (Phase 5e): the draft
+              exists, so publishing is the goal and owns the primary CTA
+              below. */}
           <SlotForm
             key={formKey}
             initial={initialValues(slot)}
@@ -547,8 +550,13 @@ function ManageSlot({
             submitting={saving}
             serverError={actionError}
             onSubmit={onSave}
+            submitVariant="secondary"
           />
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Publish-first action stack (Phase 5e): the approve button is
+              centered and largest; cancel sits below as the smaller
+              danger-outline utility. Conditions untouched (Phase 4c
+              state machine) — only the visual shell moved. */}
+          <div className="flex flex-col items-center gap-3">
             {/* The approve button exists only before any fee payment
                 (or as the transient busy indicator mid-publish): once a
                 hash exists outside publishing, the retry banner below

@@ -92,6 +92,7 @@ export default function SlotForm({
   onSubmit,
   commercialLocked = false,
   onSubmitNote,
+  submitVariant = 'primary',
 }: {
   initial: SlotFormValues;
   submitLabel: string;
@@ -113,6 +114,13 @@ export default function SlotForm({
    */
   commercialLocked?: boolean;
   onSubmitNote?: (note: string | null, image: string | null | undefined) => void;
+  /**
+   * Submit-button weight. Primary (default) is the accent CTA for fresh
+   * creation. Secondary is the Log-out-style outline utility for editing
+   * an existing draft, where publishing — not saving — is the goal
+   * (Phase 5e hierarchy inversion).
+   */
+  submitVariant?: 'primary' | 'secondary';
 }) {
   const [values, setValues] = useState<SlotFormValues>(initial);
   // Per-field inline reasons mirroring the
@@ -439,8 +447,12 @@ export default function SlotForm({
       ) : null}
       <button
         type="submit"
-        disabled={submitting}
-        className="min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface focus-visible:ring-accent focus-visible:ring-offset-surface"
+        disabled={submitting || preparingImage}
+        className={
+          submitVariant === 'secondary'
+            ? 'min-h-touch self-start rounded-lg border border-border-strong bg-surface px-4 py-2 text-body font-medium text-muted disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent'
+            : 'min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface focus-visible:ring-accent focus-visible:ring-offset-surface'
+        }
       >
         {submitting ? 'Saving…' : submitLabel}
       </button>

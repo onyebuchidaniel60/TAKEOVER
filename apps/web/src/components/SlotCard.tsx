@@ -12,8 +12,11 @@ import TimeBadge from './TimeBadge';
 // Feed card (design.md §7): surface, radius-card, 16px padding, no
 // shadow, no hover-lift. The whole card is a link, so press feedback
 // is scale(0.99). Category identity rides the icon chip (D5); title in
-// h2; time + location meta; price left, availability right — every
-// figure in mono + tabular-nums.
+// h2; provider avatar + name; time + location meta; price left,
+// availability right — every figure in mono + tabular-nums.
+//
+// The opening image never renders here (Phase 5e): the feed is a
+// scannable list, the image is inspected on the slot detail page.
 //
 // Hover/touch-start prefetches the detail query so the slot page often
 // opens on warm cache. Visuals and navigation are untouched.
@@ -26,52 +29,38 @@ export default function SlotCard({ slot }: { slot: PublicSlot }) {
       staleTime: 30_000,
     });
   };
-  const image = slot.imageData ?? null;
   return (
     <Link
       to={`/slot/${slot.id}`}
       onMouseEnter={prefetch}
       onPointerDown={prefetch}
-      className="block overflow-hidden rounded-card border border-border bg-surface transition-transform duration-press ease-out-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.99] motion-reduce:transition-none"
+      className="block rounded-card border border-border bg-surface p-4 transition-transform duration-press ease-out-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.99] motion-reduce:transition-none"
     >
-      {/* Opening image (optional): full-bleed header, clipped by the card
-          radius. No placeholder — imageless cards render exactly as before. */}
-      {image ? (
-        <img
-          src={image}
-          alt=""
-          aria-hidden="true"
-          loading="lazy"
-          className="aspect-[16/10] w-full object-cover"
-        />
+      <div className="flex items-start gap-3">
+        <CategoryIcon category={slot.category} />
+        <div className="min-w-0">
+          <h2 className="text-h2 font-semibold text-text">{slot.title}</h2>
+          <p className="mt-0.5 flex items-center gap-1.5 truncate text-small text-muted">
+            <Avatar data={slot.providerAvatar ?? null} name={slot.providerDisplay} size={24} />
+            <span className="truncate">By {slot.providerDisplay}</span>
+          </p>
+        </div>
+      </div>
+      {slot.description ? (
+        <p className="mt-3 line-clamp-2 text-body leading-relaxed text-muted">{slot.description}</p>
       ) : null}
-      <div className="p-4">
-        <div className="flex items-start gap-3">
-          <CategoryIcon category={slot.category} />
-          <div className="min-w-0">
-            <h2 className="text-h2 font-semibold text-text">{slot.title}</h2>
-            <p className="mt-0.5 flex items-center gap-1.5 truncate text-small text-muted">
-              <Avatar data={slot.providerAvatar ?? null} name={slot.providerDisplay} size={24} />
-              <span className="truncate">By {slot.providerDisplay}</span>
-            </p>
-          </div>
-        </div>
-        {slot.description ? (
-          <p className="mt-3 line-clamp-2 text-body leading-relaxed text-muted">{slot.description}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <TimeBadge startsAt={slot.starts_at} endsAt={slot.ends_at} />
+        {slot.location_label ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-small font-medium text-muted">
+            <MapPin size={12} aria-hidden="true" />
+            {slot.location_label}
+          </span>
         ) : null}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <TimeBadge startsAt={slot.starts_at} endsAt={slot.ends_at} />
-          {slot.location_label ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-small font-medium text-muted">
-              <MapPin size={12} aria-hidden="true" />
-              {slot.location_label}
-            </span>
-          ) : null}
-        </div>
-        <div className="mt-3 flex flex-wrap items-end justify-between gap-2 border-t border-border pt-3">
-          <PriceDisplay priceUsdt={slot.price_usdt} />
-          <AvailabilityBadge available={slot.available_quantity} />
-        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-end justify-between gap-2 border-t border-border pt-3">
+        <PriceDisplay priceUsdt={slot.price_usdt} />
+        <AvailabilityBadge available={slot.available_quantity} />
       </div>
     </Link>
   );
