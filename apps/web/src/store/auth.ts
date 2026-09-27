@@ -1,16 +1,26 @@
 import { create } from 'zustand';
 import { ApiError, apiFetch, setSessionToken } from '../lib/api';
+import {
+  keepSessionToken,
+  loginEmail as loginEmailRequest,
+  registerEmail as registerEmailRequest,
+} from '../lib/identity';
 import { connectWallet, signChallenge } from '../lib/nimiq';
 
 export type AuthStatus = 'unauthenticated' | 'authenticating' | 'authenticated';
 
 export interface AuthUser {
   id: string;
-  walletAddress: string;
+  walletAddress: string | null;
   role: string;
   status: string;
   hasProviderProfile?: boolean;
   providerProfile?: { displayName: string } | null;
+  avatarData?: string | null;
+  email?: string | null;
+  username?: string | null;
+  /** Onboarding completion ISO timestamp. NULL/absent = must go through onboarding. */
+  onboardedAt?: string | null;
 }
 
 interface ChallengeResponse {
@@ -25,6 +35,12 @@ interface AuthState {
   error: string | null;
   initialized: boolean;
   login: () => Promise<void>;
+  /** Email registration (Phase 5j onboarding). Throws ApiError for inline field errors. */
+  registerWithEmail: (body: { email: string; password: string; username: string }) => Promise<void>;
+  /** Email login (Phase 5j). Throws ApiError for inline errors. */
+  loginWithEmail: (body: { email: string; password: string }) => Promise<void>;
+  /** Mark onboarding complete (POST /me/onboarded) and refresh the cached user. */
+  markOnboarded: () => Promise<void>;
   logout: () => Promise<void>;
   /** Re-reads the session; resolves the user (or null) for cache seeding. */
   refresh: () => Promise<AuthUser | null>;
@@ -37,7 +53,7 @@ function messageOf(err: unknown): string {
   return err instanceof Error ? err.message : 'Something went wrong.';
 }
 
-export const useAuth = create<AuthState>()((set) => ({
+export const useAuth = create<AuthState>()((set, get) => ({
   status: 'unauthenticated',
   user: null,
   error: null,
@@ -63,10 +79,47 @@ export const useAuth = create<AuthState>()((set) => ({
       if (typeof verified.sessionToken === 'string' && verified.sessionToken.length > 0) {
         setSessionToken(verified.sessionToken);
       }
-      set({ status: 'authenticated', user: verified.user, error: null, initialized: true });
+      // Canonical user comes from /me (carries onboardedAt + identity
+      // fields the verify response lacks); fall back to the verify user
+      // only when the refresh itself fails.
+      const me = await get().refresh();
+      if (!me) {
+        set({ status: 'authenticated', user: verified.user, error: null, initialized: true });
+      }
     } catch (err) {
       set({ status: 'unauthenticated', user: null, error: messageOf(err), initialized: true });
     }
+  },
+
+  registerWithEmail: async (body) => {
+    const response = await registerEmailRequest(body);
+    keepSessionToken(response);
+    const me = await get().refresh();
+    if (!me) {
+      set({
+        status: 'authenticated',
+        user: { ...response.user, onboardedAt: null },
+        error: null,
+        initialized: true,
+      });
+    }
+  },
+
+  loginWithEmail: async (body) => {
+    const response = await loginEmailRequest(body);
+    keepSessionToken(response);
+    const me = await get().refresh();
+    if (!me) {
+      set({ status: 'authenticated', user: response.user, error: null, initialized: true });
+    }
+  },
+
+  markOnboarded: async () => {
+    const me = await apiFetch<{ user: AuthUser }>('/api/v1/me/onboarded', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    set({ user: me.user, status: 'authenticated', error: null, initialized: true });
   },
 
   logout: async () => {

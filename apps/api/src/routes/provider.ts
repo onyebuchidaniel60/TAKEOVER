@@ -14,7 +14,8 @@ import {
   type RateLimitOptions,
 } from '../http/rate-limit';
 import { nullableImageDataField } from '../images/validation';
-import { setUserAvatar } from '../users/service';
+import { setUserAvatar, updateUserProfile } from '../users/service';
+import { userProfileBodySchema } from '../users/validation';
 import { upsertProviderProfile } from '../provider-profiles/service';
 import { providerProfileBodySchema } from '../provider-profiles/validation';
 
@@ -32,6 +33,8 @@ export interface ProviderRouteOptions {
     providerProfile?: RateLimitOptions;
     /** Per-user avatar upload budget (default 10/hour). */
     avatar?: RateLimitOptions;
+    /** Per-IP profile-scalars update budget (default 60/min). */
+    profile?: RateLimitOptions;
   };
 }
 
@@ -43,6 +46,9 @@ export async function providerRoutes(
     opts.rateLimit?.providerProfile ?? DEFAULT_PROVIDER_PROFILE_RATE_LIMIT,
   );
   const avatarLimiter = createUserRateLimiter(opts.rateLimit?.avatar ?? DEFAULT_AVATAR_RATE_LIMIT);
+  const userProfileLimiter = createRateLimiter(
+    opts.rateLimit?.profile ?? DEFAULT_PROVIDER_PROFILE_RATE_LIMIT,
+  );
 
   app.patch('/me/provider-profile', { preHandler: profileLimiter }, async (request) => {
     const user = await requireAuth(request);
@@ -73,5 +79,22 @@ export async function providerRoutes(
       requestId: request.id,
     });
     return successBody(request, { avatarData });
+  });
+
+  // Self-service profile scalars (Phase 5j onboarding): bio, phone, dob,
+  // location. All optional; absent = unchanged, null/'' = clear. DOB and
+  // phone are private (stored, never served on public projections).
+  app.patch('/me/profile', { preHandler: userProfileLimiter }, async (request) => {
+    const user = await requireAuth(request);
+    const parsed = userProfileBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      const message = parsed.error.issues[0]?.message ?? 'Invalid profile fields.';
+      throw new AppError(400, 'INVALID_INPUT', message);
+    }
+    const db = getDb();
+    const profile = await updateUserProfile(db, user.id, parsed.data, {
+      requestId: request.id,
+    });
+    return successBody(request, { profile });
   });
 }

@@ -519,12 +519,23 @@ export function fetchSlotClaims(slotId: string): Promise<{
 // unset; may be absent on stale cache entries).
 export interface MeUser {
   id: string;
-  walletAddress: string;
+  walletAddress: string | null;
   role: string;
   status: string;
   hasProviderProfile?: boolean;
   providerProfile: { displayName: string } | null;
   avatarData?: string | null;
+  // Phase 5j dual identity + onboarding. Optional so older shapes
+  // (wallet verify responses, test fixtures) keep compiling; absent
+  // reads as "unknown" and the guard resolves it via refresh().
+  email?: string | null;
+  username?: string | null;
+  /** Onboarding completion ISO timestamp. NULL = must go through onboarding. */
+  onboardedAt?: string | null;
+  bio?: string | null;
+  phone?: string | null;
+  dob?: string | null;
+  location?: string | null;
 }
 
 export function fetchMe(): Promise<{ user: MeUser }> {

@@ -14,6 +14,10 @@ const PAGE_SIZE = 20;
 
 export const KNOWN_EVENT_TYPES = [
   'user.created',
+  'user.logged_in',
+  'user.onboarded',
+  'user.avatar_updated',
+  'user.profile_updated',
   'slot.published',
   'slot.cancelled',
   'claim.created',

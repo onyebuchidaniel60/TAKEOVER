@@ -9,13 +9,17 @@ export default function WalletStatus() {
   const { status, user, error, login, logout } = useAuth();
 
   if (status === 'authenticated' && user) {
+    // Wallet-less (email) accounts show their identity here (Phase 5j).
+    const label = user.walletAddress
+      ? truncate(user.walletAddress)
+      : (user.email ?? (user.username ? `@${user.username}` : 'Account'));
     return (
       <div className="flex min-w-0 items-center gap-2">
         <span
           className="min-w-0 max-w-44 truncate rounded-full bg-surface-2 px-3 py-1 text-body font-medium text-accent"
-          title={user.walletAddress}
+          title={label}
         >
-          {truncate(user.walletAddress)}
+          {label}
         </span>
         <button
           type="button"

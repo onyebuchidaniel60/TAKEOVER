@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef } from 'react';
 import { BrowserRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoadingSkeleton from './components/LoadingSkeleton';
+import OnboardingRedirect from './components/OnboardingRedirect';
 import RequireAdmin from './components/RequireAdmin';
 import RequireAuth, { getReturnTo } from './components/RequireAuth';
 import { useQueryClient } from '@tanstack/react-query';
@@ -28,6 +29,13 @@ const SellDetail = lazy(() => import('./routes/SellDetail'));
 const NotificationsPage = lazy(() => import('./routes/NotificationsPage'));
 const Profile = lazy(() => import('./routes/Profile'));
 const NotFound = lazy(() => import('./routes/NotFound'));
+// Onboarding (Phase 5j): own chunks, rendered OUTSIDE the app shell
+// (no TopBar, no pill nav — a focused sequence).
+const Welcome = lazy(() => import('./routes/Welcome'));
+const Login = lazy(() => import('./routes/Login'));
+const OnboardingAccount = lazy(() => import('./routes/onboarding/Account'));
+const OnboardingProfile = lazy(() => import('./routes/onboarding/ProfileSetup'));
+const OnboardingInterests = lazy(() => import('./routes/onboarding/Interests'));
 const AdminDashboard = lazy(() => import('./routes/admin/AdminDashboard'));
 const AdminReports = lazy(() => import('./routes/admin/AdminReports'));
 const AdminPaymentReviews = lazy(() => import('./routes/admin/AdminPaymentReviews'));
@@ -84,130 +92,161 @@ function Shell() {
     <BrowserRouter>
       <div className="min-h-screen bg-bg font-sans text-text">
         <ErrorBoundary section="TAKEOVER">
-          <TopBar />
+          <OnboardingRedirect />
           <ReturnToHandler />
           <Suspense fallback={<RouteFallback />}>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/openings" element={<Openings />} />
-              <Route path="/slot/:slotId" element={<SlotDetailPage />} />
-              <Route
-                path="/claim/:claimId"
-                element={
-                  <RequireAuth>
-                    <ClaimDetailPage />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/claims"
-                element={
-                  <RequireAuth>
-                    <ClaimsPage />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/sell"
-                element={
-                  <RequireAuth>
-                    <Sell />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/sell/new"
-                element={
-                  <RequireAuth>
-                    <SellNew />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/sell/:slotId"
-                element={
-                  <RequireAuth>
-                    <SellDetail />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/notifications"
-                element={
-                  <RequireAuth>
-                    <NotificationsPage />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/profile"
-                element={
-                  <RequireAuth>
-                    <Profile />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/admin"
-                element={
-                  <AdminSection>
-                    <AdminDashboard />
-                  </AdminSection>
-                }
-              />
-              <Route
-                path="/admin/reports"
-                element={
-                  <AdminSection>
-                    <AdminReports />
-                  </AdminSection>
-                }
-              />
-              <Route
-                path="/admin/payment-reviews"
-                element={
-                  <AdminSection>
-                    <AdminPaymentReviews />
-                  </AdminSection>
-                }
-              />
-              <Route
-                path="/admin/users"
-                element={
-                  <AdminSection>
-                    <AdminUsers />
-                  </AdminSection>
-                }
-              />
-              <Route
-                path="/admin/slots"
-                element={
-                  <AdminSection>
-                    <AdminSlots />
-                  </AdminSection>
-                }
-              />
-              <Route
-                path="/admin/audit"
-                element={
-                  <AdminSection>
-                    <AdminAudit />
-                  </AdminSection>
-                }
-              />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <ShellRoutes />
           </Suspense>
-          {/*
-            Pill-nav clearance (chrome, not screen content): the fixed nav
-            overlays page bottoms, so the shell reserves room for it here —
-            once — instead of every screen padding itself.
-          */}
-          <div aria-hidden="true" className="h-24 pb-[env(safe-area-inset-bottom)]" />
-          <BottomNav />
         </ErrorBoundary>
       </div>
     </BrowserRouter>
+  );
+}
+
+// Onboarding + login render bare (Part I: no TopBar, no pill nav, no nav
+// clearance). Everything else renders inside the chrome shell. The split
+// is by route, decided here — once — not per screen.
+function isBareRoute(pathname: string): boolean {
+  return (
+    pathname === '/welcome' || pathname === '/login' || pathname.startsWith('/onboarding/')
+  );
+}
+
+function ShellRoutes() {
+  const location = useLocation();
+  if (isBareRoute(location.pathname)) {
+    return (
+      <Routes>
+        <Route path="/welcome" element={<Welcome />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/onboarding/account" element={<OnboardingAccount />} />
+        <Route path="/onboarding/profile" element={<OnboardingProfile />} />
+        <Route path="/onboarding/interests" element={<OnboardingInterests />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    );
+  }
+  return (
+    <>
+      <TopBar />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/openings" element={<Openings />} />
+        <Route path="/slot/:slotId" element={<SlotDetailPage />} />
+        <Route
+          path="/claim/:claimId"
+          element={
+            <RequireAuth>
+              <ClaimDetailPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/claims"
+          element={
+            <RequireAuth>
+              <ClaimsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/sell"
+          element={
+            <RequireAuth>
+              <Sell />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/sell/new"
+          element={
+            <RequireAuth>
+              <SellNew />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/sell/:slotId"
+          element={
+            <RequireAuth>
+              <SellDetail />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <RequireAuth>
+              <NotificationsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <RequireAuth>
+              <Profile />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <AdminSection>
+              <AdminDashboard />
+            </AdminSection>
+          }
+        />
+        <Route
+          path="/admin/reports"
+          element={
+            <AdminSection>
+              <AdminReports />
+            </AdminSection>
+          }
+        />
+        <Route
+          path="/admin/payment-reviews"
+          element={
+            <AdminSection>
+              <AdminPaymentReviews />
+            </AdminSection>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <AdminSection>
+              <AdminUsers />
+            </AdminSection>
+          }
+        />
+        <Route
+          path="/admin/slots"
+          element={
+            <AdminSection>
+              <AdminSlots />
+            </AdminSection>
+          }
+        />
+        <Route
+          path="/admin/audit"
+          element={
+            <AdminSection>
+              <AdminAudit />
+            </AdminSection>
+          }
+        />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+      {/*
+        Pill-nav clearance (chrome, not screen content): the fixed nav
+        overlays page bottoms, so the shell reserves room for it here —
+        once — instead of every screen padding itself.
+      */}
+      <div aria-hidden="true" className="h-24 pb-[env(safe-area-inset-bottom)]" />
+      <BottomNav />
+    </>
   );
 }
 

@@ -7,7 +7,7 @@
 // secondary CTA carries the current filters to /openings. When
 // uncapped, the existing show-more button pages forward.
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import EmptyState from './EmptyState';
@@ -16,6 +16,7 @@ import LoadingSkeleton from './LoadingSkeleton';
 import SearchFilters, { type FilterValues } from './SearchFilters';
 import SlotList from './SlotList';
 import { ApiError } from '../lib/api';
+import { consumeOnboardingInterests } from '../lib/onboarding';
 import { queryKeys } from '../lib/queryKeys';
 import { fetchSlots } from '../lib/slots';
 
@@ -40,6 +41,23 @@ export default function FeedSection({ pageSize, capped }: { pageSize: number; ca
       ? String((location.state as { notice: unknown }).notice)
       : null;
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Onboarding interests seed the filter once (Phase 5j): the first feed
+  // visit after onboarding applies the first selected category as the
+  // initial ?category (the feed filters one category at a time). The
+  // consume is read-once — later visits never fight the user's own
+  // filters, and an explicit ?category always wins.
+  useEffect(() => {
+    if (searchParams.get('category')) return;
+    const interests = consumeOnboardingInterests();
+    if (interests && interests.length > 0) {
+      const next = new URLSearchParams(searchParams);
+      next.set('category', interests[0]);
+      setSearchParams(next, { replace: true });
+    }
+    // Mount-only: the consume guarantees single application.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const paramKey = searchParams.toString();
   const values: FilterValues = {

@@ -1,10 +1,11 @@
 // Create a draft opening. Auth-guarded.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import SlotForm, { initialValues } from '../components/SlotForm';
 import { ApiError } from '../lib/api';
 import { usePageMeta } from '../lib/meta';
+import { consumeWelcomeBanner } from '../lib/onboarding';
 import { createSlot, updateSlotContactNote, type SlotWrite } from '../lib/slots';
 
 export default function SellNew() {
@@ -13,6 +14,13 @@ export default function SellNew() {
   const queryClient = useQueryClient();
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  // First-action banner (Phase 5j): armed when the user leaves onboarding
+  // interests, read once here. Dismissible; navigating away drops it too
+  // (the flag is already consumed).
+  const [showWelcome, setShowWelcome] = useState(false);
+  useEffect(() => {
+    setShowWelcome(consumeWelcomeBanner());
+  }, []);
 
   const createMutation = useMutation({
     mutationFn: (body: SlotWrite) => createSlot(body),
@@ -60,6 +68,23 @@ export default function SellNew() {
       <p className="mt-1 text-body text-muted">
         Saved as a draft first — nothing goes public until you publish it.
       </p>
+      {showWelcome ? (
+        <div
+          role="status"
+          className="mt-4 flex items-start justify-between gap-3 rounded-card border border-accent bg-surface p-4"
+        >
+          <p className="text-body text-text">
+            Welcome to TAKEOVER — create your first opening to see how it works.
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowWelcome(false)}
+            className="inline-flex min-h-touch shrink-0 items-center px-2 text-body font-medium text-muted"
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
       <div className="mt-4">
         <SlotForm
           initial={initialValues()}

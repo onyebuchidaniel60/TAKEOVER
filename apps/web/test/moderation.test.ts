@@ -43,6 +43,10 @@ describe('KNOWN_EVENT_TYPES', () => {
   it('covers every audit event type', () => {
     for (const type of [
       'user.created',
+      'user.logged_in',
+      'user.onboarded',
+      'user.avatar_updated',
+      'user.profile_updated',
       'slot.published',
       'slot.cancelled',
       'claim.created',

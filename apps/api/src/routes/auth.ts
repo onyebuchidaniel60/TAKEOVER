@@ -81,6 +81,63 @@ function passwordErrorMessage(reason: string): string {
   return 'Invalid password.';
 }
 
+export interface MeUserView {
+  id: string;
+  email: string | null;
+  username: string | null;
+  walletAddress: string | null;
+  role: 'buyer' | 'provider' | 'admin';
+  status: 'active' | 'disabled';
+  hasProviderProfile: boolean;
+  providerProfile: { displayName: string } | null;
+  avatarData: string | null;
+  /** Onboarding completion (Phase 5j). NULL = must go through onboarding. */
+  onboardedAt: string | null;
+  bio: string | null;
+  phone: string | null;
+  /** YYYY-MM-DD (drizzle DATE mode is string). */
+  dob: string | null;
+  location: string | null;
+}
+
+type Db = ReturnType<typeof getDb>;
+
+/**
+ * Full /me projection shared by GET /me and POST /me/onboarded (one round
+ * trip: the client refreshes its cached user from either response).
+ * DOB/phone ride along for the owner's own reads only — they never appear
+ * on public projections.
+ */
+export async function readMeUser(db: Db, userId: string): Promise<MeUserView> {
+  const userRows = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  const row = userRows[0];
+  if (!row) {
+    throw new AppError(404, 'NOT_FOUND', 'User not found.');
+  }
+  const profiles = await db
+    .select({ displayName: providerProfiles.displayName })
+    .from(providerProfiles)
+    .where(eq(providerProfiles.userId, userId))
+    .limit(1);
+  const profile = profiles[0];
+  return {
+    id: row.id,
+    email: row.email,
+    username: row.username,
+    walletAddress: row.walletAddress,
+    role: row.role,
+    status: row.status,
+    hasProviderProfile: profiles.length > 0,
+    providerProfile: profile ? { displayName: profile.displayName } : null,
+    avatarData: row.avatarData,
+    onboardedAt: row.onboardedAt ? row.onboardedAt.toISOString() : null,
+    bio: row.bio,
+    phone: row.phone,
+    dob: row.dob,
+    location: row.location,
+  };
+}
+
 export interface AuthRouteOptions {
   /** Injected for tests; production always uses the real Nimiq verifier. */
   verifySignature?: VerifySignatureFn;
@@ -467,27 +524,41 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): 
   app.get('/me', async (request) => {
     const user = await requireAuth(request);
     const db = getDb();
-    const profiles = await db
-      .select({ displayName: providerProfiles.displayName })
-      .from(providerProfiles)
-      .where(eq(providerProfiles.userId, user.id))
-      .limit(1);
-    const profile = profiles[0];
-    const userRows = await db
-      .select({ avatarData: users.avatarData })
-      .from(users)
-      .where(eq(users.id, user.id))
-      .limit(1);
-    return successBody(request, {
-      user: {
-        id: user.id,
-        walletAddress: user.walletAddress,
-        role: user.role,
-        status: user.status,
-        hasProviderProfile: profiles.length > 0,
-        providerProfile: profile ? { displayName: profile.displayName } : null,
-        avatarData: userRows[0]?.avatarData ?? null,
-      },
+    return successBody(request, { user: await readMeUser(db, user.id) });
+  });
+
+  // Onboarding completion (Phase 5j). Idempotent: sets onboarded_at on
+  // first call, no-op (same shape) when already set. The client calls it
+  // once at the step 3 → 4 transition, then refreshes its cached user.
+  app.post('/me/onboarded', async (request) => {
+    const user = await requireAuth(request);
+    const db = getDb();
+    await db.transaction(async (tx) => {
+      const rows = await tx.select().from(users).where(eq(users.id, user.id)).limit(1);
+      const current = rows[0];
+      if (!current) {
+        throw new AppError(404, 'NOT_FOUND', 'User not found.');
+      }
+      if (current.onboardedAt !== null) {
+        return;
+      }
+      const updated = await tx
+        .update(users)
+        .set({ onboardedAt: new Date(), updatedAt: new Date() })
+        .where(eq(users.id, user.id))
+        .returning({ id: users.id });
+      if (!updated[0]) {
+        throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+      }
+      await writeAuditEvent(tx, {
+        actorUserId: user.id,
+        eventType: 'user.onboarded',
+        entityType: 'user',
+        entityId: user.id,
+        requestId: request.id,
+        metadata: {},
+      });
     });
+    return successBody(request, { user: await readMeUser(db, user.id) });
   });
 }

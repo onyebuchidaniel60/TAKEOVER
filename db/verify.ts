@@ -49,6 +49,8 @@ async function main(): Promise<void> {
     'users.phone',
     'users.dob',
     'users.location',
+    // Phase 5j onboarding completion (+ grandfather backfill).
+    'users.onboarded_at',
   ];
   const columns = await db.execute<{ table_name: string; column_name: string }>(sql`
     SELECT table_name, column_name

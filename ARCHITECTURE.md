@@ -444,6 +444,8 @@ cleanup removed them.
 - role ENUM(user_role: buyer, provider, admin) NOT NULL DEFAULT buyer (server-controlled)
 - status ENUM(user_status: active, disabled) NOT NULL DEFAULT active
 - disabled_at TIMESTAMPTZ NULL
+- onboarded_at TIMESTAMPTZ NULL (Phase 5j: NULL = must onboard; set at
+  profile-setup completion; grandfathered to created_at for older rows)
 - created_at TIMESTAMPTZ NOT NULL
 - updated_at TIMESTAMPTZ NOT NULL
 
@@ -810,7 +812,28 @@ limited (30/IP/min, live-typing budget).
 Auth: session.
 
 Returns safe user profile and role, plus `providerProfile:
-{ displayName: string } | null` (null until a display name is set).
+{ displayName: string } | null` (null until a display name is set),
+`onboardedAt: string | null` (NULL = must go through onboarding), and
+the owner's profile scalars (`bio`, `phone`, `dob`, `location` — DOB and
+phone are private and never appear on public projections).
+
+### POST /api/v1/me/onboarded
+
+Auth: session.
+
+Idempotent onboarding completion: sets `onboarded_at` on first call,
+no-op when already set. Returns the same user projection as GET /me.
+Audits `user.onboarded`.
+
+### PATCH /api/v1/me/profile
+
+Auth: session.
+
+Self-service profile scalars: `bio` (1–160 chars, no URLs), `phone`
+(lite charset, max 32), `dob` (YYYY-MM-DD, real past date),
+`location` (max 200). All optional; absent = unchanged, null/'' =
+clear. Same-value re-sets are a no-op. Audits `user.profile_updated`
+with changed field names only (values are PII, never metadata).
 
 ### GET /api/v1/slots
 

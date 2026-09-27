@@ -36,6 +36,10 @@ export const users = pgTable('users', {
   role: userRole('role').notNull().default('buyer'),
   status: userStatus('status').notNull().default('active'),
   disabledAt: timestamp('disabled_at', { withTimezone: true }),
+  // Onboarding completion (Phase 5j). NULL = must go through onboarding;
+  // set when the user passes profile setup (step 3 → 4). Existing users
+  // are grandfathered (migration backfills onboarded_at = created_at).
+  onboardedAt: timestamp('onboarded_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

@@ -54,7 +54,8 @@ export default function Profile() {
 
   const handleCopy = (): void => {
     if (!user) return;
-    const full = user.walletAddress;
+    const full = user.walletAddress ?? '';
+    if (!full) return;
     if (navigator.clipboard?.writeText) {
       void navigator.clipboard
         .writeText(full)
@@ -84,18 +85,32 @@ export default function Profile() {
         <div className="mt-4 flex flex-col gap-4">
           <AvatarSection user={user} />
 
-          <section className="rounded-xl border border-border bg-surface p-4" aria-label="Wallet">
-            <p className="text-small font-medium uppercase tracking-wide text-muted">Wallet</p>
-            <button
-              type="button"
-              onClick={handleCopy}
-              title={user.walletAddress}
-              className="mt-1 min-h-touch rounded-lg border border-border bg-surface-2 px-3 py-2 font-mono text-body text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-accent"
+          {/* Wallet-less (email) accounts show their identity here instead
+              of the wallet box (Phase 5j; full Profile redesign is 5k). */}
+          {user.walletAddress ? (
+            <section className="rounded-xl border border-border bg-surface p-4" aria-label="Wallet">
+              <p className="text-small font-medium uppercase tracking-wide text-muted">Wallet</p>
+              <button
+                type="button"
+                onClick={handleCopy}
+                title={user.walletAddress}
+                className="mt-1 min-h-touch rounded-lg border border-border bg-surface-2 px-3 py-2 font-mono text-body text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-accent"
+              >
+                {truncateWalletAddress(user.walletAddress)}
+                <span className="ml-2 font-sans text-small text-muted">{copied ? 'Copied' : 'Copy'}</span>
+              </button>
+            </section>
+          ) : (
+            <section
+              className="rounded-xl border border-border bg-surface p-4"
+              aria-label="Account identity"
             >
-              {truncateWalletAddress(user.walletAddress)}
-              <span className="ml-2 font-sans text-small text-muted">{copied ? 'Copied' : 'Copy'}</span>
-            </button>
-          </section>
+              <p className="text-small font-medium uppercase tracking-wide text-muted">Account</p>
+              <p className="mt-1 font-mono text-body text-text">
+                {user.email ?? (user.username ? `@${user.username}` : 'Email account')}
+              </p>
+            </section>
+          )}
 
           <ProviderSection
             user={user}
@@ -134,7 +149,12 @@ function AvatarSection({ user }: { user: MeUser }) {
   const [preparing, setPreparing] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const avatar = user.avatarData ?? null;
-  const name = user.providerProfile?.displayName ?? truncateWalletAddress(user.walletAddress);
+  // Wallet-less accounts fall back to email/username (Phase 5j).
+  const name =
+    user.providerProfile?.displayName ??
+    (user.walletAddress
+      ? truncateWalletAddress(user.walletAddress)
+      : (user.email ?? (user.username ? `@${user.username}` : 'TAKEOVER user')));
 
   const avatarMutation = useMutation({
     mutationFn: (avatarData: string | null) => updateMeAvatar(avatarData),
