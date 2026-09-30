@@ -12,6 +12,7 @@ import { adminRoutes, type AdminRouteOptions } from './routes/admin';
 import { claimRoutes, type ClaimRouteOptions } from './routes/claims';
 import { configRoutes } from './routes/config';
 import { escrowRoutes, type EscrowRouteOptions } from './routes/escrow';
+import { followRoutes, type FollowRouteOptions } from './routes/follows';
 import { notificationRoutes, type NotificationRouteOptions } from './routes/notifications';
 import { reportRoutes } from './routes/reports';
 import { paymentRoutes, type PaymentRouteOptions } from './routes/payments';
@@ -27,6 +28,7 @@ export type AppOptions = AuthRouteOptions &
   EscrowRouteOptions &
   NotificationRouteOptions &
   UserRouteOptions &
+  FollowRouteOptions &
   AdminRouteOptions & {
     /** Explicit CORS allowlist override (tests). Defaults to parseCorsOrigins(). */
     corsOrigins?: string[];
@@ -98,6 +100,7 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
       await api.register(providerRoutes, opts);
       await api.register(reportRoutes);
       await api.register(userRoutes, opts);
+      await api.register(followRoutes, opts);
       await api.register(adminRoutes, opts);
     },
     { prefix: '/api/v1' },

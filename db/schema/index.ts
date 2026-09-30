@@ -10,3 +10,4 @@ export * from './payment-intents';
 export * from './reports';
 export * from './audit-events';
 export * from './notifications';
+export * from './follows';

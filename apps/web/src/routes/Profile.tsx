@@ -33,7 +33,7 @@ import {
 import { ApiError } from '../lib/api';
 import { usePageMeta } from '../lib/meta';
 import { queryKeys } from '../lib/queryKeys';
-import { fetchMe, fetchMyClaims, fetchMySlots, type MeUser } from '../lib/slots';
+import { fetchMe, fetchMyClaims, fetchMySlots, fetchPublicProfile, type MeUser } from '../lib/slots';
 import { useAuth } from '../store/auth';
 
 export default function Profile() {
@@ -52,6 +52,16 @@ export default function Profile() {
     queryKey: queryKeys.myClaims,
     queryFn: () => fetchMyClaims({ limit: 1, offset: 0 }),
   });
+  // Own follower/following counts. D20: displayed but NOT tappable this
+  // phase, so the list routes are not linked from here. The query is keyed
+  // on the own handle so it shares cache with the public profile.
+  const myUsername = user?.username ?? null;
+  const socialQuery = useQuery({
+    queryKey: queryKeys.user(myUsername ?? ''),
+    queryFn: () => fetchPublicProfile(myUsername as string),
+    enabled: myUsername !== null && myUsername !== '',
+  });
+  const social = socialQuery.data?.profile.stats ?? null;
 
   if (meQuery.isPending || slotsQuery.isPending || claimsQuery.isPending) {
     return (
@@ -102,6 +112,8 @@ export default function Profile() {
           stats={[
             { label: 'Openings', value: openings },
             { label: 'Claims', value: claims },
+            { label: 'Followers', value: social?.followers ?? 0 },
+            { label: 'Following', value: social?.following ?? 0 },
           ]}
         />
 

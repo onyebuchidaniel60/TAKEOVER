@@ -95,6 +95,37 @@ async function main(): Promise<void> {
   }
   console.log('notifications table ok (notifications present)');
 
+  // Follow graph (Phase 5k-C). Asserted by name, not just presence: the
+  // UNIQUE edge is what makes follow idempotent and the self-follow CHECK is
+  // the DB-level backstop, so a silently-missing index/constraint is a
+  // correctness regression, not a cosmetic one.
+  if (!names.includes('follows')) {
+    throw new Error('missing table: follows');
+  }
+  const followIndexes = await db.execute<{ indexname: string }>(sql`
+    SELECT indexname
+    FROM pg_indexes
+    WHERE tablename = 'follows'
+  `);
+  const followIndexNames = new Set(followIndexes.rows.map((row) => row.indexname));
+  for (const required of ['follows_follower_following_unique', 'follows_following_idx']) {
+    if (!followIndexNames.has(required)) {
+      throw new Error(`missing follows index: ${required}`);
+    }
+  }
+  const followConstraints = await db.execute<{ conname: string }>(sql`
+    SELECT conname
+    FROM pg_constraint
+    WHERE conrelid = 'follows'::regclass
+  `);
+  const followConstraintNames = new Set(followConstraints.rows.map((row) => row.conname));
+  for (const required of ['follows_no_self_follow', 'follows_follower_id_users_id_fk', 'follows_following_id_users_id_fk']) {
+    if (!followConstraintNames.has(required)) {
+      throw new Error(`missing follows constraint: ${required}`);
+    }
+  }
+  console.log('follows table ok (unique edge, reverse index, self-follow CHECK present)');
+
   const enumValues = await db.execute<{ enumlabel: string; typname: string }>(sql`
     SELECT e.enumlabel, t.typname
     FROM pg_enum e

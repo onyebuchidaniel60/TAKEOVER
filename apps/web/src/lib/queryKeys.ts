@@ -31,6 +31,9 @@ export const queryKeys = {
   config: ['config'] as const,
   /** Public profile by handle. Distinct from ['me'] (own private view). */
   user: (username: string) => ['user', username] as const,
+  /** Follower/following lists (Phase 5k-C). */
+  followers: (username: string) => ['followers', username] as const,
+  following: (username: string) => ['following', username] as const,
 };
 
 /** Invalidate every slot-scoped cache after a slot mutation. */

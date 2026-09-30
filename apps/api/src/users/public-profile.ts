@@ -8,6 +8,7 @@
 import { and, count, eq } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
 import { claims, providerProfiles, slots, users } from '../../../../db/schema';
+import { getFollowCounts, isFollowing } from '../follows/service';
 import { AppError } from '../http/errors';
 import { resolveProviderDisplay } from '../slots/provider-display';
 
@@ -23,15 +24,19 @@ export interface PublicProfile {
   location: string | null;
   /** ISO date (YYYY-MM-DD) of users.created_at. */
   memberSince: string;
+  /**
+   * Does the REQUESTING user follow this profile? null for a guest or when
+   * the viewer is the profile owner. Resolved in the same round trip so the
+   * Follow button does not need a second request to render its state.
+   */
+  isFollowing: boolean | null;
   stats: {
     /** Published openings this user offers. */
     openings: number;
     /** Claims this user has made as a buyer. */
     claims: number;
     /**
-     * Phase 5k-C replaces these with real counts from the follows table.
-     * They are reported as 0 (not omitted) so the response shape does not
-     * change when the counts go live, and the Part-B UI does not read them.
+     * Real counts from the follows table (Phase 5k-C).
      */
     followers: number;
     following: number;
@@ -53,7 +58,11 @@ function toMemberSince(createdAt: Date): string {
  * Disabled accounts and unknown handles both return 404 so a public caller
  * cannot distinguish "exists but disabled" from "does not exist".
  */
-export async function getPublicProfile(db: Db, rawUsername: string): Promise<PublicProfile> {
+export async function getPublicProfile(
+  db: Db,
+  rawUsername: string,
+  viewerId: string | null = null,
+): Promise<PublicProfile> {
   const username = rawUsername.trim().toLowerCase();
   if (username === '') {
     throw new AppError(404, 'NOT_FOUND', 'Profile not found.');
@@ -82,14 +91,19 @@ export async function getPublicProfile(db: Db, rawUsername: string): Promise<Pub
     throw new AppError(404, 'NOT_FOUND', 'Profile not found.');
   }
 
-  // Two cheap aggregate reads. Published openings and all buyer claims; a
-  // refunded/expired claim still happened, so every status counts as a claim.
-  const [openingRows, claimRows] = await Promise.all([
+  // Three cheap aggregate reads: published openings, buyer claims, and the
+  // follow graph in both directions. A refunded/expired claim still
+  // happened, so every claim status counts.
+  const [openingRows, claimRows, followCounts, viewerFollows] = await Promise.all([
     db
       .select({ value: count() })
       .from(slots)
       .where(and(eq(slots.providerId, row.id), eq(slots.status, 'published'))),
     db.select({ value: count() }).from(claims).where(eq(claims.buyerId, row.id)),
+    getFollowCounts(db, row.id),
+    // A guest, or the owner viewing their own profile, gets null rather
+    // than a misleading false.
+    viewerId && viewerId !== row.id ? isFollowing(db, viewerId, row.id) : Promise.resolve(null),
   ]);
 
   return {
@@ -99,11 +113,12 @@ export async function getPublicProfile(db: Db, rawUsername: string): Promise<Pub
     bio: row.bio,
     location: row.location,
     memberSince: toMemberSince(row.createdAt),
+    isFollowing: viewerFollows,
     stats: {
       openings: Number(openingRows[0]?.value ?? 0),
       claims: Number(claimRows[0]?.value ?? 0),
-      followers: 0,
-      following: 0,
+      followers: followCounts.followers,
+      following: followCounts.following,
     },
   };
 }

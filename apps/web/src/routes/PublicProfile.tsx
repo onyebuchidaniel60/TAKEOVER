@@ -22,7 +22,8 @@ import {
 import { ApiError } from '../lib/api';
 import { usePageMeta } from '../lib/meta';
 import { queryKeys } from '../lib/queryKeys';
-import { fetchPublicProfile } from '../lib/slots';
+import { fetchMe, fetchPublicProfile } from '../lib/slots';
+import FollowButton from '../components/FollowButton';
 import PublicOpenings from '../components/PublicOpenings';
 
 export default function PublicProfile() {
@@ -33,6 +34,11 @@ export default function PublicProfile() {
     enabled: username !== '',
   });
   const profile = profileQuery.data?.profile ?? null;
+  // Own-profile detection. Declared BEFORE any early return so the hook
+  // order is stable across loading/error/loaded renders.
+  const meQuery = useQuery({ queryKey: queryKeys.me, queryFn: fetchMe });
+  const myUsername = meQuery.data?.user?.username ?? null;
+  const isOwnProfile = myUsername !== null && myUsername === username;
   usePageMeta({ title: profile ? `${profile.displayName} — TAKEOVER` : 'Profile — TAKEOVER' });
 
   if (profileQuery.isPending) {
@@ -84,10 +90,16 @@ export default function PublicProfile() {
           name={name}
           username={profile.username}
           bio={profile.bio}
-          // Phase 5k-C replaces this with the Follow button. Rendering
-          // nothing rather than a dead control: a Follow affordance that
-          // does nothing is worse than its absence.
-          actions={null}
+          // Phase 5k-C. Hidden on your own profile: the API would answer
+          // 409, and a control that can only fail is worse than none.
+          actions={
+            isOwnProfile ? null : (
+              <FollowButton
+                username={profile.username}
+                initialFollowing={profile.isFollowing === true}
+              />
+            )
+          }
         />
 
         <ProfileStats stats={publicProfileStats(profile, true)} />

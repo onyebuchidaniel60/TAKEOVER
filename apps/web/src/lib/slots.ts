@@ -571,11 +571,45 @@ export interface PublicProfile {
   location: string | null;
   /** YYYY-MM-DD. */
   memberSince: string;
+  /** Does the viewer follow this profile? null for a guest or the owner. */
+  isFollowing: boolean | null;
   stats: PublicProfileStats;
 }
 
 export function fetchPublicProfile(username: string): Promise<{ profile: PublicProfile }> {
   return apiFetch<{ profile: PublicProfile }>(`/api/v1/users/${encodeURIComponent(username)}`);
+}
+
+// Follow (Phase 5k-C). Both mutations are idempotent server-side (200 either
+// way), so a retried tap is never an error the user has to interpret.
+export function followUser(username: string): Promise<{ following: boolean }> {
+  return apiFetch(`/api/v1/users/${encodeURIComponent(username)}/follow`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export function unfollowUser(username: string): Promise<{ following: boolean }> {
+  return apiFetch(`/api/v1/users/${encodeURIComponent(username)}/follow`, {
+    method: 'DELETE',
+  });
+}
+
+/** One row in a public followers/following list. */
+export interface FollowListEntry {
+  username: string;
+  displayName: string;
+  avatarData: string | null;
+  /** Null for a guest viewer; otherwise whether the viewer follows them. */
+  isFollowing: boolean | null;
+}
+
+export function fetchFollowers(username: string): Promise<{ followers: FollowListEntry[] }> {
+  return apiFetch(`/api/v1/users/${encodeURIComponent(username)}/followers`);
+}
+
+export function fetchFollowing(username: string): Promise<{ following: FollowListEntry[] }> {
+  return apiFetch(`/api/v1/users/${encodeURIComponent(username)}/following`);
 }
 
 export function updateProviderProfile(displayName: string): Promise<{

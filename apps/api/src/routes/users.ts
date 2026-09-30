@@ -33,7 +33,10 @@ export async function userRoutes(app: FastifyInstance, opts: UserRouteOptions = 
     if (!parsed.success) {
       throw new AppError(404, 'NOT_FOUND', 'Profile not found.');
     }
-    const profile = await getPublicProfile(getDb(), parsed.data.username);
+    // Optional auth (Phase 5k-C): a session, if present, tells us whether
+    // the viewer already follows this profile, so the Follow button renders
+    // correctly in one round trip. A guest still gets a full profile.
+    const profile = await getPublicProfile(getDb(), parsed.data.username, request.user?.id ?? null);
     return successBody(request, { profile });
   });
 }
