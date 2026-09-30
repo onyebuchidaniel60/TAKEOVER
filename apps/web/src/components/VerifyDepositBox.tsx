@@ -134,7 +134,7 @@ export default function VerifyDepositBox({
         <p className="flex items-center gap-2 text-body font-medium text-text">
           <span
             aria-hidden="true"
-            className="h-4 w-4 animate-spin rounded-full border-2 border-text-faint/30 border-t-text-faint"
+            className="h-4 w-4 animate-spin rounded-full border-2 border-faint/30 border-t-faint"
           />
           Confirming payment…
         </p>

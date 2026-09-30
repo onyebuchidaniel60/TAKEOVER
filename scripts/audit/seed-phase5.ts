@@ -15,7 +15,7 @@
 // Seed rows are disposable fixtures retained by design (db/seed.ts
 // convention); minted sessions are revoked by the audit wrapper.
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import { getDb } from '../../db/client';
 import { slots, users } from '../../db/schema';
 import { claims } from '../../db/schema/claims';
@@ -69,8 +69,11 @@ async function seed(): Promise<Record<string, string>> {
   const ids: Record<string, string> = {};
 
   await db.insert(users).values([
-    { id: PROVIDER_ID, walletAddress: 'NQ00 SEEDFIXTURE000000000001', role: 'provider' as const },
-    { id: BUYER_ID, walletAddress: 'NQ00 SEEDFIXTURE000000000009', role: 'buyer' as const },
+    // `username` is required since Phase 5g (migration 0014); omitting it
+    // made this fixture unseedable on a fresh database. The provider also
+    // needs a public handle for the /u/:username profile surface.
+    { id: PROVIDER_ID, username: 'seed_provider', walletAddress: 'NQ00 SEEDFIXTURE000000000001', role: 'provider' as const },
+    { id: BUYER_ID, username: 'seed_buyer', walletAddress: 'NQ00 SEEDFIXTURE000000000009', role: 'buyer' as const },
   ]).onConflictDoNothing();
 
   for (const [i, f] of FIXTURES.entries()) {
@@ -156,14 +159,14 @@ async function seed(): Promise<Record<string, string>> {
   return ids;
 }
 
-async function mintSession(): Promise<{ name: string; value: string }> {
+async function mintSession(userId: string): Promise<{ name: string; value: string }> {
   const db = getDb();
   const sessionId = randomUUID();
   const secret = randomBytes(32);
   const tokenHash = createHash('sha256').update(secret).digest('hex');
   await db.insert(sessions).values({
     id: sessionId,
-    userId: BUYER_ID,
+    userId,
     tokenHash,
     expiresAt: new Date(Date.now() + 2 * HOUR),
     revokedAt: null,
@@ -173,14 +176,24 @@ async function mintSession(): Promise<{ name: string; value: string }> {
 
 async function revokeSessions(): Promise<number> {
   const db = getDb();
-  const res = await db.delete(sessions).where(eq(sessions.userId, BUYER_ID)).returning({ id: sessions.id });
+  const res = await db
+    .delete(sessions)
+    .where(inArray(sessions.userId, [BUYER_ID, PROVIDER_ID]))
+    .returning({ id: sessions.id });
   return res.length;
 }
 
 const mode = process.argv[2] ?? 'seed';
 if (mode === '--mint-session') {
   const ids = await seed();
-  const cookie = await mintSession();
+  const cookie = await mintSession(BUYER_ID);
+  console.log(JSON.stringify({ claims: ids, cookie }));
+} else if (mode === '--mint-provider-session') {
+  // The provider session audits the seller-side surfaces (/sell, /sell/:id),
+  // which are ownership-gated. Same real session-token format as the buyer
+  // cookie — no backdoor, the row is a normal sessions insert.
+  const ids = await seed();
+  const cookie = await mintSession(PROVIDER_ID);
   console.log(JSON.stringify({ claims: ids, cookie }));
 } else if (mode === '--revoke-sessions') {
   const n = await revokeSessions();

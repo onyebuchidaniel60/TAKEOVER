@@ -238,7 +238,7 @@ export default function ConfirmReceiptBox({
         >
           <span
             aria-hidden="true"
-            className="h-4 w-4 animate-spin rounded-full border-2 border-text-faint/30 border-t-text-faint"
+            className="h-4 w-4 animate-spin rounded-full border-2 border-faint/30 border-t-faint"
           />
           Confirming…
         </button>
@@ -268,7 +268,7 @@ export default function ConfirmReceiptBox({
                 <>
                   <span
                     aria-hidden="true"
-                    className="h-4 w-4 animate-spin rounded-full border-2 border-text-faint/30 border-t-text-faint"
+                    className="h-4 w-4 animate-spin rounded-full border-2 border-faint/30 border-t-faint"
                   />
                   Waiting for wallet…
                 </>

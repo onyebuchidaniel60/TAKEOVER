@@ -69,7 +69,7 @@ neutral ramp. Nothing else, unless semantic (danger, warning).
 | `border-strong` | `#333333` | Focus outlines, active borders |
 | `text` | `#FAFAFA` | Primary text (not pure white — softer on the eyes) |
 | `text-muted` | `#A3A3A3` | Secondary text, metadata, timestamps |
-| `text-faint` | `#6B6B6B` | Tertiary, placeholders, disabled |
+| `text-faint` | `#868686` | Tertiary, placeholders, disabled |
 | `accent` | `#C4F135` | The signature lime — CTAs, active states, the brand |
 | `accent-hover` | `#B5E52C` | Hover / pressed variants of the lime |
 | `accent-ink` | `#0A0A0A` | Text and icons sitting **on** the lime |

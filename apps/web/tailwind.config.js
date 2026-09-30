@@ -106,9 +106,25 @@ export default {
         'surface-2': '#1C1C1C',
         border: '#262626',
         'border-strong': '#333333',
+        // Text colors are keyed WITHOUT the `text-` prefix. Tailwind
+        // builds a text utility as `text-` + <color key>, so a key
+        // literally named `text-muted` would only ever emit
+        // `.text-text-muted` — and `.text-muted` would emit nothing
+        // (the silently-wrong-muted-text bug fixed in Phase 5k). The
+        // class name is the contract (`text-muted` is what components
+        // write), so the KEYS yield to it: key `muted` -> `.text-muted`.
+        // Same reason `text` is keyed bare: `.text-text` is the
+        // primary-text utility, used by every heading.
         text: '#FAFAFA',
-        'text-muted': '#A3A3A3',
-        'text-faint': '#6B6B6B',
+        // Secondary text, metadata, timestamps. 7.85:1 on bg, 6.76:1
+        // on surface-2 — passes AA on every dark surface.
+        muted: '#A3A3A3',
+        // Tertiary text, placeholders, disabled. Lightened from #6B6B6B,
+        // which measured 3.72:1 on bg and failed the AA rule design.md
+        // §3.1 mandates. #868686 measures 5.44:1 on bg, 5.06:1 on
+        // surface, 4.68:1 on surface-2 — AA everywhere, still clearly
+        // one tier below `muted` (7.85:1 on bg).
+        faint: '#868686',
         accent: '#C4F135',
         'accent-hover': '#B5E52C',
         'accent-ink': '#0A0A0A',
