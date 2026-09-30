@@ -9,6 +9,7 @@ import Hero from '../components/home/Hero';
 import HowItWorks from '../components/home/HowItWorks';
 import Reveal from '../components/home/Reveal';
 import FeedSection from '../components/FeedSection';
+import ProductTourHost from '../components/tour/ProductTourHost';
 import WhyTakeover from '../components/home/WhyTakeover';
 import { usePageMeta } from '../lib/meta';
 
@@ -27,6 +28,8 @@ export default function Home() {
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
       <Hero />
       <FeedSection pageSize={HOME_FEED_SIZE} capped />
+      {/* First-visit product tour (Phase 5j-2): overlay only, no layout. */}
+      <ProductTourHost />
       <div className="mt-12 flex flex-col gap-10">
         <Reveal>
           <HowItWorks />

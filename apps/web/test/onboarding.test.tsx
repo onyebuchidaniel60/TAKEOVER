@@ -6,8 +6,12 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { afterEach, describe, expect, it } from 'vitest';
+import type { ReactNode } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import FeedSection from '../src/components/FeedSection';
+import ProductTour from '../src/components/tour/ProductTour';
+import ProductTourHost from '../src/components/tour/ProductTourHost';
+import { resolveTourStops, TOUR_STOPS } from '../src/components/tour/tour-steps';
 import Account from '../src/routes/onboarding/Account';
 import Interests from '../src/routes/onboarding/Interests';
 import ProfileSetup from '../src/routes/onboarding/ProfileSetup';
@@ -37,6 +41,7 @@ import {
 
 afterEach(() => {
   sessionStorage.clear();
+  vi.restoreAllMocks();
 });
 
 function setFreshAccount(): void {
@@ -204,14 +209,23 @@ describe('Account screen', () => {
     );
   }
 
-  it('shows wallet-first CTAs and reveals the email form', async () => {
+  it('shows both tabs immediately, wallet by default', async () => {
     renderAccount();
+    // Both sign-up paths are visible from the start (5j-2 correction).
+    const walletTab = screen.getByRole('tab', { name: 'Wallet' });
+    const emailTab = screen.getByRole('tab', { name: 'Email' });
+    expect(walletTab.getAttribute('aria-selected')).toBe('true');
+    expect(emailTab.getAttribute('aria-selected')).toBe('false');
     expect(screen.getByRole('button', { name: 'Continue with wallet' })).toBeDefined();
+    expect(screen.getByText(/this is where you.*ll sign payments too/)).toBeDefined();
+    // Email form hidden until its tab is picked…
+    expect(screen.queryByLabelText('Email')).toBeNull();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Continue with email' }));
+    await user.click(emailTab);
     expect(screen.getByLabelText('Email')).toBeDefined();
     expect(screen.getByLabelText('Password')).toBeDefined();
     expect(screen.getByLabelText('Username')).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Email' }).getAttribute('aria-selected')).toBe('true');
   });
 
   it('flags invalid input inline without calling the API', { timeout: 30_000 }, async () => {
@@ -222,7 +236,7 @@ describe('Account screen', () => {
     });
     renderAccount();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Continue with email' }));
+    await user.click(screen.getByRole('tab', { name: 'Email' }));
     await user.type(screen.getByLabelText('Email'), 'not-an-email');
     await user.type(screen.getByLabelText('Password'), 'short');
     await user.type(screen.getByLabelText('Username'), 'ab');
@@ -245,7 +259,7 @@ describe('Account screen', () => {
     });
     renderAccount();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Continue with email' }));
+    await user.click(screen.getByRole('tab', { name: 'Email' }));
     await user.type(screen.getByLabelText('Username'), 'taken_name');
     // Debounce-dependent (400ms + render): explicit budget for slow boxes.
     expect(await screen.findByText('This username is already taken.', {}, { timeout: 5000 })).toBeDefined();
@@ -269,7 +283,7 @@ describe('Account screen', () => {
     });
     renderAccount();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Continue with email' }));
+    await user.click(screen.getByRole('tab', { name: 'Email' }));
     await user.type(screen.getByLabelText('Email'), 'a@b.c');
     await user.type(screen.getByLabelText('Password'), 'long-enough-password');
     await user.type(screen.getByLabelText('Username'), 'fresh_handle');
@@ -283,7 +297,7 @@ describe('Account screen', () => {
   it('passes axe with the email form open', async () => {
     const { container } = renderAccount();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Continue with email' }));
+    await user.click(screen.getByRole('tab', { name: 'Email' }));
     expect(screen.getByLabelText('Username')).toBeDefined();
     assertZeroCriticalOrSerious(await runAxe(container), '/onboarding/account');
   });
@@ -488,5 +502,311 @@ describe('feed interests seeding', () => {
     expect(screen.getByTestId('loc').textContent).toContain('category=Other');
     // Unconsumed on this visit — an explicit filter always wins.
     expect(sessionStorage.getItem('takeover.interests')).not.toBeNull();
+  });
+});
+
+describe('Product tour', () => {
+  function setTourEligible(): void {
+    useAuth.setState({
+      status: 'authenticated',
+      user: {
+        id: 'buyer-1',
+        walletAddress: 'NQ0700000000000000000000000000000000',
+        role: 'buyer',
+        status: 'active',
+        onboardedAt: new Date().toISOString(),
+        tourCompletedAt: null,
+      },
+      error: null,
+      initialized: true,
+    });
+  }
+
+  function setTourDone(): void {
+    useAuth.setState({
+      status: 'authenticated',
+      user: {
+        id: 'buyer-1',
+        walletAddress: 'NQ0700000000000000000000000000000000',
+        role: 'buyer',
+        status: 'active',
+        onboardedAt: new Date().toISOString(),
+        tourCompletedAt: new Date().toISOString(),
+      },
+      error: null,
+      initialized: true,
+    });
+  }
+
+  // jsdom reports all-zero rects — stub a visible box per element.
+  function stubRects(): void {
+    const rect = {
+      x: 16,
+      y: 100,
+      top: 100,
+      left: 16,
+      width: 300,
+      height: 60,
+      right: 316,
+      bottom: 160,
+      toJSON: () => ({}),
+    };
+    vi.spyOn(window.HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      rect as unknown as DOMRect,
+    );
+  }
+
+  function tourDom(withCard: boolean): ReactNode {
+    return (
+      <div>
+        <section id="openings" aria-labelledby="feed-heading">
+          <h2 id="feed-heading">Available now</h2>
+          {withCard ? <a href="/slot/1">Slot one</a> : null}
+        </section>
+        <nav aria-label="Primary">
+          <a href="/sell" aria-label="Sell">
+            Sell
+          </a>
+          <a href="/profile" aria-label="Profile">
+            Profile
+          </a>
+        </nav>
+      </div>
+    );
+  }
+
+  it('resolveTourStops skips absent and hidden targets', () => {
+    stubRects();
+    const { unmount } = renderWithClient(<>{tourDom(true)}</>);
+    expect(resolveTourStops(TOUR_STOPS, document).map((s) => s.id)).toEqual([
+      'feed',
+      'card',
+      'sell',
+      'profile',
+    ]);
+    unmount();
+    renderWithClient(<>{tourDom(false)}</>);
+    // No card link → the card stop is skipped, the rest resolve.
+    expect(resolveTourStops(TOUR_STOPS, document).map((s) => s.id)).toEqual([
+      'feed',
+      'sell',
+      'profile',
+    ]);
+  });
+
+  it('walks all four stops with dialog semantics, then finishes', { timeout: 30_000 }, async () => {
+    stubRects();
+    let finished = 0;
+    let skipped = 0;
+    const { container } = renderWithClient(
+      <>
+        {tourDom(true)}
+        <ProductTour
+          stops={TOUR_STOPS}
+          onFinish={() => {
+            finished += 1;
+          }}
+          onSkip={() => {
+            skipped += 1;
+          }}
+        />
+      </>,
+    );
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(dialog.getAttribute('aria-labelledby')).toBe('tour-title-feed');
+    expect(screen.getByText('Your feed')).toBeDefined();
+    expect(screen.getByText('1 of 4')).toBeDefined();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByText('Openings open fast')).toBeDefined();
+    expect(screen.getByText('2 of 4')).toBeDefined();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByText('Release your own')).toBeDefined();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByText('Your corner')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Finish' })).toBeDefined();
+    assertZeroCriticalOrSerious(await runAxe(container), 'product tour step');
+    await user.click(screen.getByRole('button', { name: 'Finish' }));
+    expect(finished).toBe(1);
+    expect(skipped).toBe(0);
+  });
+
+  it('Skip tour button skips', async () => {
+    stubRects();
+    let skipped = 0;
+    renderWithClient(
+      <>
+        {tourDom(true)}
+        <ProductTour
+          stops={TOUR_STOPS}
+          onFinish={() => {}}
+          onSkip={() => {
+            skipped += 1;
+          }}
+        />
+      </>,
+    );
+    const user = userEvent.setup();
+    // getAllByRole DOM order: [0] backdrop catcher, [1] visible Skip.
+    await user.click(screen.getAllByRole('button', { name: 'Skip tour' })[1]);
+    expect(skipped).toBe(1);
+  });
+
+  it('backdrop tap skips', async () => {
+    stubRects();
+    let skipped = 0;
+    renderWithClient(
+      <>
+        {tourDom(true)}
+        <ProductTour
+          stops={TOUR_STOPS}
+          onFinish={() => {}}
+          onSkip={() => {
+            skipped += 1;
+          }}
+        />
+      </>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole('button', { name: 'Skip tour' })[0]);
+    expect(skipped).toBe(1);
+  });
+
+  it('Escape skips', async () => {
+    stubRects();
+    let skipped = 0;
+    renderWithClient(
+      <>
+        {tourDom(true)}
+        <ProductTour
+          stops={TOUR_STOPS}
+          onFinish={() => {}}
+          onSkip={() => {
+            skipped += 1;
+          }}
+        />
+      </>,
+    );
+    const user = userEvent.setup();
+    await screen.findByRole('dialog');
+    await user.keyboard('{Escape}');
+    expect(skipped).toBe(1);
+  });
+
+  it('completes silently when nothing resolves', async () => {
+    let finished = 0;
+    const noop = (): void => {};
+    renderWithClient(
+      <ProductTour
+        stops={TOUR_STOPS}
+        onFinish={() => {
+          finished += 1;
+        }}
+        onSkip={noop}
+      />,
+    );
+    // Empty document body section — no feed, no nav.
+    await waitFor(() => {
+      expect(finished).toBe(1);
+    });
+    expect(screen.queryByTestId('product-tour')).toBeNull();
+  });
+
+  it('host shows nothing for guests, done users, or fresh accounts', async () => {
+    stubRects();
+    // Guest.
+    renderWithClient(
+      <>
+        {tourDom(true)}
+        <ProductTourHost />
+      </>,
+    );
+    expect(screen.queryByTestId('product-tour')).toBeNull();
+
+    // Tour already done.
+    setTourDone();
+    renderWithClient(
+      <>
+        {tourDom(true)}
+        <ProductTourHost />
+      </>,
+    );
+    await waitFor(() => {
+      expect(screen.queryByTestId('product-tour')).toBeNull();
+    });
+
+    // Fresh account (not onboarded) — tour waits for onboarding.
+    setFreshAccount();
+    renderWithClient(
+      <>
+        {tourDom(true)}
+        <ProductTourHost />
+      </>,
+    );
+    expect(screen.queryByTestId('product-tour')).toBeNull();
+  });
+
+  it('host runs the tour once for eligible users and persists on finish', { timeout: 30_000 }, async () => {
+    stubRects();
+    let posts = 0;
+    mockFetch((url) => {
+      if (url.endsWith('/api/v1/me/tour-completed')) {
+        posts += 1;
+        return {
+          user: {
+            ...meFixture(),
+            onboardedAt: new Date().toISOString(),
+            tourCompletedAt: new Date().toISOString(),
+          },
+        };
+      }
+      return {};
+    });
+    setTourEligible();
+    renderWithClient(
+      <>
+        {tourDom(true)}
+        <ProductTourHost />
+      </>,
+    );
+    // 600ms delay, then the overlay appears on step 1.
+    const dialog = await screen.findByRole('dialog', {}, { timeout: 5000 });
+    expect(dialog).toBeDefined();
+    expect(screen.getByText('Your feed')).toBeDefined();
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole('button', { name: 'Skip tour' })[1]);
+    expect(posts).toBe(1);
+    await waitFor(() => {
+      expect(screen.queryByTestId('product-tour')).toBeNull();
+    });
+    // Store user now carries the completion — no second run.
+    expect(useAuth.getState().user?.tourCompletedAt).not.toBeNull();
+  });
+
+  it('markTourCompleted failures still unmount (retry next visit)', { timeout: 30_000 }, async () => {
+    stubRects();
+    mockFetch((url) => {
+      if (url.endsWith('/api/v1/me/tour-completed')) {
+        return err(500, 'INTERNAL_ERROR', 'Something went wrong.');
+      }
+      return {};
+    });
+    setTourEligible();
+    renderWithClient(
+      <>
+        {tourDom(true)}
+        <ProductTourHost />
+      </>,
+    );
+    await screen.findByRole('dialog', {}, { timeout: 5000 });
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole('button', { name: 'Skip tour' })[1]);
+    await waitFor(() => {
+      expect(screen.queryByTestId('product-tour')).toBeNull();
+    });
+    // Column still NULL → eligible again next Home visit.
+    expect(useAuth.getState().user?.tourCompletedAt).toBeNull();
   });
 });

@@ -40,6 +40,9 @@ export const users = pgTable('users', {
   // set when the user passes profile setup (step 3 → 4). Existing users
   // are grandfathered (migration backfills onboarded_at = created_at).
   onboardedAt: timestamp('onboarded_at', { withTimezone: true }),
+  // Product tour completion (Phase 5j-2). NULL = tour not seen; set on
+  // finish or skip. Existing users are grandfathered like onboarded_at.
+  tourCompletedAt: timestamp('tour_completed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

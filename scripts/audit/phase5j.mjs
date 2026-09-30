@@ -15,13 +15,13 @@
 //                                   armed, which audit.mjs cannot set —
 //                                   the banner is covered by jsdom tests)
 //
-// Interaction states (email form open, validation error, filled profile,
-// selected interests, login error) cannot be scripted by audit.mjs, so a
-// small Playwright walkthrough captures them as screenshots at 375px:
-// welcome → account (email open) → account (validation error) → profile
-// (filled) → interests (selected) → login (error). Gate measurements
-// (contrast/touch/overflow) run on the default states; the walkthrough is
-// visual evidence of the flow.
+// Interaction states (email tab open, validation error, filled profile,
+// selected interests, the product tour, login error) cannot be scripted by
+// audit.mjs, so a small Playwright walkthrough captures them as screenshots
+// at 375px: welcome → account (email tab) → account (validation error) →
+// profile (filled) → interests (selected) → tour (stop 1, last stop,
+// finished) → login (error). Gate measurements (contrast/touch/overflow)
+// run on the default states; the walkthrough is visual evidence of the flow.
 //
 // Reports merge into docs/redesign/audits/phase-5j/report.json;
 // screenshots are prefixed per target (<target>-<w>x<h>-<state>.png).
@@ -38,8 +38,11 @@ import { mkdirSync, readdirSync, renameSync, readFileSync, writeFileSync, rmSync
 import { join, resolve } from 'node:path';
 import { chromium } from 'playwright';
 
+// Browser-context globals used inside addInitScript callbacks — those
+// run in Chromium, not Node.
+/* global window */
+
 const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const NPX = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const OUT = resolve('docs/redesign/audits/phase-5j');
 const API = 'http://localhost:3001';
 const WEB = 'http://localhost:5173';
@@ -101,7 +104,6 @@ const VIEWPORTS = '320,375,768,1280';
 
 const spawned = [];
 let exitCode = 0;
-let auditCookie = '';
 try {
   if (!(await urlOk(`${API}/health`))) {
     console.log('phase5j: starting API dev server…');
@@ -218,7 +220,7 @@ try {
     await shot('375-01-welcome');
     await page.getByRole('link', { name: 'Get started' }).click();
     await page.getByRole('button', { name: 'Continue with wallet' }).waitFor();
-    await page.getByRole('button', { name: 'Continue with email' }).click();
+    await page.getByRole('tab', { name: 'Email' }).click();
     await page.locator('#account-email').waitFor();
     await shot('375-02-account-email-open');
     await page.locator('#account-email').fill('not-an-email');
@@ -238,6 +240,29 @@ try {
     await page.getByRole('button', { name: 'Event' }).click();
     await page.getByRole('button', { name: 'Salon / service' }).click();
     await shot('375-05-interests-selected');
+    // Product tour (5j-2): only an onboarded user with tourCompletedAt NULL
+    // sees it, so swap in the onboarded session. 600ms trigger delay + feed
+    // load → wait for the dialog instead of a fixed sleep.
+    await ctx.addCookies([
+      { name: 'takeover_session', value: onboardedCookie.split('=')[1], domain: 'localhost', path: '/' },
+    ]);
+    await page.goto(`${WEB}/`, { waitUntil: 'networkidle' });
+    await page.getByTestId('product-tour').waitFor({ timeout: 10_000 });
+    await shot('375-06-tour-stop-1');
+    // Stop count varies: resolveTourStops skips targets absent at mount
+    // (e.g. no cards in an empty feed), so advance until Finish shows.
+    for (let i = 0; i < 6; i++) {
+      try {
+        await page.getByRole('button', { name: 'Finish' }).waitFor({ timeout: 1000 });
+        break;
+      } catch {
+        await page.getByRole('button', { name: 'Next' }).click({ timeout: 5000 });
+      }
+    }
+    await shot('375-07-tour-last-stop');
+    await page.getByRole('button', { name: 'Finish' }).click();
+    await page.getByTestId('product-tour').waitFor({ state: 'detached', timeout: 10_000 });
+    await shot('375-08-tour-finished');
     await ctx.close();
     // Login error as a guest (real 401 from the live API): a separate
     // cookieless context, since the audit session would redirect /login
@@ -252,7 +277,7 @@ try {
     await guest.locator('#login-password').fill('wrong-password-long');
     await guest.getByRole('button', { name: 'Sign in', exact: true }).click();
     await guest.getByText('Invalid email or password.').waitFor();
-    await guest.screenshot({ path: join(OUT, 'walk-375-06-login-error.png') });
+    await guest.screenshot({ path: join(OUT, 'walk-375-09-login-error.png') });
     await guestCtx.close();
   } finally {
     await browser.close();

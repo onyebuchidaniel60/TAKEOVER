@@ -21,6 +21,8 @@ export interface AuthUser {
   username?: string | null;
   /** Onboarding completion ISO timestamp. NULL/absent = must go through onboarding. */
   onboardedAt?: string | null;
+  /** Product tour completion ISO timestamp (Phase 5j-2). NULL/absent = tour not seen. */
+  tourCompletedAt?: string | null;
 }
 
 interface ChallengeResponse {
@@ -41,6 +43,8 @@ interface AuthState {
   loginWithEmail: (body: { email: string; password: string }) => Promise<void>;
   /** Mark onboarding complete (POST /me/onboarded) and refresh the cached user. */
   markOnboarded: () => Promise<void>;
+  /** Mark the product tour complete (POST /me/tour-completed) and refresh the cached user. */
+  markTourCompleted: () => Promise<void>;
   logout: () => Promise<void>;
   /** Re-reads the session; resolves the user (or null) for cache seeding. */
   refresh: () => Promise<AuthUser | null>;
@@ -116,6 +120,14 @@ export const useAuth = create<AuthState>()((set, get) => ({
 
   markOnboarded: async () => {
     const me = await apiFetch<{ user: AuthUser }>('/api/v1/me/onboarded', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    set({ user: me.user, status: 'authenticated', error: null, initialized: true });
+  },
+
+  markTourCompleted: async () => {
+    const me = await apiFetch<{ user: AuthUser }>('/api/v1/me/tour-completed', {
       method: 'POST',
       body: JSON.stringify({}),
     });

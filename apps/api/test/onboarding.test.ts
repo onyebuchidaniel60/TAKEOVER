@@ -5,6 +5,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.setConfig({ testTimeout: 30_000 });
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { eq, inArray, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app';
@@ -12,6 +14,18 @@ import type { VerifySignatureFn } from '../src/auth/nimiq-verify';
 import { deriveNimiqAddress } from '../src/auth/nimiq-address';
 import { getDb, isDatabaseConfigured } from '../../../db/client';
 import { auditEvents, sessions, users } from '../../../db/schema';
+
+// Journal timestamp (ms) for a migration tag: the invariant cutoff for
+// grandfather checks. Drizzle records this same value in
+// __drizzle_migrations.created_at, so rows older than it existed when the
+// backfill ran and must carry the column.
+function migrationJournalWhen(tag: string): Date {
+  const path = join(process.cwd(), '..', '..', 'db', 'migrations', 'meta', '_journal.json');
+  const journal = JSON.parse(readFileSync(path, 'utf8')) as { entries: { tag: string; when: number }[] };
+  const entry = journal.entries.find((e) => e.tag === tag);
+  if (!entry) throw new Error(`migration ${tag} not found in journal`);
+  return new Date(entry.when);
+}
 
 describe.skipIf(!isDatabaseConfigured())('onboarding backend (live)', () => {
   const stubVerifier: VerifySignatureFn = () => true;
@@ -197,6 +211,7 @@ describe.skipIf(!isDatabaseConfigured())('onboarding backend (live)', () => {
     expect(res.statusCode).toBe(200);
     const user = (res.json() as { data: { user: Record<string, unknown> } }).data.user;
     expect('onboardedAt' in user).toBe(true);
+    expect('tourCompletedAt' in user).toBe(true);
     expect(user.bio).toBeNull();
     expect(user.phone).toBeNull();
     expect(user.dob).toBeNull();
@@ -204,11 +219,66 @@ describe.skipIf(!isDatabaseConfigured())('onboarding backend (live)', () => {
   });
 
   it('migration 0015 grandfathered pre-existing users', async () => {
-    // New rows default to NULL (they enter the funnel); rows older than any
-    // in-flight suite run must all carry onboarded_at from the backfill.
+    // The backfill ran when the migration applied, so the invariant is scoped
+    // to rows that predate the migration's journal entry: they must all carry
+    // onboarded_at. Rows created afterwards (fresh accounts, abandoned
+    // sign-ups) legitimately stay NULL forever.
     const db = getDb();
     const rows = await db.execute<{ n: string }>(
-      sql`SELECT count(*)::text AS n FROM users WHERE onboarded_at IS NULL AND created_at < NOW() - INTERVAL '1 hour'`,
+      sql`SELECT count(*)::text AS n FROM users WHERE onboarded_at IS NULL AND created_at < ${migrationJournalWhen('0015_stormy_squadron_sinister')}`,
+    );
+    expect(Number(rows.rows[0].n)).toBe(0);
+  });
+
+  it('POST /me/tour-completed sets tour_completed_at once and is idempotent', async () => {
+    const anon = await app.inject({ method: 'POST', url: '/api/v1/me/tour-completed', payload: {} });
+    expect(anon.statusCode).toBe(401);
+
+    const { cookie, userId } = await freshUserCookie();
+
+    const meBefore = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie } });
+    expect(meBefore.statusCode).toBe(200);
+    expect(
+      (meBefore.json() as { data: { user: { tourCompletedAt: unknown } } }).data.user.tourCompletedAt,
+    ).toBeNull();
+
+    const first = await app.inject({
+      method: 'POST',
+      url: '/api/v1/me/tour-completed',
+      headers: { cookie, ...CSRF },
+      payload: {},
+    });
+    expect(first.statusCode).toBe(200);
+    const firstUser = (first.json() as { data: { user: { tourCompletedAt: string } } }).data.user;
+    expect(typeof firstUser.tourCompletedAt).toBe('string');
+
+    const db = getDb();
+    const rows = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    expect(rows[0].tourCompletedAt).not.toBeNull();
+
+    const second = await app.inject({
+      method: 'POST',
+      url: '/api/v1/me/tour-completed',
+      headers: { cookie, ...CSRF },
+      payload: {},
+    });
+    expect(second.statusCode).toBe(200);
+    expect(
+      (second.json() as { data: { user: { tourCompletedAt: string } } }).data.user.tourCompletedAt,
+    ).toBe(firstUser.tourCompletedAt);
+
+    const audits = await db.select().from(auditEvents).where(eq(auditEvents.actorUserId, userId));
+    expect(audits.filter((a) => a.eventType === 'user.tour_completed')).toHaveLength(1);
+  });
+
+  it('migration 0016 grandfathered tour_completed_at on pre-existing users', async () => {
+    // Same invariant as the 0015 check, anchored on 0016's journal entry:
+    // every row that existed when the tour backfill ran carries
+    // tour_completed_at; newer rows (users who have not finished the tour)
+    // stay NULL until they call POST /me/tour-completed.
+    const db = getDb();
+    const rows = await db.execute<{ n: string }>(
+      sql`SELECT count(*)::text AS n FROM users WHERE tour_completed_at IS NULL AND created_at < ${migrationJournalWhen('0016_plain_shocker')}`,
     );
     expect(Number(rows.rows[0].n)).toBe(0);
   });

@@ -1,8 +1,10 @@
-// Step 2 — Account creation (Phase 5j). Wallet-first per D14: the wallet
-// CTA is the accent pill, email is the outline pill revealing the form.
-// Email form validates inline (mirrors in lib/identity) with a debounced
-// server availability check on the username. No Google (deferred, D13 —
-// omitted entirely, not a disabled button). Success (either path) →
+// Step 2 — Account creation (Phase 5j-2). Two equal-weight tabs at the
+// top — "Wallet" | "Email" — so both sign-up paths are visible from the
+// start (Phase 5j-2 correction: the email form was hidden behind a reveal
+// button). Wallet tab is the default (D14 wallet-first). Email tab holds
+// the unchanged 5j form (inline mirrors, debounced availability, 409 →
+// field errors, no confirm password). No Google (deferred, D13 — omitted
+// entirely, not a disabled button). Success (either path) →
 // /onboarding/profile. Already authenticated → profile (guard covers the
 // rest).
 import { useEffect, useState } from 'react';
@@ -11,7 +13,6 @@ import OnboardingShell, {
   ONBOARDING_INPUT_CLASS,
   ONBOARDING_LABEL_CLASS,
   ONBOARDING_PRIMARY_CTA_CLASS,
-  ONBOARDING_SECONDARY_CTA_CLASS,
   OnboardingFieldError,
 } from '../../components/onboarding/OnboardingShell';
 import { useUsernameAvailable, usernameUnavailableMessage } from '../../hooks/useUsernameAvailable';
@@ -31,7 +32,7 @@ export default function Account() {
   const loginWallet = useAuth((s) => s.login);
   const registerWithEmail = useAuth((s) => s.registerWithEmail);
 
-  const [emailOpen, setEmailOpen] = useState(false);
+  const [tab, setTab] = useState<'wallet' | 'email'>('wallet');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
@@ -42,7 +43,7 @@ export default function Account() {
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string; username?: string }>({});
   const [formError, setFormError] = useState<string | null>(null);
 
-  const availability = useUsernameAvailable(emailOpen ? username : '');
+  const availability = useUsernameAvailable(tab === 'email' ? username : '');
 
   // Either auth path lands here authenticated — move forward. (The guard
   // keeps fresh accounts inside the onboarding area; this advances them.)
@@ -126,26 +127,54 @@ export default function Account() {
       title="How do you want to sign in?"
       supporting="A wallet or an email — either identifies you. You can link the other later."
     >
-      <button
-        type="button"
-        disabled={walletBusy}
-        onClick={() => void handleWallet()}
-        className={ONBOARDING_PRIMARY_CTA_CLASS}
+      <div
+        role="tablist"
+        aria-label="Sign-in method"
+        className="grid grid-cols-2 gap-1 rounded-pill bg-surface-2 p-1"
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+          e.preventDefault();
+          setTab((t) => (t === 'wallet' ? 'email' : 'wallet'));
+        }}
       >
-        {walletBusy ? 'Connecting…' : 'Continue with wallet'}
-      </button>
-      {walletError ? <OnboardingFieldError message={walletError} /> : null}
+        {(['wallet', 'email'] as const).map((value) => {
+          const active = tab === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              tabIndex={active ? 0 : -1}
+              onClick={() => setTab(value)}
+              className={`inline-flex min-h-touch items-center justify-center rounded-pill px-5 py-2 text-body font-semibold transition-transform duration-press ease-out-strong active:scale-[0.97] motion-reduce:transition-none ${
+                active ? 'bg-accent text-accent-ink' : 'bg-transparent text-muted'
+              }`}
+            >
+              {value === 'wallet' ? 'Wallet' : 'Email'}
+            </button>
+          );
+        })}
+      </div>
 
-      {!emailOpen ? (
-        <button
-          type="button"
-          onClick={() => setEmailOpen(true)}
-          className={ONBOARDING_SECONDARY_CTA_CLASS}
-        >
-          Continue with email
-        </button>
+      {tab === 'wallet' ? (
+        <div role="tabpanel" aria-label="Wallet sign-in">
+          <p className="text-body leading-relaxed text-muted">
+            Sign in with your Nimiq wallet — this is where you&apos;ll sign payments too.
+          </p>
+          <button
+            type="button"
+            disabled={walletBusy}
+            onClick={() => void handleWallet()}
+            className={`${ONBOARDING_PRIMARY_CTA_CLASS} mt-4`}
+          >
+            {walletBusy ? 'Connecting…' : 'Continue with wallet'}
+          </button>
+          {walletError ? <OnboardingFieldError message={walletError} /> : null}
+        </div>
       ) : (
-        <form onSubmit={(e) => void handleEmailSubmit(e)} noValidate aria-label="Sign up with email">
+        <div role="tabpanel" aria-label="Email sign-up">
+          <form onSubmit={(e) => void handleEmailSubmit(e)} noValidate aria-label="Sign up with email">
           <div className="flex flex-col gap-4 rounded-card border border-border bg-surface p-4">
             <div>
               <label htmlFor="account-email" className={ONBOARDING_LABEL_CLASS}>
@@ -223,6 +252,7 @@ export default function Account() {
             </button>
           </div>
         </form>
+        </div>
       )}
     </OnboardingShell>
   );

@@ -113,6 +113,13 @@
       "when": 1790441219449,
       "tag": "0015_stormy_squadron_sinister",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790518831034,
+      "tag": "0016_plain_shocker",
+      "breakpoints": true
     }
   ]
 }

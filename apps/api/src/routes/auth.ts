@@ -93,6 +93,8 @@ export interface MeUserView {
   avatarData: string | null;
   /** Onboarding completion (Phase 5j). NULL = must go through onboarding. */
   onboardedAt: string | null;
+  /** Product tour completion (Phase 5j-2). NULL = tour not seen. */
+  tourCompletedAt: string | null;
   bio: string | null;
   phone: string | null;
   /** YYYY-MM-DD (drizzle DATE mode is string). */
@@ -131,6 +133,7 @@ export async function readMeUser(db: Db, userId: string): Promise<MeUserView> {
     providerProfile: profile ? { displayName: profile.displayName } : null,
     avatarData: row.avatarData,
     onboardedAt: row.onboardedAt ? row.onboardedAt.toISOString() : null,
+    tourCompletedAt: row.tourCompletedAt ? row.tourCompletedAt.toISOString() : null,
     bio: row.bio,
     phone: row.phone,
     dob: row.dob,
@@ -553,6 +556,43 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): 
       await writeAuditEvent(tx, {
         actorUserId: user.id,
         eventType: 'user.onboarded',
+        entityType: 'user',
+        entityId: user.id,
+        requestId: request.id,
+        metadata: {},
+      });
+    });
+    return successBody(request, { user: await readMeUser(db, user.id) });
+  });
+
+  // Product tour completion (Phase 5j-2). Idempotent: sets
+  // tour_completed_at on first call, no-op (same shape) when already set.
+  // The client calls it on tour finish or skip, then refreshes its cached
+  // user. A failed call never blocks the user — the overlay unmounts
+  // regardless and the next Home visit retries while the column is NULL.
+  app.post('/me/tour-completed', async (request) => {
+    const user = await requireAuth(request);
+    const db = getDb();
+    await db.transaction(async (tx) => {
+      const rows = await tx.select().from(users).where(eq(users.id, user.id)).limit(1);
+      const current = rows[0];
+      if (!current) {
+        throw new AppError(404, 'NOT_FOUND', 'User not found.');
+      }
+      if (current.tourCompletedAt !== null) {
+        return;
+      }
+      const updated = await tx
+        .update(users)
+        .set({ tourCompletedAt: new Date(), updatedAt: new Date() })
+        .where(eq(users.id, user.id))
+        .returning({ id: users.id });
+      if (!updated[0]) {
+        throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+      }
+      await writeAuditEvent(tx, {
+        actorUserId: user.id,
+        eventType: 'user.tour_completed',
         entityType: 'user',
         entityId: user.id,
         requestId: request.id,

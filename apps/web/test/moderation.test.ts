@@ -45,6 +45,7 @@ describe('KNOWN_EVENT_TYPES', () => {
       'user.created',
       'user.logged_in',
       'user.onboarded',
+      'user.tour_completed',
       'user.avatar_updated',
       'user.profile_updated',
       'slot.published',

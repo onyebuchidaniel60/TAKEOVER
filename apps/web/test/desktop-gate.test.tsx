@@ -9,7 +9,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
 import DesktopGate from '../src/components/DesktopGate';
 import { useDesktopGate } from '../src/hooks/useDesktopGate';
-import { mockFetch, runAxe, assertZeroCriticalOrSerious, setGuest } from './a11y-helpers';
+import {
+  mockFetch,
+  runAxe,
+  assertZeroCriticalOrSerious,
+  setGuest,
+  err,
+} from './a11y-helpers';
 
 const REAL_WIDTH = window.innerWidth;
 const REAL_URL = window.location.href;
@@ -149,7 +155,14 @@ describe('App gate mounting', () => {
     setGuest();
     setWidth(1280);
     setUrl('/?desktop=1');
-    mockFetch(() => ({ slots: [], total: 0, limit: 12, offset: 0 }));
+    // /me must 401 for a guest: a blanket 200 (the slots fixture) reads as
+    // an authenticated user with onboardedAt NULL, and OnboardingRedirect
+    // bounces the page to /welcome instead of rendering Home.
+    mockFetch((url) =>
+      url === '/api/v1/me'
+        ? err(401, 'UNAUTHENTICATED', 'No session.')
+        : { slots: [], total: 0, limit: 12, offset: 0 },
+    );
     renderWithClient(<App />);
     // Generous wait: the Home route chunk loads asynchronously.
     await screen.findByText(/nothing available right now/i, undefined, { timeout: 5000 });

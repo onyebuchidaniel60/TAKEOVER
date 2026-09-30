@@ -532,6 +532,8 @@ export interface MeUser {
   username?: string | null;
   /** Onboarding completion ISO timestamp. NULL = must go through onboarding. */
   onboardedAt?: string | null;
+  /** Product tour completion ISO timestamp (Phase 5j-2). NULL = tour not seen. */
+  tourCompletedAt?: string | null;
   bio?: string | null;
   phone?: string | null;
   dob?: string | null;
