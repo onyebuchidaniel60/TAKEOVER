@@ -87,12 +87,17 @@ type InfoRowProps = {
   value: string | null;
   /** When set, the row becomes a link (used for "Not set" -> edit). */
   to?: string;
+  /**
+   * When set, the row becomes a button that calls this. Preferred over `to`
+   * for Profile's own fields: they open a single-field modal, not a route.
+   */
+  onEdit?: () => void;
   /** Shown instead of the raw value when the value is empty. */
   emptyLabel?: string;
 };
 
 /** One Information row: muted icon, label, right-aligned value, chevron. */
-export function InfoRow({ icon, label, value, to, emptyLabel = 'Not set' }: InfoRowProps) {
+export function InfoRow({ icon, label, value, to, onEdit, emptyLabel = 'Not set' }: InfoRowProps) {
   const shown = value && value.trim() !== '' ? value : emptyLabel;
   const isEmpty = !value || value.trim() === '';
   const body = (
@@ -109,11 +114,20 @@ export function InfoRow({ icon, label, value, to, emptyLabel = 'Not set' }: Info
       >
         {shown}
       </span>
-      {to ? <ChevronRight size={16} className="h-4 w-4 shrink-0 text-faint" aria-hidden="true" /> : null}
+      {to || onEdit ? (
+        <ChevronRight size={16} className="h-4 w-4 shrink-0 text-faint" aria-hidden="true" />
+      ) : null}
     </>
   );
   const className =
     'flex min-h-touch w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-ui ease-out-strong';
+  if (onEdit) {
+    return (
+      <button type="button" onClick={onEdit} className={className}>
+        {body}
+      </button>
+    );
+  }
   if (to) {
     return (
       <Link to={to} className={className}>

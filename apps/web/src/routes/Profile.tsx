@@ -36,11 +36,14 @@ import { queryKeys } from '../lib/queryKeys';
 import { fetchMe, fetchMyClaims, fetchMySlots, fetchPublicProfile, type MeUser } from '../lib/slots';
 import { useAuth } from '../store/auth';
 import { useWalletLink } from '../hooks/useWalletLink';
+import FieldEditModal, { type EditableField } from '../components/FieldEditModal';
 
 export default function Profile() {
   usePageMeta({ title: 'Profile — TAKEOVER' });
   const logout = useAuth((s) => s.logout);
   const { link, isLinking, error: linkError } = useWalletLink();
+  // Phase 5n-B: which single field is being edited, if any.
+  const [editing, setEditing] = useState<EditableField | null>(null);
 
   const meQuery = useQuery({ queryKey: queryKeys.me, queryFn: fetchMe });
   const user: MeUser | null = meQuery.data?.user ?? null;
@@ -120,14 +123,29 @@ export default function Profile() {
         />
 
         <ProfileInformation title="Information">
-          <InfoRow icon={InfoIcons.email} label="Email" value={user.email ?? null} to="/onboarding/profile?from=settings" />
-          <InfoRow icon={InfoIcons.phone} label="Phone" value={user.phone ?? null} to="/onboarding/profile?from=settings" />
-          <InfoRow icon={InfoIcons.dob} label="Date of birth" value={user.dob ?? null} to="/onboarding/profile?from=settings" />
+          <InfoRow
+            icon={InfoIcons.email}
+            label="Email"
+            value={user.email ?? null}
+            onEdit={() => setEditing('email')}
+          />
+          <InfoRow
+            icon={InfoIcons.phone}
+            label="Phone"
+            value={user.phone ?? null}
+            onEdit={() => setEditing('phone')}
+          />
+          <InfoRow
+            icon={InfoIcons.dob}
+            label="Date of birth"
+            value={user.dob ?? null}
+            onEdit={() => setEditing('dob')}
+          />
           <InfoRow
             icon={InfoIcons.location}
             label="Location"
             value={user.location ?? null}
-            to="/onboarding/profile?from=settings"
+            onEdit={() => setEditing('location')}
           />
           {/* Wallet (Phase 5n-A). Tappable ONLY while unlinked — that is the
               only state where connecting is possible. Once linked the row is
@@ -180,6 +198,23 @@ export default function Profile() {
           </section>
         )}
       </div>
+      {editing ? (
+        <div className="mt-4">
+          <FieldEditModal
+            field={editing}
+            current={
+              (editing === 'email'
+                ? user.email
+                : editing === 'phone'
+                  ? user.phone
+                  : editing === 'dob'
+                    ? user.dob
+                    : user.location) ?? null
+            }
+            onClose={() => setEditing(null)}
+          />
+        </div>
+      ) : null}
     </main>
   );
 }

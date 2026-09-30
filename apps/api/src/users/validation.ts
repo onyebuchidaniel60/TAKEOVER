@@ -4,6 +4,7 @@
 // checks run on the stored value. The server is authoritative — the web
 // onboarding form mirrors these rules client-side for inline errors.
 import { z } from 'zod';
+import { EMAIL_MAX_LENGTH } from '../auth/identity';
 
 export const BIO_MAX_LENGTH = 160;
 export const PHONE_MAX_LENGTH = 32;
@@ -23,6 +24,25 @@ function isValidPastDate(value: string): boolean {
   }
   return dt.getTime() <= Date.now();
 }
+
+/**
+ * Email is normalized (trim + lowercase) BEFORE validation and before
+ * storage, matching registration, so `Me@Example.com` and
+ * `me@example.com` can never become two accounts.
+ */
+const emailField = z.preprocess(
+  emptyToNull,
+  z
+    .string()
+    .trim()
+    .min(3, { message: 'Email must be at least 3 characters.' })
+    .max(EMAIL_MAX_LENGTH, { message: 'Email is too long.' })
+    .refine((value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value), {
+      message: 'Enter a valid email address.',
+    })
+    .transform((value) => value.toLowerCase())
+    .nullish(),
+);
 
 const bioField = z.preprocess(
   emptyToNull,
@@ -59,8 +79,7 @@ const dobField = z.preprocess(
     .nullish(),
 );
 
-const locationField = z.preprocess(
-  emptyToNull,
+const locationField = z.preprocess(  emptyToNull,
   z
     .string()
     .trim()
@@ -71,6 +90,12 @@ const locationField = z.preprocess(
 
 export const userProfileBodySchema = z
   .object({
+    // Phase 5n-B: email became editable after signup so tapping the email
+    // row can open a single-field form instead of the full profile screen.
+    // It is the one IDENTITY field in this patch (phone/dob/location are
+    // optional profile data), so uniqueness is enforced in the service and
+    // answers EMAIL_TAKEN — the same rule registration applies.
+    email: emailField,
     bio: bioField,
     phone: phoneField,
     dob: dobField,

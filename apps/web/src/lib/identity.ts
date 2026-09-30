@@ -57,6 +57,8 @@ export function checkUsernameAvailable(username: string): Promise<UsernameAvaila
 }
 
 export interface UserProfilePatch {
+  /** Phase 5n-B: email is editable post-signup (it is the login handle). */
+  email?: string | null;
   bio?: string | null;
   phone?: string | null;
   dob?: string | null;
@@ -64,6 +66,7 @@ export interface UserProfilePatch {
 }
 
 export interface UserProfileScalars {
+  email: string | null;
   bio: string | null;
   phone: string | null;
   dob: string | null;
@@ -78,6 +81,51 @@ export function updateUserProfile(patch: UserProfilePatch): Promise<{ profile: U
 }
 
 // -- client-side validation mirrors (inline errors only) --------------------
+//
+// Phase 5n-B: bio/phone/dob/location moved here from routes/onboarding/
+// ProfileSetup.tsx. They are mirrors of the SERVER's rules, and the
+// single-field edit modal in Profile needs the same ones — two copies of a
+// validation rule drift, and a screen is the wrong home for a shared rule.
+
+export function validateBio(input: string): string | null {
+  const value = input.trim();
+  if (value.length === 0) return null;
+  if (value.length > 160) return 'Keep it to 160 characters or fewer.';
+  if (/https?:\/\//i.test(value) || /www\./i.test(value)) return 'Bio must not contain links.';
+  return null;
+}
+
+export function validatePhone(input: string): string | null {
+  const value = input.trim();
+  if (value.length === 0) return null;
+  if (value.length < 3) return 'Phone number looks too short.';
+  if (value.length > 32) return 'Phone number must be at most 32 characters.';
+  if (!/^[+0-9()\-.\s]+$/.test(value)) return 'Phone number contains invalid characters.';
+  return null;
+}
+
+export function validateDob(input: string): string | null {
+  const value = input.trim();
+  if (value.length === 0) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return 'Use a valid date.';
+  const dt = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  if (
+    dt.getUTCFullYear() !== Number(match[1]) ||
+    dt.getUTCMonth() !== Number(match[2]) - 1 ||
+    dt.getUTCDate() !== Number(match[3])
+  ) {
+    return 'Use a valid date.';
+  }
+  if (dt.getTime() > Date.now()) return 'Date of birth must be in the past.';
+  return null;
+}
+
+export function validateLocation(input: string): string | null {
+  if (input.trim().length === 0) return null;
+  if (input.trim().length > 200) return 'Keep it to 200 characters or fewer.';
+  return null;
+}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

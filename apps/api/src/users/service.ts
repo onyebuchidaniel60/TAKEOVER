@@ -4,7 +4,7 @@
 // never the image data. Input arrives API-validated (data-URI shape,
 // 200KB cap); the service trusts the boundary per the lifecycle-layer
 // convention.
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
 import { users } from '../../../../db/schema';
 import { writeAuditEvent } from '../audit/events';
@@ -55,6 +55,12 @@ export async function setUserAvatar(
 }
 
 export interface UserProfilePatch {
+  /**
+   * Phase 5n-B: email is editable post-signup. Already normalized to
+   * lowercase by the boundary; uniqueness is checked here and answers
+   * EMAIL_TAKEN, the same rule registration applies. null clears it.
+   */
+  email?: string | null;
   bio?: string | null;
   phone?: string | null;
   /** YYYY-MM-DD (drizzle DATE mode is string). */
@@ -63,6 +69,7 @@ export interface UserProfilePatch {
 }
 
 export interface UserProfileView {
+  email: string | null;
   bio: string | null;
   phone: string | null;
   dob: string | null;
@@ -92,9 +99,23 @@ export async function updateUserProfile(
     if (!current) {
       throw new AppError(404, 'NOT_FOUND', 'User not found.');
     }
-    const values: Partial<Pick<UserProfilePatch, 'bio' | 'phone' | 'dob' | 'location'>> = {};
+    // Email is the only IDENTITY field in this patch, so it carries the
+    // uniqueness rule. Checked explicitly (and inside the same locked
+    // transaction) so a conflict is a 409 the user can act on rather than a
+    // raw unique-violation 500 from the UPDATE.
+    if (patch.email !== undefined && patch.email !== null && patch.email !== current.email) {
+      const taken = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.email, patch.email), ne(users.id, userId)))
+        .limit(1);
+      if (taken.length > 0) {
+        throw new AppError(409, 'EMAIL_TAKEN', 'That email is already in use.');
+      }
+    }
+    const values: Partial<Pick<UserProfilePatch, 'email' | 'bio' | 'phone' | 'dob' | 'location'>> = {};
     const fields: string[] = [];
-    for (const key of ['bio', 'phone', 'dob', 'location'] as const) {
+    for (const key of ['email', 'bio', 'phone', 'dob', 'location'] as const) {
       if (patch[key] !== undefined && patch[key] !== current[key]) {
         values[key] = patch[key] ?? null;
         fields.push(key);
@@ -122,5 +143,11 @@ export async function updateUserProfile(
     });
     return next;
   });
-  return { bio: row.bio, phone: row.phone, dob: row.dob, location: row.location };
+  return {
+    email: row.email,
+    bio: row.bio,
+    phone: row.phone,
+    dob: row.dob,
+    location: row.location,
+  };
 }

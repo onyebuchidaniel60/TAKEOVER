@@ -17,48 +17,8 @@ import { ApiError } from '../../lib/api';
 import { prepareImage } from '../../lib/image';
 import { usePageMeta } from '../../lib/meta';
 import { updateMeAvatar, updateProviderProfile, validateDisplayName } from '../../lib/slots';
-import { updateUserProfile } from '../../lib/identity';
+import { updateUserProfile, validateBio, validateDob, validateLocation, validatePhone } from '../../lib/identity';
 import { useAuth } from '../../store/auth';
-
-function validateBio(input: string): string | null {
-  const value = input.trim();
-  if (value.length === 0) return null;
-  if (value.length > 160) return 'Keep it to 160 characters or fewer.';
-  if (/https?:\/\//i.test(value) || /www\./i.test(value)) return 'Bio must not contain links.';
-  return null;
-}
-
-function validatePhone(input: string): string | null {
-  const value = input.trim();
-  if (value.length === 0) return null;
-  if (value.length < 3) return 'Phone number looks too short.';
-  if (value.length > 32) return 'Phone number must be at most 32 characters.';
-  if (!/^[+0-9()\-.\s]+$/.test(value)) return 'Phone number contains invalid characters.';
-  return null;
-}
-
-function validateDob(input: string): string | null {
-  const value = input.trim();
-  if (value.length === 0) return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return 'Use a valid date.';
-  const dt = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  if (
-    dt.getUTCFullYear() !== Number(match[1]) ||
-    dt.getUTCMonth() !== Number(match[2]) - 1 ||
-    dt.getUTCDate() !== Number(match[3])
-  ) {
-    return 'Use a valid date.';
-  }
-  if (dt.getTime() > Date.now()) return 'Date of birth must be in the past.';
-  return null;
-}
-
-function validateLocation(input: string): string | null {
-  if (input.trim().length === 0) return null;
-  if (input.trim().length > 200) return 'Keep it to 200 characters or fewer.';
-  return null;
-}
 
 function todayInput(): string {
   const now = new Date();
