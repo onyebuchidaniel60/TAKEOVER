@@ -24,6 +24,10 @@ export const DEFAULT_SLOT_MUTATE_RATE_LIMIT: RateLimitOptions = { windowMs: 60_0
 export const DEFAULT_PROVIDER_PROFILE_RATE_LIMIT: RateLimitOptions = { windowMs: 60_000, max: 60 };
 // Avatar uploads are more expensive than reads (200KB writes): 10 per user per hour.
 export const DEFAULT_AVATAR_RATE_LIMIT: RateLimitOptions = { windowMs: 3_600_000, max: 10 };
+// Wallet linking (Phase 5n-A). Per USER, not per IP: several people can
+// share a carrier NAT, and the thing being limited is how often one account
+// can burn challenges. 10/hour is generous for a one-time link.
+export const DEFAULT_LINK_WALLET_RATE_LIMIT: RateLimitOptions = { windowMs: 3_600_000, max: 10 };
 export const DEFAULT_PROVIDER_CLAIMS_READ_RATE_LIMIT: RateLimitOptions = {
   windowMs: 60_000,
   max: 120,

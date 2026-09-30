@@ -9,7 +9,7 @@
 //     superset) or test usernames (leading `test_` — underscore, not hyphen,
 //     because usernames only allow [a-z0-9_] so `test-` is unrepresentable)
 //   * slots owned by those users
-//   * slots with a `test-` or `seed-` title prefix (any owner)
+//   * slots whose title contains the words `test` or `seed` (any owner)
 //   * slots whose description carries the audit-fixture marker
 //     ("(Phase 5 audit fixture)" — seed-phase5.ts)
 //   * claims on those slots, or bought by seed users
@@ -77,11 +77,18 @@ try {
   );
   counts.users_matched = seedUserIds.length;
 
-  // 2. Test slots: seed-owned, title-prefixed, or audit-fixture-marked.
+  // 2. Test slots: seed-owned, test-titled, or audit-fixture-marked.
+  //
+  // Phase 5n-A: the title rule was `ILIKE 'test-%'`, a PREFIX match with a
+  // HYPHEN, which silently missed every real test title in the DB —
+  // "Test slot" (space), "Test Slot Review" / "Test slot review" (suffix),
+  // "Review test slot" and "Double tap test slot" (mid-title). Word-boundary
+  // matching catches all of those while still refusing innocent words that
+  // merely start the same ("Testament", "Seedling" coffee).
   const testSlotIds = await collectIds(
     client,
     `SELECT id FROM slots WHERE provider_id = ANY($1)
-       OR title ILIKE 'test-%' OR title ILIKE 'seed-%'
+       OR title ~* '(^|[^a-z])(test|seed)([^a-z]|$)'
        OR description LIKE '%audit fixture%'`,
     [seedUserIds.length > 0 ? seedUserIds : ['00000000-0000-0000-0000-000000000000']],
   );

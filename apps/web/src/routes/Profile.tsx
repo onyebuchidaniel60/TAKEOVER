@@ -16,7 +16,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { LogOut, Share2 } from 'lucide-react';
+import { ChevronRight, LogOut, Share2, Wallet } from 'lucide-react';
 import ErrorState from '../components/ErrorState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import PublicOpenings from '../components/PublicOpenings';
@@ -35,10 +35,12 @@ import { usePageMeta } from '../lib/meta';
 import { queryKeys } from '../lib/queryKeys';
 import { fetchMe, fetchMyClaims, fetchMySlots, fetchPublicProfile, type MeUser } from '../lib/slots';
 import { useAuth } from '../store/auth';
+import { useWalletLink } from '../hooks/useWalletLink';
 
 export default function Profile() {
   usePageMeta({ title: 'Profile — TAKEOVER' });
   const logout = useAuth((s) => s.logout);
+  const { link, isLinking, error: linkError } = useWalletLink();
 
   const meQuery = useQuery({ queryKey: queryKeys.me, queryFn: fetchMe });
   const user: MeUser | null = meQuery.data?.user ?? null;
@@ -127,11 +129,38 @@ export default function Profile() {
             value={user.location ?? null}
             to="/onboarding/profile?from=settings"
           />
-          <InfoRow
-            icon={<LogOut size={16} aria-hidden="true" />}
-            label="Wallet"
-            value={user.walletAddress ?? null}
-          />
+          {/* Wallet (Phase 5n-A). Tappable ONLY while unlinked — that is the
+              only state where connecting is possible. Once linked the row is
+              read-only, so it drops the chevron and the tap target rather
+              than offering an action that would 409. */}
+          {user.walletAddress ? (
+            <InfoRow
+              icon={<Wallet size={16} aria-hidden="true" />}
+              label="Wallet"
+              value={user.walletAddress}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => void link()}
+              disabled={isLinking}
+              className="flex min-h-touch w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-ui ease-out-strong disabled:opacity-60"
+            >
+              <span className="h-4 w-4 shrink-0 text-faint" aria-hidden="true">
+                <Wallet size={16} />
+              </span>
+              <span className="text-body text-text">Wallet</span>
+              <span className="ml-auto text-body text-faint">
+                {isLinking ? 'Connecting…' : 'Not set'}
+              </span>
+              <ChevronRight size={16} className="h-4 w-4 shrink-0 text-faint" aria-hidden="true" />
+            </button>
+          )}
+          {linkError ? (
+            <p role="alert" className="px-4 py-3 text-body font-medium text-danger">
+              {linkError}
+            </p>
+          ) : null}
         </ProfileInformation>
 
         {openings > 0 && user.username ? (

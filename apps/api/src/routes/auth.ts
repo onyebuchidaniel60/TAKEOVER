@@ -12,13 +12,16 @@ import { isUniqueViolation } from '../claims/service';
 import type { VerifySignatureFn } from '../auth/nimiq-verify';
 import { verifyNimiqSignature } from '../auth/nimiq-verify';
 import { isAdminWallet } from '../auth/admin';
+import { linkWallet } from '../auth/link-wallet';
 import { writeAuditEvent } from '../audit/events';
 import { clearSessionCookie, issueSession, requireAuth, setSessionCookie } from '../auth/session';
 import { AppError, successBody } from '../http/errors';
 import {
   createKeyedRateLimiter,
   createRateLimiter,
+  createUserRateLimiter,
   DEFAULT_CHALLENGE_RATE_LIMIT,
+  DEFAULT_LINK_WALLET_RATE_LIMIT,
   DEFAULT_LOGIN_EMAIL_FAILURE_RATE_LIMIT,
   DEFAULT_LOGIN_RATE_LIMIT,
   DEFAULT_REGISTER_RATE_LIMIT,
@@ -30,6 +33,20 @@ import {
 const challengeBodySchema = z.object({ walletAddress: z.string().min(1).max(64) }).strict();
 
 const verifyBodySchema = z
+  .object({
+    walletAddress: z.string().min(1).max(64),
+    nonce: z.string().regex(/^[0-9a-f]{64}$/),
+    signature: z.string().min(1).max(512),
+    publicKey: z.string().min(1).max(256).optional(),
+  })
+  .strict();
+
+// Phase 5n-A wallet link. Same shape as the login verify body — the
+// challenge is wallet-bound and single-use, so there is nothing extra to
+// send. (The brief sketched a `challengeId`; the real implementation
+// identifies a challenge by its 64-hex nonce, so reusing `nonce` keeps ONE
+// body shape for both flows instead of two.)
+const linkWalletBodySchema = z
   .object({
     walletAddress: z.string().min(1).max(64),
     nonce: z.string().regex(/^[0-9a-f]{64}$/),
@@ -155,6 +172,8 @@ export interface AuthRouteOptions {
     loginEmailFailure?: RateLimitOptions;
     /** Username live-check budget (default 30/IP/min). */
     usernameAvailable?: RateLimitOptions;
+    /** Per-USER wallet-link budget (default 10/hour). */
+    linkWallet?: RateLimitOptions;
   };
 }
 
@@ -182,6 +201,9 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): 
   );
   const usernameAvailableLimiter = createRateLimiter(
     opts.rateLimit?.usernameAvailable ?? DEFAULT_USERNAME_AVAILABLE_RATE_LIMIT,
+  );
+  const linkWalletLimiter = createUserRateLimiter(
+    opts.rateLimit?.linkWallet ?? DEFAULT_LINK_WALLET_RATE_LIMIT,
   );
 
   app.post(
@@ -529,6 +551,38 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRouteOptions): 
     const db = getDb();
     return successBody(request, { user: await readMeUser(db, user.id) });
   });
+
+  // Wallet linking (Phase 5n-A, D21/D22). Attaches a wallet to the
+  // CALLER's account — typically an email user who needs a wallet to claim
+  // or publish. Deliberately does NOT mint a session: the caller is already
+  // authenticated, and swapping identities here would be a session-fixation
+  // shape. The response is the normal /me projection so one round trip
+  // refreshes the client's cached user.
+  app.post(
+    '/me/link-wallet',
+    { preHandler: linkWalletLimiter, bodyLimit: 16 * 1024 },
+    async (request) => {
+      const me = await requireAuth(request);
+      const parsed = linkWalletBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        throw new AppError(400, 'INVALID_INPUT', 'Invalid request body.');
+      }
+      const db = getDb();
+      const { userId } = await linkWallet(
+        db,
+        {
+          userId: me.id,
+          walletAddress: parsed.data.walletAddress,
+          nonce: parsed.data.nonce,
+          signature: parsed.data.signature,
+          publicKey: parsed.data.publicKey,
+          requestId: request.id,
+        },
+        verifySignature,
+      );
+      return successBody(request, { user: await readMeUser(db, userId) });
+    },
+  );
 
   // Onboarding completion (Phase 5j). Idempotent: sets onboarded_at on
   // first call, no-op (same shape) when already set. The client calls it

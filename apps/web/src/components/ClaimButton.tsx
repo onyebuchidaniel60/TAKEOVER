@@ -1,6 +1,11 @@
 // Hold one unit of a claimable opening, then open the claim page.
 // No wallet SDK here — the session cookie authenticates the POST.
 //
+// Phase 5n-A (D22): claiming needs a wallet, and a wallet-less email user
+// used to dead-end on a 409. Instead the 409 opens an inline wallet dialog
+// and the claim RESUMES by itself once the wallet is linked. The user never
+// has to find the profile, and never has to press Claim twice.
+//
 // Primary pill per design.md §7: accent fill, accent-ink text,
 // press scale(0.97) at 120ms ease-out-strong. Disabled (in-flight
 // only — claimability itself is gated by the page) is surface-2 +
@@ -11,11 +16,15 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError } from '../lib/api';
 import { createClaim } from '../lib/slots';
+import { useWalletLink } from '../hooks/useWalletLink';
+import WalletConnectModal from './WalletConnectModal';
 
 export default function ClaimButton({ slotId }: { slotId: string }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const [connectOpen, setConnectOpen] = useState(false);
+  const { link, isLinking, error: linkError } = useWalletLink();
 
   // Money mutation: on success the slot (availability changed), the
   // buyer's holds, and every feed list are stale — invalidate all
@@ -30,6 +39,12 @@ export default function ClaimButton({ slotId }: { slotId: string }) {
       navigate(`/claim/${claim.id}`);
     },
     onError: (err: unknown) => {
+      // WALLET_REQUIRED is not a failure to report — it is a step to
+      // offer. Everything else keeps the existing error line.
+      if (err instanceof ApiError && err.code === 'WALLET_REQUIRED') {
+        setConnectOpen(true);
+        return;
+      }
       setError(err instanceof ApiError ? err.message : 'Something went wrong.');
     },
   });
@@ -38,6 +53,17 @@ export default function ClaimButton({ slotId }: { slotId: string }) {
   const handleClick = (): void => {
     setError(null);
     claimMutation.mutate(slotId);
+  };
+
+  const handleConnect = (): void => {
+    void link().then((user) => {
+      // Resume automatically: the user asked to claim, so once a wallet
+      // exists we retry the claim they already consented to.
+      if (user?.walletAddress) {
+        setConnectOpen(false);
+        claimMutation.mutate(slotId);
+      }
+    });
   };
 
   return (
@@ -64,6 +90,17 @@ export default function ClaimButton({ slotId }: { slotId: string }) {
         <p className="mt-2 text-body font-medium text-danger" role="alert">
           {error}
         </p>
+      ) : null}
+      {connectOpen ? (
+        <div className="mt-3">
+          <WalletConnectModal
+            action="claim this slot"
+            onConnect={handleConnect}
+            onDismiss={() => setConnectOpen(false)}
+            isConnecting={isLinking}
+            error={linkError}
+          />
+        </div>
       ) : null}
     </div>
   );
