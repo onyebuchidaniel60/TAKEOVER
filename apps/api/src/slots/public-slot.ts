@@ -24,16 +24,25 @@ export interface PublicSlot {
   providerDisplay: string;
   /** Provider avatar data URI, or null when the provider set none. */
   providerAvatar: string | null;
+  /**
+   * Provider's public handle, or null for pre-5g wallet-only accounts that
+   * never got a username. Drives the /u/:username link on cards and detail;
+   * consumers MUST hide the link when this is null rather than link to /u/null.
+   */
+  providerUsername: string | null;
   /** Optional opening image data URI, or null when the provider attached none. */
   imageData: string | null;
 }
 
+/** The provider fields every slot projection carries (see provider-display.ts). */
+export interface SlotProviderRef {
+  display: string;
+  avatar: string | null;
+  username: string | null;
+}
+
 /** Project a slots row onto the locked public shape. Throws on invalid price. */
-export function toPublicSlot(
-  row: SlotRow,
-  providerDisplay: string,
-  providerAvatar: string | null = null,
-): PublicSlot {
+export function toPublicSlot(row: SlotRow, provider: SlotProviderRef): PublicSlot {
   return {
     id: row.id,
     title: row.title,
@@ -47,8 +56,9 @@ export function toPublicSlot(
     available_quantity: row.availableQuantity,
     status: row.status,
     published_at: row.publishedAt ? row.publishedAt.toISOString() : null,
-    providerDisplay,
-    providerAvatar,
+    providerDisplay: provider.display,
+    providerAvatar: provider.avatar,
+    providerUsername: provider.username,
     imageData: row.imageData,
   };
 }

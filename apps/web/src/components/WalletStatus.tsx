@@ -1,49 +1,49 @@
-import { LogOut, Wallet } from 'lucide-react';
+// Chrome identity chip (Phase 5k-B4).
+//
+// Three states, per D18:
+//   guest        -> a small "Sign in" pill to /welcome
+//   email user   -> 24px avatar + @username chip, to /profile
+//   wallet user  -> 24px avatar + display name (or truncated wallet), to /profile
+//
+// The Log out action MOVED to the Profile header in 5k-B: three controls in
+// a 56px header is too many at 320px, and signing out is a deliberate act
+// that belongs on the page, not in the chrome.
+import { Link } from 'react-router-dom';
+import Avatar from './Avatar';
 import { useAuth } from '../store/auth';
-
-function truncate(address: string): string {
-  return address.length <= 12 ? address : `${address.slice(0, 6)}…${address.slice(-4)}`;
-}
+import { truncateWalletAddress } from '../lib/slots';
 
 export default function WalletStatus() {
-  const { status, user, error, login, logout } = useAuth();
+  const { status, user, error } = useAuth();
 
   if (status === 'authenticated' && user) {
-    // Wallet-less (email) accounts show their identity here (Phase 5j).
-    const label = user.walletAddress
-      ? truncate(user.walletAddress)
-      : (user.email ?? (user.username ? `@${user.username}` : 'Account'));
+    const name = user.providerProfile?.displayName
+      ? user.providerProfile.displayName
+      : (user.walletAddress
+        ? truncateWalletAddress(user.walletAddress)
+        : (user.username ? `@${user.username}` : 'Account'));
     return (
-      <div className="flex min-w-0 items-center gap-2">
-        <span
-          className="min-w-0 max-w-44 truncate rounded-full bg-surface-2 px-3 py-1 text-body font-medium text-accent"
-          title={label}
-        >
-          {label}
+      <Link
+        to="/profile"
+        className="flex min-h-touch min-w-0 items-center gap-2 rounded-pill px-1.5 py-1 transition-transform duration-press ease-out-strong active:scale-[0.97] motion-reduce:transition-none"
+        title={name}
+      >
+        <Avatar data={user.avatarData ?? null} name={name} size={24} />
+        <span className="min-w-0 max-w-32 truncate text-body font-medium text-accent">
+          {name}
         </span>
-        <button
-          type="button"
-          onClick={() => void logout()}
-          className="inline-flex min-h-touch shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-border-strong bg-surface px-2 py-1 text-body font-medium text-muted transition-transform duration-press ease-out-strong active:scale-[0.97]"
-        >
-          <LogOut size={14} aria-hidden="true" />
-          Log out
-        </button>
-      </div>
+      </Link>
     );
   }
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <button
-        type="button"
-        onClick={() => void login()}
-        disabled={status === 'authenticating'}
-        className="inline-flex min-h-touch shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-accent px-3 py-2 text-body font-semibold text-accent-ink transition-transform duration-press ease-out-strong active:scale-[0.97] disabled:opacity-60"
+      <Link
+        to="/welcome"
+        className="inline-flex min-h-touch shrink-0 items-center rounded-pill bg-accent px-3 py-1.5 text-body font-semibold text-accent-ink transition-transform duration-press ease-out-strong active:scale-[0.97]"
       >
-        <Wallet size={16} aria-hidden="true" />
-        {status === 'authenticating' ? 'Connecting…' : 'Connect Wallet'}
-      </button>
+        {status === 'authenticating' ? 'Connecting…' : 'Sign in'}
+      </Link>
       {error ? (
         <p role="alert" className="max-w-56 text-right text-small text-danger">
           {error}

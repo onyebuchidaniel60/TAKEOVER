@@ -28,6 +28,7 @@ const SellNew = lazy(() => import('./routes/SellNew'));
 const SellDetail = lazy(() => import('./routes/SellDetail'));
 const NotificationsPage = lazy(() => import('./routes/NotificationsPage'));
 const Profile = lazy(() => import('./routes/Profile'));
+const PublicProfile = lazy(() => import('./routes/PublicProfile'));
 const NotFound = lazy(() => import('./routes/NotFound'));
 // Onboarding (Phase 5j): own chunks, rendered OUTSIDE the app shell
 // (no TopBar, no pill nav — a focused sequence).
@@ -133,6 +134,10 @@ function ShellRoutes() {
         <Route path="/" element={<Home />} />
         <Route path="/openings" element={<Openings />} />
         <Route path="/slot/:slotId" element={<SlotDetailPage />} />
+        {/* Public provider profile (D17). Unauthenticated by design — a
+            buyer must be able to read a provider before signing in, and the
+            endpoint returns only the public allow-list. */}
+        <Route path="/u/:username" element={<PublicProfile />} />
         <Route
           path="/claim/:claimId"
           element={

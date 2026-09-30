@@ -1,356 +1,180 @@
-// Real profile page (replaces the debug placeholder).
-// Wallet, provider display-name setup/edit, links, logout. No wallet
-// SDK usage here — display and form state only, server stays authoritative.
-// No role display (Phase 4b): any user can buy or provide, so the label
-// is meaningless — the fetch stays, only the visible line is gone.
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+// Own profile (Phase 5k-B) — /profile.
+//
+// Rewritten to the reference layout: centered identity header, a two-column
+// stats row (Openings, Claims; Followers/Following arrive with 5k-C), an
+// Information card of private+public rows, and a compact openings preview.
+//
+// Removed in this rewrite (each was redundant, not useful):
+//   - the standalone avatar uploader  -> folded into Edit profile
+//   - the provider display-name form  -> folded into Edit profile
+//   - the Wallet section              -> now an Information row
+//   - the Log out button              -> now a header ghost action
+//
+// This page is the ONLY surface that renders email/phone/DOB, and it reads
+// them from ['me'] (the authenticated projection), never from the public
+// endpoint.
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import Avatar from '../components/Avatar';
-import EmptyState from '../components/EmptyState';
+import { LogOut, Share2 } from 'lucide-react';
 import ErrorState from '../components/ErrorState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
+import PublicOpenings from '../components/PublicOpenings';
+import {
+  EditProfilePill,
+  GhostAction,
+  InfoIcons,
+  InfoRow,
+  ProfileHeader,
+  ProfileInformation,
+  ProfileStats,
+  identityLabel,
+} from '../components/ProfileView';
 import { ApiError } from '../lib/api';
-import { prepareImage } from '../lib/image';
 import { usePageMeta } from '../lib/meta';
 import { queryKeys } from '../lib/queryKeys';
-import {
-  fetchMe,
-  fetchMySlots,
-  truncateWalletAddress,
-  updateMeAvatar,
-  updateProviderProfile,
-  validateDisplayName,
-  type MeUser,
-} from '../lib/slots';
+import { fetchMe, fetchMyClaims, fetchMySlots, type MeUser } from '../lib/slots';
 import { useAuth } from '../store/auth';
 
 export default function Profile() {
   usePageMeta({ title: 'Profile — TAKEOVER' });
   const logout = useAuth((s) => s.logout);
-  const queryClient = useQueryClient();
-  const [copied, setCopied] = useState(false);
 
-  // The ['me'] entry is usually pre-seeded by the App refresh; the
-  // existence probe stays its own tiny query.
   const meQuery = useQuery({ queryKey: queryKeys.me, queryFn: fetchMe });
-  const slotsQuery = useQuery({
-    queryKey: queryKeys.mySlots('profile-check'),
-    queryFn: () => fetchMySlots({ limit: 1 }),
-  });
   const user: MeUser | null = meQuery.data?.user ?? null;
-  const hasSlots = (slotsQuery.data?.total ?? 0) > 0;
-  const loading = meQuery.isPending || slotsQuery.isPending;
-  const firstError = meQuery.error ?? slotsQuery.error;
-  const error = firstError
-    ? firstError instanceof ApiError
-      ? firstError.message
-      : 'Something went wrong.'
-    : null;
+  // Published openings count + a 3-row preview for the openings section.
+  const slotsQuery = useQuery({
+    queryKey: queryKeys.mySlots('profile-preview'),
+    queryFn: () => fetchMySlots({ status: 'published', limit: 3, offset: 0 }),
+  });
+  // Claims count. limit 1 is enough — only the server-side total is read.
+  const claimsQuery = useQuery({
+    queryKey: queryKeys.myClaims,
+    queryFn: () => fetchMyClaims({ limit: 1, offset: 0 }),
+  });
 
-  const setUser = (next: MeUser | null): void => {
-    if (next) queryClient.setQueryData(queryKeys.me, { user: next });
-  };
+  if (meQuery.isPending || slotsQuery.isPending || claimsQuery.isPending) {
+    return (
+      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+        <LoadingSkeleton rows={3} />
+      </main>
+    );
+  }
 
-  const handleCopy = (): void => {
-    if (!user) return;
-    const full = user.walletAddress ?? '';
-    if (!full) return;
-    if (navigator.clipboard?.writeText) {
-      void navigator.clipboard
-        .writeText(full)
-        .then(() => setCopied(true))
-        .catch(() => setCopied(false));
-    }
-  };
+  const firstError = meQuery.error ?? slotsQuery.error ?? claimsQuery.error;
+  if (firstError || !user) {
+    return (
+      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+        <ErrorState
+          message={
+            firstError instanceof ApiError ? firstError.message : 'Something went wrong.'
+          }
+          onRetry={() => {
+            void meQuery.refetch();
+            void slotsQuery.refetch();
+            void claimsQuery.refetch();
+          }}
+        />
+      </main>
+    );
+  }
+
+  const name = identityLabel({
+    displayName: user.providerProfile?.displayName,
+    walletAddress: user.walletAddress,
+    username: user.username,
+  });
+  const openings = slotsQuery.data?.total ?? 0;
+  const claims = claimsQuery.data?.total ?? 0;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <h1 className="text-h1 font-bold text-text">Profile</h1>
-      {loading ? (
-        <div className="mt-4">
-          <LoadingSkeleton rows={2} />
-        </div>
-      ) : error || !user ? (
-        <div className="mt-4">
-          <ErrorState
-            message={error ?? 'Something went wrong.'}
-            onRetry={() => {
-              void meQuery.refetch();
-              void slotsQuery.refetch();
-            }}
+      <div className="flex flex-col gap-6">
+        <ProfileHeader
+          avatarData={user.avatarData ?? null}
+          name={name}
+          username={user.username ?? null}
+          bio={user.bio ?? null}
+          actions={<HeaderActions username={user.username ?? null} onLogout={() => void logout()} />}
+        />
+
+        <ProfileStats
+          stats={[
+            { label: 'Openings', value: openings },
+            { label: 'Claims', value: claims },
+          ]}
+        />
+
+        <ProfileInformation title="Information">
+          <InfoRow icon={InfoIcons.email} label="Email" value={user.email ?? null} to="/onboarding/profile?from=settings" />
+          <InfoRow icon={InfoIcons.phone} label="Phone" value={user.phone ?? null} to="/onboarding/profile?from=settings" />
+          <InfoRow icon={InfoIcons.dob} label="Date of birth" value={user.dob ?? null} to="/onboarding/profile?from=settings" />
+          <InfoRow
+            icon={InfoIcons.location}
+            label="Location"
+            value={user.location ?? null}
+            to="/onboarding/profile?from=settings"
           />
-        </div>
-      ) : (
-        <div className="mt-4 flex flex-col gap-4">
-          <AvatarSection user={user} />
-
-          {/* Wallet-less (email) accounts show their identity here instead
-              of the wallet box (Phase 5j; full Profile redesign is 5k). */}
-          {user.walletAddress ? (
-            <section className="rounded-xl border border-border bg-surface p-4" aria-label="Wallet">
-              <p className="text-small font-medium uppercase tracking-wide text-muted">Wallet</p>
-              <button
-                type="button"
-                onClick={handleCopy}
-                title={user.walletAddress}
-                className="mt-1 min-h-touch rounded-lg border border-border bg-surface-2 px-3 py-2 font-mono text-body text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-accent"
-              >
-                {truncateWalletAddress(user.walletAddress)}
-                <span className="ml-2 font-sans text-small text-muted">{copied ? 'Copied' : 'Copy'}</span>
-              </button>
-            </section>
-          ) : (
-            <section
-              className="rounded-xl border border-border bg-surface p-4"
-              aria-label="Account identity"
-            >
-              <p className="text-small font-medium uppercase tracking-wide text-muted">Account</p>
-              <p className="mt-1 font-mono text-body text-text">
-                {user.email ?? (user.username ? `@${user.username}` : 'Email account')}
-              </p>
-            </section>
-          )}
-
-          <ProviderSection
-            user={user}
-            hasSlots={hasSlots}
-            onSaved={(displayName) =>
-              setUser({ ...user, providerProfile: { displayName }, hasProviderProfile: true })
-            }
+          <InfoRow
+            icon={<LogOut size={16} aria-hidden="true" />}
+            label="Wallet"
+            value={user.walletAddress ?? null}
           />
+        </ProfileInformation>
 
-          {/* Account: logout only (Phase 5e). The openings/holds
-              shortcuts were redundant with the bottom nav (Sell/Claims)
-              and are gone; the section keeps its place so spacing stays
-              intentional. */}
-          <section className="flex flex-wrap gap-2" aria-label="Account">
-            <button
-              type="button"
-              onClick={() => void logout()}
-              className="min-h-touch rounded-lg border border-border-strong bg-surface px-4 py-2 text-body font-medium text-muted"
+        {openings > 0 && user.username ? (
+          <PublicOpenings username={user.username} displayName={name} />
+        ) : (
+          <section className="rounded-card border border-border bg-surface p-4">
+            <h2 className="text-h3 font-semibold text-text">Your openings</h2>
+            <p className="mt-1 text-body text-muted">
+              Nothing listed right now. Released capacity you post shows up here.
+            </p>
+            <Link
+              to="/sell/new"
+              className="mt-3 inline-flex min-h-touch items-center justify-center rounded-pill bg-accent px-4 py-2 text-body font-medium text-accent-ink"
             >
-              Log out
-            </button>
+              Create an opening
+            </Link>
           </section>
-        </div>
-      )}
+        )}
+      </div>
     </main>
   );
 }
 
-// Profile picture (Phase 5d): 48px preview next to the display name,
-// file picker on click, client-side resize to ≤200KB before upload.
-// Success refreshes ['me'] plus every slot-scoped cache (feed cards and
-// detail pages render the provider avatar from slot projections).
-function AvatarSection({ user }: { user: MeUser }) {
-  const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
-  const [preparing, setPreparing] = useState(false);
-  const fileRef = useRef<HTMLInputElement | null>(null);
-  const avatar = user.avatarData ?? null;
-  // Wallet-less accounts fall back to email/username (Phase 5j).
-  const name =
-    user.providerProfile?.displayName ??
-    (user.walletAddress
-      ? truncateWalletAddress(user.walletAddress)
-      : (user.email ?? (user.username ? `@${user.username}` : 'TAKEOVER user')));
+/** Edit pill + share link + log out (the Log out action moved here in 5k-B). */
+function HeaderActions({ username, onLogout }: { username: string | null; onLogout: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const [shareFailed, setShareFailed] = useState(false);
 
-  const avatarMutation = useMutation({
-    mutationFn: (avatarData: string | null) => updateMeAvatar(avatarData),
-    onSuccess: ({ avatarData }) => {
-      queryClient.setQueryData(queryKeys.me, { user: { ...user, avatarData } });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.me });
-      void queryClient.invalidateQueries({ queryKey: ['slots'] });
-      void queryClient.invalidateQueries({ queryKey: ['slot'] });
-      void queryClient.invalidateQueries({ queryKey: ['my-slots'] });
-      void queryClient.invalidateQueries({ queryKey: ['owner-slot'] });
-      setError(null);
-    },
-    onError: (err: unknown) => {
-      setError(err instanceof ApiError ? err.message : 'Something went wrong.');
-    },
-  });
-  const busy = preparing || avatarMutation.isPending;
-
-  const handleFile = (event: React.ChangeEvent<HTMLInputElement>): void => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    setError(null);
-    setPreparing(true);
-    void prepareImage(file, 400)
-      .then(({ dataUrl }) => avatarMutation.mutate(dataUrl))
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Something went wrong.');
-      })
-      .finally(() => setPreparing(false));
-  };
-
-  return (
-    <section className="rounded-xl border border-border bg-surface p-4" aria-label="Profile picture">
-      <div className="flex items-center gap-3">
-        <Avatar data={avatar} name={name} size={48} />
-        <div className="min-w-0">
-          <p className="truncate text-h3 font-semibold text-text">{name}</p>
-          <div className="mt-1 flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => fileRef.current?.click()}
-              className="min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50"
-            >
-              {preparing || avatarMutation.isPending
-                ? 'Uploading…'
-                : avatar
-                  ? 'Change picture'
-                  : 'Upload picture'}
-            </button>
-            {avatar ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => avatarMutation.mutate(null)}
-                className="min-h-touch rounded-lg border border-border-strong bg-surface px-4 py-2 text-body font-medium text-muted disabled:opacity-50"
-              >
-                Remove
-              </button>
-            ) : null}
-          </div>
-        </div>
-      </div>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        aria-label="Choose a profile picture"
-        onChange={handleFile}
-      />
-      {error ? (
-        <p className="mt-2 text-body font-medium text-danger" role="alert">
-          {error}
-        </p>
-      ) : null}
-    </section>
-  );
-}
-
-function ProviderSection({
-  user,
-  hasSlots,
-  onSaved,
-}: {
-  user: MeUser;
-  hasSlots: boolean;
-  onSaved: (displayName: string) => void;
-}) {
-  const existing = user.providerProfile?.displayName ?? null;
-  if (existing) {
-    return (
-      <section className="rounded-xl border border-border bg-surface p-4" aria-label="Provider">
-        <p className="text-small font-medium uppercase tracking-wide text-muted">Provider</p>
-        <p className="mt-1 text-h3 font-semibold text-text">{existing}</p>
-        <DisplayNameForm initial="" submitLabel="Change display name" onSaved={onSaved} />
-      </section>
-    );
-  }
-  if (!hasSlots) {
-    return (
-      <EmptyState
-        title="Become a provider"
-        body="Publish an opening to start selling released capacity."
-        action={
-          <Link
-            to="/sell/new"
-                className="inline-block min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink"
-          >
-            Create your first slot
-          </Link>
-        }
-      />
-    );
-  }
-  return (
-    <section className="rounded-xl border border-border bg-surface p-4" aria-label="Provider">
-      <p className="text-small font-medium uppercase tracking-wide text-muted">Provider</p>
-      <p className="mt-1 text-body text-muted">
-        Name your openings — buyers see this instead of your wallet.
-      </p>
-      <DisplayNameForm initial="" submitLabel="Set display name" onSaved={onSaved} />
-    </section>
-  );
-}
-
-export function DisplayNameForm({
-  initial,
-  submitLabel,
-  onSaved,
-}: {
-  initial: string;
-  submitLabel: string;
-  onSaved: (displayName: string) => void;
-}) {
-  const [value, setValue] = useState(initial);
-  const [error, setError] = useState<string | null>(null);
-  const queryClient = useQueryClient();
-
-  // Display-name save: on success the parent refreshes its user row and
-  // the ['me'] cache is invalidated so every consumer agrees.
-  const saveMutation = useMutation({
-    mutationFn: (displayName: string) => updateProviderProfile(displayName),
-    onSuccess: ({ providerProfile }) => {
-      onSaved(providerProfile.displayName);
-      setValue('');
-      void queryClient.invalidateQueries({ queryKey: queryKeys.me });
-    },
-    onError: (err: unknown) => {
-      setError(err instanceof ApiError ? err.message : 'Something went wrong.');
-    },
-  });
-  const saving = saveMutation.isPending;
-
-  const handleSubmit = (event: React.FormEvent): void => {
-    event.preventDefault();
-    // Validate against the server rules before
-    // sending, so rejections surface inline instead of as a failed request.
-    // The server stays authoritative for anything that still slips through.
-    const reason = validateDisplayName(value);
-    if (reason) {
-      setError(reason);
+  const handleShare = (): void => {
+    if (!username) return;
+    const url = `${window.location.origin}/u/${username}`;
+    if (navigator.clipboard?.writeText) {
+      void navigator.clipboard
+        .writeText(url)
+        .then(() => {
+          setCopied(true);
+          setShareFailed(false);
+        })
+        .catch(() => setShareFailed(true));
       return;
     }
-    setError(null);
-    saveMutation.mutate(value);
+    setShareFailed(true);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mt-3">
-      <label htmlFor="provider-display-name" className="text-body font-medium text-muted">
-        Display name
-      </label>
-      <input
-        id="provider-display-name"
-        type="text"
-        autoComplete="nickname"
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        maxLength={60}
-        placeholder="e.g. Sunrise Yoga"
-        className="mt-1 block min-h-touch w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-body text-text placeholder:text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-accent placeholder:text-muted focus-visible:ring-accent"
-      />
-      {error ? (
-        <p className="mt-2 text-body font-medium text-danger" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <button
-        type="submit"
-        disabled={saving}
-        className="mt-2 min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50"
-      >
-        {saving ? 'Saving…' : submitLabel}
-      </button>
-    </form>
+    <>
+      <EditProfilePill />
+      <GhostAction onClick={handleShare} disabled={!username}>
+        <Share2 size={16} aria-hidden="true" />
+        {shareFailed ? 'Copy failed' : copied ? 'Link copied' : 'Share profile'}
+      </GhostAction>
+      <GhostAction onClick={onLogout}>
+        <LogOut size={16} aria-hidden="true" />
+        Log out
+      </GhostAction>
+    </>
   );
 }

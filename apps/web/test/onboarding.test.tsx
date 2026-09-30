@@ -102,6 +102,39 @@ describe('onboardingRedirect (pure matrix)', () => {
     expect(onboardingRedirect(done, '/sell/new')).toBeNull();
     expect(onboardingRedirect(done, '/admin')).toBeNull();
   });
+
+  // Phase 5k-B: /onboarding/profile doubles as the Profile page's Edit form.
+  // That is the ONE /onboarding/* path an onboarded user may stay on, and it
+  // must require the exact flag — a bare visit or a different flag is still
+  // redirected home, so this cannot become a back door into the funnel.
+  it('admits only the exact ?from=settings edit variant for onboarded users', () => {
+    const done = {
+      initialized: true as const,
+      status: 'authenticated' as const,
+      onboardedAt: new Date().toISOString(),
+    };
+    expect(onboardingRedirect(done, '/onboarding/profile', '?from=settings')).toBeNull();
+    // Bare path: still redirected.
+    expect(onboardingRedirect(done, '/onboarding/profile', '')).toBe('/');
+    expect(onboardingRedirect(done, '/onboarding/profile')).toBe('/');
+    // Wrong flag, and the flag on some other onboarding step: still redirected.
+    expect(onboardingRedirect(done, '/onboarding/profile', '?from=elsewhere')).toBe('/');
+    expect(onboardingRedirect(done, '/onboarding/interests', '?from=settings')).toBe('/');
+    expect(onboardingRedirect(done, '/onboarding/account', '?from=settings')).toBe('/');
+  });
+
+  it('still bounces an UN-onboarded user off the settings variant', () => {
+    // A fresh account must not be able to skip the funnel by appending the
+    // flag — the settings variant is not an onboarding step.
+    const fresh = {
+      initialized: true as const,
+      status: 'authenticated' as const,
+      onboardedAt: null,
+    };
+    expect(onboardingRedirect(fresh, '/onboarding/profile', '?from=settings')).toBeNull();
+    // (isOnboardingPath still admits it, same as the plain path.)
+    expect(onboardingRedirect(fresh, '/sell/new', '?from=settings')).toBe('/welcome');
+  });
 });
 
 describe('safeRedirectTarget', () => {

@@ -75,6 +75,12 @@ export async function loadProviderDisplay(db: Db, providerId: string): Promise<s
 export interface ProviderCard {
   display: string;
   avatar: string | null;
+  /**
+   * Public handle for the /u/:username link. NULL for pre-5g wallet-only
+   * accounts that predate the username column, so callers must treat it as
+   * optional and hide the link rather than build /u/null.
+   */
+  username: string | null;
 }
 
 export async function loadProviderCardMap(db: Db, providerIds: string[]): Promise<Map<string, ProviderCard>> {
@@ -105,6 +111,7 @@ export async function loadProviderCardMap(db: Db, providerIds: string[]): Promis
         user.username ? `@${user.username}` : null,
       ),
       avatar: user.avatarData,
+      username: user.username,
     });
   }
   return map;

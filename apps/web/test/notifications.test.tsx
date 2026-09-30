@@ -194,7 +194,10 @@ describe('pill nav notifications item', () => {
         };
       }
       if (url.startsWith('/api/v1/me/slots')) {
-        return { status: 200, body: { data: { slots: [], total: 0, limit: 1, offset: 0 }, requestId: 't' } };
+        return { status: 200, body: { data: { slots: [], total: 0, limit: 3, offset: 0 }, requestId: 't' } };
+      }
+      if (url.includes('/api/v1/claims')) {
+        return { status: 200, body: { data: { claims: [], total: 0, limit: 1, offset: 0 }, requestId: 't' } };
       }
       return { status: 200, body: { data: {}, requestId: 't' } };
     });
@@ -205,8 +208,9 @@ describe('pill nav notifications item', () => {
         </Routes>
       </MemoryRouter>,
     );
-    await screen.findByRole('heading', { name: 'Profile' });
-    await waitFor(() => expect(screen.queryByLabelText(/loading/i)).toBeNull());
+    // Phase 5k-B: the page h1 is the user's display name, not the word
+    // "Profile"; the Information heading is the stable landmark.
+    await screen.findByRole('heading', { name: 'Information' });
     expect(screen.queryByLabelText('Notifications')).toBeNull();
     expect(screen.queryByRole('button', { name: /mark all read/i })).toBeNull();
   });

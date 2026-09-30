@@ -183,6 +183,10 @@ describe.skipIf(!isDatabaseConfigured())('public marketplace (live)', () => {
         'price_usdt',
         'providerAvatar',
         'providerDisplay',
+        // Phase 5k-B: the provider's public handle, so cards and the detail
+        // page can link to /u/:username. Public by design (it is the address
+        // in the URL); null for pre-5g wallet-only accounts.
+        'providerUsername',
         'published_at',
         'starts_at',
         'status',
@@ -191,6 +195,9 @@ describe.skipIf(!isDatabaseConfigured())('public marketplace (live)', () => {
       ].sort(),
     );
     expect(body.data.slot['price_usdt']).toBe('1500000');
+    // The handle is a username or null — never a user id, never a wallet.
+    const handle = body.data.slot['providerUsername'];
+    expect(handle === null || /^[a-z0-9_]{1,64}$/.test(String(handle))).toBe(true);
     expect(body.data.slot).not.toHaveProperty('payout_wallet');
     expect(body.data.slot).not.toHaveProperty('provider_id');
   });

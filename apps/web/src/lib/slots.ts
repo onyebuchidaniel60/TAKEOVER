@@ -23,6 +23,12 @@ export interface PublicSlot {
   published_at: string | null;
   providerDisplay: string;
   providerAvatar?: string | null;
+  /**
+   * Provider handle for the /u/:username link (Phase 5k-B). NULL for
+   * pre-5g wallet-only accounts — consumers must hide the link when absent
+   * rather than build /u/null.
+   */
+  providerUsername?: string | null;
   imageData?: string | null;
 }
 
@@ -41,6 +47,8 @@ export interface SlotFilters {
   to?: string;
   limit?: number;
   offset?: number;
+  /** Provider handle filter (Phase 5k-B) — a username, never a user id. */
+  provider?: string;
 }
 
 /** 1 USDT = 1,000,000 base units (6 decimals). Display conversion only. */
@@ -82,6 +90,7 @@ function toQuery(filters: SlotFilters): string {
   if (filters.location?.trim()) params.set('location', filters.location.trim());
   if (filters.from) params.set('from', filters.from);
   if (filters.to) params.set('to', filters.to);
+  if (filters.provider?.trim()) params.set('provider', filters.provider.trim());
   if (typeof filters.limit === 'number') params.set('limit', String(filters.limit));
   if (typeof filters.offset === 'number') params.set('offset', String(filters.offset));
   const query = params.toString();
@@ -542,6 +551,31 @@ export interface MeUser {
 
 export function fetchMe(): Promise<{ user: MeUser }> {
   return apiFetch<{ user: MeUser }>('/api/v1/me');
+}
+
+// Public profile (Phase 5k-B). Public endpoint — no session required, and
+// the response carries ONLY the public allow-list (never email/phone/dob/
+// wallet), which is what makes /u/:username safe to share.
+export interface PublicProfileStats {
+  openings: number;
+  claims: number;
+  followers: number;
+  following: number;
+}
+
+export interface PublicProfile {
+  username: string;
+  displayName: string;
+  avatarData: string | null;
+  bio: string | null;
+  location: string | null;
+  /** YYYY-MM-DD. */
+  memberSince: string;
+  stats: PublicProfileStats;
+}
+
+export function fetchPublicProfile(username: string): Promise<{ profile: PublicProfile }> {
+  return apiFetch<{ profile: PublicProfile }>(`/api/v1/users/${encodeURIComponent(username)}`);
 }
 
 export function updateProviderProfile(displayName: string): Promise<{

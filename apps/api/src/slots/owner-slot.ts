@@ -6,7 +6,7 @@
 // Plus provider_contact_note, so the provider can see the note
 // they set. The public projection never carries it.
 import type { slots } from '../../../../db/schema';
-import { toPublicSlot, type PublicSlot } from './public-slot';
+import { toPublicSlot, type PublicSlot, type SlotProviderRef } from './public-slot';
 
 type SlotRow = typeof slots.$inferSelect;
 
@@ -15,13 +15,9 @@ export interface OwnerSlot extends PublicSlot {
 }
 
 /** Project a slots row onto the locked owner shape. */
-export function toOwnerSlot(
-  row: SlotRow,
-  providerDisplay: string,
-  providerAvatar: string | null = null,
-): OwnerSlot {
+export function toOwnerSlot(row: SlotRow, provider: SlotProviderRef): OwnerSlot {
   return {
-    ...toPublicSlot(row, providerDisplay, providerAvatar),
+    ...toPublicSlot(row, provider),
     provider_contact_note: row.providerContactNote,
   };
 }

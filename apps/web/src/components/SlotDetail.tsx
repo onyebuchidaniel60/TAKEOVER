@@ -1,3 +1,5 @@
+import { ChevronRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import type { PublicSlot } from '../lib/slots';
 import { formatUsdt } from '../lib/slots';
 import AvailabilityBadge from './AvailabilityBadge';
@@ -92,10 +94,26 @@ export default function SlotDetail({ slot }: { slot: PublicSlot }) {
         </dl>
       </section>
 
-      {/* Provider: avatar + display name. */}
-      <section aria-label="Provider" className="mt-4 flex items-center gap-3">
-        <Avatar data={slot.providerAvatar ?? null} name={slot.providerDisplay} size={32} />
-        <p className="min-w-0 truncate text-body font-medium text-text">{slot.providerDisplay}</p>
+      {/* Provider: avatar + display name, linking to their public profile
+          (/u/:username, Phase 5k-B). Pre-5g wallet-only accounts have no
+          handle, so the row stays non-interactive rather than linking to
+          /u/null. */}
+      <section aria-label="Provider" className="mt-4">
+        {slot.providerUsername ? (
+          <Link
+            to={`/u/${slot.providerUsername}`}
+            className="-mx-2 flex min-h-touch items-center gap-3 rounded-control px-2 transition-transform duration-press ease-out-strong active:scale-[0.99] motion-reduce:transition-none"
+          >
+            <Avatar data={slot.providerAvatar ?? null} name={slot.providerDisplay} size={32} />
+            <p className="min-w-0 truncate text-body font-medium text-text">{slot.providerDisplay}</p>
+            <ChevronRight size={16} className="ml-auto h-4 w-4 shrink-0 text-faint" aria-hidden="true" />
+          </Link>
+        ) : (
+          <div className="flex items-center gap-3">
+            <Avatar data={slot.providerAvatar ?? null} name={slot.providerDisplay} size={32} />
+            <p className="min-w-0 truncate text-body font-medium text-text">{slot.providerDisplay}</p>
+          </div>
+        )}
       </section>
     </article>
   );

@@ -103,7 +103,7 @@ export async function createSlot(
     throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
   }
   const card = await loadProviderCard(db, row.providerId);
-  return toOwnerSlot(row, card.display, card.avatar);
+  return toOwnerSlot(row, card);
 }
 
 export async function updateDraftSlot(
@@ -139,7 +139,7 @@ export async function updateDraftSlot(
     throw new AppError(409, 'SLOT_NOT_EDITABLE', 'Only draft slots can be edited.');
   }
   const card = await loadProviderCard(db, row.providerId);
-  return toOwnerSlot(row, card.display, card.avatar);
+  return toOwnerSlot(row, card);
 }
 
 /**
@@ -197,7 +197,7 @@ export async function updateSlotContactNote(
     return next;
   });
   const card = await loadProviderCard(db, row.providerId);
-  return toOwnerSlot(row, card.display, card.avatar);
+  return toOwnerSlot(row, card);
 }
 
 /**
@@ -254,7 +254,7 @@ export async function updateSlotImage(
     return next;
   });
   const card = await loadProviderCard(db, row.providerId);
-  return toOwnerSlot(row, card.display, card.avatar);
+  return toOwnerSlot(row, card);
 }
 
 export interface PublishFeeOptions {
@@ -346,7 +346,7 @@ async function publishSlotUnpaid(
     return row;
   });
   const card = await loadProviderCard(db, row.providerId);
-  return toOwnerSlot(row, card.display, card.avatar);
+  return toOwnerSlot(row, card);
 }
 
 /**
@@ -390,7 +390,7 @@ async function publishSlotWithFee(
   }
   if (pre.status === 'published' && pre.listingFeeTxHash === fee.hash) {
     const card = await loadProviderCard(db, pre.providerId);
-    return toOwnerSlot(pre, card.display, card.avatar);
+    return toOwnerSlot(pre, card);
   }
   requireDraftForPublish(pre.status);
   const now = new Date();
@@ -544,7 +544,7 @@ async function publishSlotWithFee(
       return row;
     });
     const card = await loadProviderCard(db, row.providerId);
-  return toOwnerSlot(row, card.display, card.avatar);
+  return toOwnerSlot(row, card);
   } catch (err) {
     if (isUniqueViolation(err)) {
       throw new AppError(409, 'PAYMENT_REPLAY', 'This fee payment was already used.');
@@ -623,7 +623,7 @@ export async function cancelSlot(
     return row;
   });
   const card = await loadProviderCard(db, row.providerId);
-  return toOwnerSlot(row, card.display, card.avatar);
+  return toOwnerSlot(row, card);
 }
 
 export interface ListOwnSlotsOptions {
@@ -659,7 +659,7 @@ export async function listOwnSlots(
       // Unreachable in practice: slots.provider_id references users.id.
       throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
     }
-    return toOwnerSlot(row, card.display, card.avatar);
+    return toOwnerSlot(row, card);
   });
   return { slots: items, total: totalRows[0]?.value ?? 0 };
 }

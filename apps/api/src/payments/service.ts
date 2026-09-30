@@ -122,7 +122,7 @@ export async function createPaymentIntent(
   return {
     intent: toPaymentIntentView(decided.intentRow),
     claim: toClaimView(decided.claimRow),
-    slot: toPublicSlot(decided.slotRow, card.display, card.avatar),
+    slot: toPublicSlot(decided.slotRow, card),
   };
 }
 

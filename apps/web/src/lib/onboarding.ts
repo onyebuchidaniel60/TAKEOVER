@@ -102,7 +102,11 @@ function isOnboardingPath(pathname: string): boolean {
  *   area → /welcome; the app unlocks only through the flow.
  * - Onboarded: /welcome, /login, /onboarding/* → / (Home).
  */
-export function onboardingRedirect(state: OnboardingGuardState, pathname: string): string | null {
+export function onboardingRedirect(
+  state: OnboardingGuardState,
+  pathname: string,
+  search?: string,
+): string | null {
   if (!state.initialized || state.status === 'authenticating') {
     return null;
   }
@@ -118,8 +122,23 @@ export function onboardingRedirect(state: OnboardingGuardState, pathname: string
   if (state.onboardedAt === null) {
     return isOnboardingPath(pathname) ? null : '/welcome';
   }
+  // Phase 5k-B: the Profile page reuses this screen as its Edit form. An
+  // onboarded user normally never belongs in /onboarding/*, so the guard
+  // sends them home — but the explicit `?from=settings` variant is an edit
+  // affordance reached from /profile, not an onboarding step. Every other
+  // /onboarding/* path is still redirected exactly as before.
+  if (isSettingsVariant(pathname, search)) {
+    return null;
+  }
   if (pathname === '/welcome' || pathname === '/login' || pathname.startsWith('/onboarding/')) {
     return '/';
   }
   return null;
+}
+
+const SETTINGS_FLAG = 'from=settings';
+
+/** True only for /onboarding/profile?from=settings. */
+function isSettingsVariant(pathname: string, search?: string): boolean {
+  return pathname === '/onboarding/profile' && search === `?${SETTINGS_FLAG}`;
 }

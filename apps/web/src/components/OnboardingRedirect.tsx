@@ -20,6 +20,10 @@ export default function OnboardingRedirect() {
     const to = onboardingRedirect(
       { initialized, status, onboardedAt },
       location.pathname,
+      // Phase 5k-B: the ?from=settings edit variant of /onboarding/profile is
+      // reached from /profile by an already-onboarded user, so the guard
+      // needs the query string to tell it apart from an onboarding step.
+      location.search,
     );
     if (to) {
       navigate(to, { replace: true });

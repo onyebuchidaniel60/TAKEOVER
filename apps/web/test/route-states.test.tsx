@@ -369,7 +369,8 @@ describe('/profile states', () => {
     unmount();
     mockFetch((url) => {
       if (url === '/api/v1/me') return { user: meFixture() };
-      return { slots: [], total: 0, limit: 1, offset: 0 };
+      if (url.includes('/api/v1/claims')) return { claims: [], total: 0, limit: 1, offset: 0 };
+      return { slots: [], total: 0, limit: 3, offset: 0 };
     });
     renderAt(
       '/profile',
@@ -378,11 +379,10 @@ describe('/profile states', () => {
         <Profile />
       </RequireAuth>,
     );
-    // Wallet shows (truncated) — twice now: the avatar header falls
-    // back to the truncated wallet when no display name exists (Phase
-    // 5d), plus the wallet button. No role line anywhere (Phase 4b).
+    // Wallet shows (truncated) — once, in the Information row (Phase 5k-B
+    // moved it out of its own section). No role line anywhere (Phase 4b).
     const walletCopies = await screen.findAllByText(/NQ07…0000/);
-    expect(walletCopies).toHaveLength(2);
+    expect(walletCopies).toHaveLength(1);
     expect(screen.queryByText(/role:/i)).toBeNull();
   });
 });

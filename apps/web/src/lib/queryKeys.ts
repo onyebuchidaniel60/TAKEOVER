@@ -14,6 +14,7 @@
 // - ['escrow', claimId]       escrow projection (panel + demand rows share it)
 // - ['slot-claims', slotId]   provider demand list + counts
 // - ['config']                listing-fee terms (static per session)
+// - ['user', username]        public profile (Phase 5k-B)
 export const queryKeys = {
   me: ['me'] as const,
   notifications: ['notifications'] as const,
@@ -28,6 +29,8 @@ export const queryKeys = {
   escrowIntent: (claimId: string) => ['escrow-intent', claimId] as const,
   slotClaims: (slotId: string) => ['slot-claims', slotId] as const,
   config: ['config'] as const,
+  /** Public profile by handle. Distinct from ['me'] (own private view). */
+  user: (username: string) => ['user', username] as const,
 };
 
 /** Invalidate every slot-scoped cache after a slot mutation. */

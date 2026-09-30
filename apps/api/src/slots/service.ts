@@ -5,7 +5,7 @@
 // slots are excluded in SQL — never client-side.
 import { and, asc, count, eq, gt, gte, ilike, inArray, lte, or, type SQL } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
-import { slots } from '../../../../db/schema';
+import { slots, users } from '../../../../db/schema';
 import { AppError } from '../http/errors';
 import { loadProviderCard, loadProviderCardMap } from './provider-display';
 import { toPublicSlot, type PublicSlot } from './public-slot';
@@ -18,6 +18,14 @@ export interface SlotListFilters {
   location?: string;
   from?: Date;
   to?: Date;
+  /**
+   * Provider handle (Phase 5k-B): restrict the feed to one provider's
+   * openings, for the public profile's openings list. A username, not a user
+   * id — the id never leaves the server. Resolved to a provider id in
+   * listPublicSlots; an unknown handle yields an empty list rather than an
+   * error, so a stale link cannot 500 the feed.
+   */
+  provider?: string;
 }
 
 /**
@@ -84,7 +92,19 @@ export async function listPublicSlots(
   options: ListPublicSlotsOptions,
 ): Promise<{ slots: PublicSlot[]; total: number }> {
   const now = options.now ?? new Date();
-  const where = and(...buildPublicSlotConditions(options.filters, now));
+  const conditions = buildPublicSlotConditions(options.filters, now);
+  // Provider handle -> provider id, server-side (Phase 5k-B). An unknown
+  // handle resolves to an impossible id so the list is empty instead of
+  // erroring; a stale /u/:username link must not be able to 500 the feed.
+  if (options.filters.provider) {
+    const providerRows = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.username, options.filters.provider), eq(users.status, 'active')))
+      .limit(1);
+    conditions.push(eq(slots.providerId, providerRows[0]?.id ?? '00000000-0000-0000-0000-000000000000'));
+  }
+  const where = and(...conditions);
   const rows = await db
     .select()
     .from(slots)
@@ -103,7 +123,7 @@ export async function listPublicSlots(
       // Unreachable in practice: slots.provider_id references users.id.
       throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
     }
-    return toPublicSlot(row, card.display, card.avatar);
+    return toPublicSlot(row, card);
   });
   return { slots: items, total: totalRows[0]?.value ?? 0 };
 }
@@ -127,5 +147,5 @@ export async function getPublicSlotById(db: Db, id: string, now?: Date): Promise
     return null;
   }
   const card = await loadProviderCard(db, row.providerId);
-  return toPublicSlot(row, card.display, card.avatar);
+  return toPublicSlot(row, card);
 }

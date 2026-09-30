@@ -13,6 +13,7 @@ import SlotCard from '../src/components/SlotCard';
 import SlotDetail from '../src/components/SlotDetail';
 import SlotForm, { type SlotFormValues } from '../src/components/SlotForm';
 import Profile from '../src/routes/Profile';
+import { PROFILE_AVATAR_SIZE } from '../src/components/ProfileView';
 import { prepareImage } from '../src/lib/image';
 import type { PublicSlot } from '../src/lib/slots';
 import { renderWithClient } from './test-utils';
@@ -317,56 +318,73 @@ describe('BottomNav open-sign icon', () => {
   });
 });
 
-describe('Profile with avatar', () => {
-  it('shows the 48px preview and change controls, axe-clean', async () => {
+// Phase 5k-B: the standalone "Profile picture" section is gone � the
+// uploader folded into the Edit screen (/onboarding/profile?from=settings,
+// covered by the onboarding suite). What still matters here is that the
+// header avatar renders the image at the header's size, falls back to the
+// initial without one, and that the page stays axe-clean.
+describe('Profile header avatar (Phase 5k-B)', () => {
+  const stub = (user: Record<string, unknown>) => {
     setBuyer();
     mockFetch((url) => {
-      if (url === '/api/v1/me') return { user: { ...meFixture(), avatarData: AVATAR_DATA } };
-      if (url.startsWith('/api/v1/me/slots')) return { slots: [], total: 0, limit: 1, offset: 0 };
-      return undefined;
+      if (url === '/api/v1/me') return { user };
+      if (url.startsWith('/api/v1/me/slots')) return { slots: [], total: 0, limit: 3, offset: 0 };
+      if (url.includes('/api/v1/claims')) return { claims: [], total: 0, limit: 1, offset: 0 };
+      return { slots: [], total: 0, limit: 20, offset: 0 };
     });
+  };
+
+  it('renders the avatar image at the header size, axe-clean', async () => {
+    stub({ ...meFixture(), avatarData: AVATAR_DATA });
     const { container } = renderWithClient(
       <MemoryRouter>
         <Profile />
       </MemoryRouter>,
     );
-    expect(await screen.findByRole('button', { name: /change picture/i })).toBeTruthy();
-    const preview = container.querySelector('section[aria-label="Profile picture"] img');
-    expect(preview?.getAttribute('width')).toBe('48');
+    // The header img is aria-hidden (the name is always adjacent text), so
+    // assert inside waitFor rather than using a role query. Returning null
+    // from waitFor's callback resolves immediately — it must throw to retry.
+    const preview = await waitFor(() => {
+      const el = container.querySelector('header img');
+      if (!el) throw new Error('avatar not rendered yet');
+      return el;
+    });
+    expect(preview.getAttribute('width')).toBe(String(PROFILE_AVATAR_SIZE));
     assertZeroCriticalOrSerious(await runAxe(container), 'profile with avatar');
   });
 
-  it('has no openings/holds shortcuts — the bottom nav is the navigation (Phase 5e)', async () => {
-    setBuyer();
-    mockFetch((url) => {
-      if (url === '/api/v1/me') return { user: meFixture() };
-      if (url.startsWith('/api/v1/me/slots')) return { slots: [], total: 0, limit: 1, offset: 0 };
-      return undefined;
-    });
+  it('falls back to the initial circle without an avatar, axe-clean', async () => {
+    stub(meFixture());
+    const { container } = renderWithClient(
+      <MemoryRouter>
+        <Profile />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(container.querySelector('header')).toBeTruthy());
+    expect(container.querySelector('header img')).toBeNull();
+    assertZeroCriticalOrSerious(await runAxe(container), 'profile without avatar');
+  });
+
+  it('has no openings/holds shortcuts, and keeps Log out in the header (Phase 5e/5k-B)', async () => {
+    stub(meFixture());
     renderWithClient(
       <MemoryRouter>
         <Profile />
       </MemoryRouter>,
     );
-    await screen.findByRole('button', { name: /upload picture/i });
+    await screen.findByRole('button', { name: /log out/i });
     expect(screen.queryByRole('link', { name: /my openings/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /my holds/i })).toBeNull();
-    expect(screen.getByRole('button', { name: /log out/i })).toBeTruthy();
   });
 
-  it('shows the upload CTA and initial fallback without an avatar', async () => {
-    setBuyer();
-    mockFetch((url) => {
-      if (url === '/api/v1/me') return { user: meFixture() };
-      if (url.startsWith('/api/v1/me/slots')) return { slots: [], total: 0, limit: 1, offset: 0 };
-      return undefined;
-    });
-    const { container } = renderWithClient(
+  it('routes Edit profile to the settings variant of the profile form', async () => {
+    stub(meFixture());
+    renderWithClient(
       <MemoryRouter>
         <Profile />
       </MemoryRouter>,
     );
-    expect(await screen.findByRole('button', { name: /upload picture/i })).toBeTruthy();
-    assertZeroCriticalOrSerious(await runAxe(container), 'profile without avatar');
+    const edit = await screen.findByRole('link', { name: /edit profile/i });
+    expect(edit.getAttribute('href')).toBe('/onboarding/profile?from=settings');
   });
 });

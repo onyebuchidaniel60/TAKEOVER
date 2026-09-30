@@ -190,7 +190,7 @@ export async function createClaim(
   const card = await loadProviderCard(db, decided.slotRow.providerId);
   return {
     claim: toClaimView(decided.claimRow),
-    slot: toPublicSlot(decided.slotRow, card.display, card.avatar),
+    slot: toPublicSlot(decided.slotRow, card),
   };
 }
 
@@ -281,7 +281,7 @@ export async function getClaimForBuyer(
   const providerCard = await loadProviderCard(db, slot.providerId);
   return {
     claim: toClaimView(claim, note),
-    slot: toPublicSlot(slot, providerCard.display, providerCard.avatar),
+    slot: toPublicSlot(slot, providerCard),
   };
 }
 

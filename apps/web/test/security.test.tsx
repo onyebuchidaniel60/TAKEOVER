@@ -91,7 +91,10 @@ describe('frontend security pass', () => {
     };
     mockFetch((url: string) => {
       if (url.includes('/api/v1/me/slots')) {
-        return { slots: [], total: 0, limit: 1, offset: 0 };
+        return { slots: [], total: 0, limit: 3, offset: 0 };
+      }
+      if (url.includes('/api/v1/claims')) {
+        return { claims: [], total: 0, limit: 1, offset: 0 };
       }
       return { user: evilMe };
     });
@@ -102,10 +105,11 @@ describe('frontend security pass', () => {
         </Routes>
       </MemoryRouter>,
     );
-    // The name renders twice (avatar header + provider section) — both
-    // copies must be inert text (Phase 5d AvatarSection).
+    // Phase 5k-B: the display name now renders once, in the centered
+    // ProfileHeader h1 (the old avatar+provider duplicate pair is gone). The
+    // assertion that matters is that the hostile value is inert text.
     const copies = await screen.findAllByText(EVIL_NAME);
-    expect(copies).toHaveLength(2);
+    expect(copies).toHaveLength(1);
     expectInertHtml(container);
     useAuth.setState({ status: 'unauthenticated', user: null, error: null, initialized: true });
   });

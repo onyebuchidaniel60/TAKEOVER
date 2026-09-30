@@ -8,25 +8,12 @@ import { renderWithClient } from './test-utils';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import SlotForm from '../src/components/SlotForm';
-import { DisplayNameForm } from '../src/routes/Profile';
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
 
-function stubFetchJson(data: unknown, ok = true, status = 200): void {
-  vi.stubGlobal(
-    'fetch',
-    (async () =>
-      ({
-        ok,
-        status,
-        headers: { get: () => null },
-        json: () => Promise.resolve({ data, requestId: 'test' }),
-      }) as unknown as Response) as typeof fetch,
-  );
-}
 
 describe('SlotForm client validation', () => {
   const emptyInitial = {
@@ -186,54 +173,5 @@ describe('SlotForm client validation', () => {
     } finally {
       unmount();
     }
-  });
-});
-
-describe('DisplayNameForm client validation', () => {
-  it('blocks too-short and link names with inline errors and no request', async () => {
-    const onSaved = vi.fn();
-    const seen: RequestInit[] = [];
-    vi.stubGlobal(
-      'fetch',
-      (async (_url: unknown, init?: RequestInit) => {
-        seen.push(init ?? {});
-        return {
-          ok: true,
-          status: 200,
-          headers: { get: () => null },
-          json: () =>
-            Promise.resolve({ data: { providerProfile: { displayName: 'x' } }, requestId: 't' }),
-        } as unknown as Response;
-      }) as typeof fetch,
-    );
-    const user = userEvent.setup();
-    const { unmount } = renderWithClient(
-      <DisplayNameForm initial="" submitLabel="Set display name" onSaved={onSaved} />,
-    );
-    try {
-      const input = screen.getByLabelText(/display name/i);
-      fireEvent.change(input, { target: { value: 'x' } });
-      await user.click(screen.getByRole('button', { name: /set display name/i }));
-      expect(await screen.findByText('Use at least 2 characters.')).toBeTruthy();
-      expect(onSaved).not.toHaveBeenCalled();
-      expect(seen).toHaveLength(0);
-      fireEvent.change(input, { target: { value: 'see www.example.com deals' } });
-      await user.click(screen.getByRole('button', { name: /set display name/i }));
-      expect(await screen.findByText('Display name must not contain links.')).toBeTruthy();
-      expect(onSaved).not.toHaveBeenCalled();
-      expect(seen).toHaveLength(0);
-    } finally {
-      unmount();
-    }
-  });
-
-  it('submits a valid name and reports the saved value', async () => {
-    const onSaved = vi.fn();
-    stubFetchJson({ providerProfile: { displayName: 'Sunrise Yoga' } });
-    const user = userEvent.setup();
-    renderWithClient(<DisplayNameForm initial="" submitLabel="Set display name" onSaved={onSaved} />);
-    fireEvent.change(screen.getByLabelText(/display name/i), { target: { value: 'Sunrise Yoga' } });
-    await user.click(screen.getByRole('button', { name: /set display name/i }));
-    await waitFor(() => expect(onSaved).toHaveBeenCalledWith('Sunrise Yoga'));
   });
 });

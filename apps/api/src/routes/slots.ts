@@ -58,6 +58,22 @@ const slotsQuerySchema = z
     location: z.preprocess(emptyToUndefined, z.string().max(200).optional()),
     from: z.preprocess(emptyToUndefined, z.string().datetime({ offset: true }).optional()),
     to: z.preprocess(emptyToUndefined, z.string().datetime({ offset: true }).optional()),
+    // Provider handle filter (Phase 5k-B) for the public profile's openings
+    // list. A USERNAME, not a user id: no id is ever accepted from a client
+    // and the provider id is resolved server-side. Strict schema, so a
+    // malformed handle is a 400 rather than a silent full feed.
+    //
+    // Deliberately absent from meSlotsQuerySchema below: /me/slots is already
+    // scoped to the caller and must never accept a provider selector.
+    provider: z.preprocess(
+      emptyToUndefined,
+      z
+        .string()
+        .trim()
+        .toLowerCase()
+        .regex(/^[a-z0-9_]{1,64}$/)
+        .optional(),
+    ),
   })
   .strict();
 
@@ -89,13 +105,14 @@ export async function slotRoutes(app: FastifyInstance, opts: SlotRouteOptions = 
     if (!parsed.success) {
       throw new AppError(400, 'INVALID_INPUT', 'Invalid query parameters.');
     }
-    const { limit, offset, q, category, location, from, to } = parsed.data;
+    const { limit, offset, q, category, location, from, to, provider } = parsed.data;
     const db = getDb();
     const { slots: items, total } = await listPublicSlots(db, {
       filters: {
         q,
         category,
         location,
+        provider,
         from: from ? new Date(from) : undefined,
         to: to ? new Date(to) : undefined,
       },
@@ -123,7 +140,7 @@ export async function slotRoutes(app: FastifyInstance, opts: SlotRouteOptions = 
       const owned = await getOwnSlot(db, request.user.id, parsed.data.slotId);
       const card = await loadProviderCard(db, owned.providerId);
       return successBody(request, {
-        slot: toOwnerSlot(owned, card.display, card.avatar),
+        slot: toOwnerSlot(owned, card),
       });
     }
     throw new AppError(404, 'NOT_FOUND', 'Slot not found.');

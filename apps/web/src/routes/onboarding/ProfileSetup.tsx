@@ -4,7 +4,7 @@
 // rest. Continue/Skip both save, then POST /me/onboarded, then →
 // /onboarding/interests. DOB/phone are private (stored, never public).
 import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Avatar from '../../components/Avatar';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import OnboardingShell, {
@@ -67,7 +67,14 @@ function todayInput(): string {
 }
 
 export default function ProfileSetup() {
-  usePageMeta({ title: 'Set up your profile — TAKEOVER' });
+  // Phase 5k-B: `?from=settings` is an ADDITIVE variant. The Profile page
+  // reuses this screen as its Edit form (one form for one set of fields —
+  // the standalone display-name form on Profile was a duplicate that could
+  // drift). Without the param this is byte-for-byte the onboarding step 2:
+  // same copy, same skip, same forward navigation, same markOnboarded.
+  const [searchParams] = useSearchParams();
+  const isSettings = searchParams.get('from') === 'settings';
+  usePageMeta({ title: isSettings ? 'Edit profile — TAKEOVER' : 'Set up your profile — TAKEOVER' });
   const navigate = useNavigate();
   const status = useAuth((s) => s.status);
   const initialized = useAuth((s) => s.initialized);
@@ -153,13 +160,15 @@ export default function ProfileSetup() {
   async function handleContinue(event: React.FormEvent): Promise<void> {
     event.preventDefault();
     if (await saveAll(true)) {
-      navigate('/onboarding/interests');
+      // Settings mode returns to the profile it was editing; onboarding
+      // continues forward to step 3.
+      navigate(isSettings ? '/profile' : '/onboarding/interests');
     }
   }
 
   async function handleSkip(): Promise<void> {
     if (await saveAll(false)) {
-      navigate('/onboarding/interests');
+      navigate(isSettings ? '/profile' : '/onboarding/interests');
     }
   }
 
@@ -170,10 +179,14 @@ export default function ProfileSetup() {
 
   return (
     <OnboardingShell
-      step="Step 2 of 3"
-      eyebrow="Set up your profile"
-      title="What should people call you?"
-      supporting="Your name shows on your openings. Everything else is optional — add it now or later."
+      step={isSettings ? 'Profile' : 'Step 2 of 3'}
+      eyebrow={isSettings ? 'Your profile' : 'Set up your profile'}
+      title={isSettings ? 'Edit your profile' : 'What should people call you?'}
+      supporting={
+        isSettings
+          ? 'Your name shows on your openings. Everything else is optional.'
+          : 'Your name shows on your openings. Everything else is optional — add it now or later.'
+      }
     >
       <form onSubmit={(e) => void handleContinue(e)} noValidate aria-label="Profile setup">
         <div className="flex flex-col gap-4">
@@ -300,7 +313,7 @@ export default function ProfileSetup() {
 
           {formError ? <OnboardingFieldError message={formError} /> : null}
           <button type="submit" disabled={busy} className={ONBOARDING_PRIMARY_CTA_CLASS}>
-            {busy ? 'Saving…' : 'Continue'}
+            {busy ? 'Saving…' : isSettings ? 'Save' : 'Continue'}
           </button>
           <button
             type="button"
@@ -308,7 +321,7 @@ export default function ProfileSetup() {
             onClick={() => void handleSkip()}
             className="min-h-touch w-full py-2 text-center text-body font-medium text-muted"
           >
-            Skip for now
+            {isSettings ? 'Cancel' : 'Skip for now'}
           </button>
         </div>
       </form>
