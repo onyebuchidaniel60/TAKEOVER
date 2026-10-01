@@ -10,7 +10,7 @@
 // call site rather than happening because a whole user object was spread in.
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, ChevronRight, Mail, MapPin, Pencil, Phone } from 'lucide-react';
+import { AtSign, Calendar, ChevronRight, Mail, MapPin, Pencil, Phone } from 'lucide-react';
 import Avatar from './Avatar';
 import { truncateWalletAddress } from '../lib/slots';
 import type { PublicProfile } from '../lib/slots';
@@ -156,6 +156,10 @@ export function ProfileInformation({
 
 /** Row icons, named so both pages stay consistent. */
 export const InfoIcons = {
+  // Phase 5o-A: the handle is the one identity field with no dedicated
+  // person/contact metaphor — AtSign reads as "a public name you type"
+  // and matches the @username value the row shows.
+  username: <AtSign size={16} aria-hidden="true" />,
   email: <Mail size={16} aria-hidden="true" />,
   phone: <Phone size={16} aria-hidden="true" />,
   dob: <Calendar size={16} aria-hidden="true" />,

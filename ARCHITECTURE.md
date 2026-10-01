@@ -835,6 +835,42 @@ Self-service profile scalars: `bio` (1–160 chars, no URLs), `phone`
 clear. Same-value re-sets are a no-op. Audits `user.profile_updated`
 with changed field names only (values are PII, never metadata).
 
+`username` is NOT accepted here — it is an identity field with a set-once
+rule, and lives on its own endpoint below.
+
+### PATCH /api/v1/me/username
+
+Auth: session. Rate limit: per user, 10/hour.
+
+Claims a public handle **once**, for an account that never had one. Wallet
+signup inserts a user without a username and this endpoint is the only way to
+obtain one, so without it the wallet path can never produce a `/u/:username`
+profile and the provider row on slot detail can never link.
+
+Body (strict):
+
+```json
+{ "username": "your_handle" }
+```
+
+Rules:
+- Format and reserved words come from the SAME `validateUsername` used by
+  registration — one definition, two callers. Failure → 400 `INVALID_INPUT`.
+- Account already has a username:
+  - same value → 200 `{ username, alreadySet: true }`, **no write, no audit**
+    (a dropped response must never read as a failure);
+  - different value → 409 `USERNAME_IMMUTABLE`. The immutability check runs
+    BEFORE the uniqueness probe, so an established handle cannot be used to
+    discover which other handles are free.
+- Account has no username: handle already owned by another account → 409
+  `USERNAME_TAKEN` (the UNIQUE column is the backstop, not the answer the
+  user sees).
+
+A handle is immutable because `/u/:username` is a shareable URL and follows
+key off it — a mutable handle would silently repoint a shared link.
+
+Audits `user.username_set` with the user id only, never the handle.
+
 ### GET /api/v1/slots
 
 Auth: optional.
@@ -1387,6 +1423,7 @@ Minimum stable codes:
 - ACCOUNT_DISABLED
 - EMAIL_TAKEN
 - USERNAME_TAKEN
+- USERNAME_IMMUTABLE
 - WALLET_REQUIRED
 - CONFLICT
 - RATE_LIMITED

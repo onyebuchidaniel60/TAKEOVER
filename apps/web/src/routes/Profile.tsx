@@ -123,6 +123,24 @@ export default function Profile() {
         />
 
         <ProfileInformation title="Information">
+          {/* Phase 5o-A (D26): the handle is set ONCE and never changes, so
+              the row is tappable ONLY while it is empty. Once set it drops
+              the chevron and the tap target, exactly like the Wallet row —
+              an edit control that could only ever 409 is worse than none. */}
+          {user.username ? (
+            <InfoRow
+              icon={InfoIcons.username}
+              label="Username"
+              value={`@${user.username}`}
+            />
+          ) : (
+            <InfoRow
+              icon={InfoIcons.username}
+              label="Username"
+              value="Not set"
+              onEdit={() => setEditing('username')}
+            />
+          )}
           <InfoRow
             icon={InfoIcons.email}
             label="Email"
@@ -209,7 +227,9 @@ export default function Profile() {
                   ? user.phone
                   : editing === 'dob'
                     ? user.dob
-                    : user.location) ?? null
+                    : editing === 'username'
+                      ? user.username
+                      : user.location) ?? null
             }
             onClose={() => setEditing(null)}
           />

@@ -173,6 +173,11 @@ try {
     ['own-profile', '/profile?desktop=1', 'default', 'text:Information', user.cookie],
     ['own-profile-wallet', '/profile?desktop=1', 'default', 'text:Wallet', PROVIDER_COOKIE],
     // B2 regression guard: the provider row on slot detail must stay linked.
+    // NOTE (Phase 5o-A): this fixture's handle is hardcoded in
+    // seed-phase5.ts, so this target CANNOT fail on its own. The
+    // falsifiable proof is scripts/audit/phase5oA.mjs, which builds the
+    // provider through the real signup endpoint and pairs the assertion
+    // with a legacy handle-less counterpart it can disagree with.
     ['slot-detail', `/slot/${SLOT}?desktop=1`, 'default', 'a[href^="/u/"]', null],
     ['home', '/?desktop=1', 'default', 'a[href^="/slot/"]', null],
     ['public-profile', '/u/seed_provider?desktop=1', 'default', 'text:Openings', null],
@@ -300,6 +305,14 @@ try {
     await eCtx.close();
 
     // B2: the provider row on slot detail links to the public profile.
+    //
+    // Phase 5o-A: this used to assert against the SEED fixture slot, whose
+    // provider is hardcoded with the handle `seed_provider` — so the check
+    // could only ever pass, and it did while 112 of 115 real accounts had no
+    // handle at all. It is now a NEGATIVE guard only: the fixture must NOT
+    // be relied on to prove the positive case. The real proof (a handle from
+    // the actual signup flow, plus a legacy handle-less counterpart the
+    // assertion can disagree with) lives in scripts/audit/phase5oA.mjs.
     const dCtx = await browser.newContext({ viewport: { width: 375, height: 812 } });
     await dCtx.addInitScript(() => { window.nimiq = {}; });
     const detail = await dCtx.newPage();
@@ -308,6 +321,10 @@ try {
     const providerLink = detail.locator('section[aria-label="Provider"] a[href^="/u/"]');
     checks.providerLinkOnDetail = await providerLink.count();
     checks.providerLinkHref = (await providerLink.first().getAttribute('href')) ?? null;
+    // Not "is a link" — is it the RIGHT link. A bare existence check is the
+    // false green this phase removed; matching the seeded handle means the
+    // guard actually discriminates.
+    checks.providerLinkMatchesSeedHandle = checks.providerLinkHref === '/u/seed_provider';
     await detail.screenshot({ path: join(OUT, 'walk-375-03-provider-link.png'), fullPage: true });
     await dCtx.close();
   } finally {
@@ -316,6 +333,14 @@ try {
 
   writeFileSync(join(OUT, 'walkthrough.json'), JSON.stringify({ at: new Date().toISOString(), checks }, null, 2));
   console.log('phase5nB: walkthrough checks:', JSON.stringify(checks, null, 1));
+
+  // Phase 5o-A: the provider-link walkthrough assertions are GATES. Printing
+  // them to the console and exiting 0 regardless is how a false green
+  // survives — the checks were decorative.
+  const walkFails = [
+    ['providerLinkMatchesSeedHandle', checks.providerLinkMatchesSeedHandle],
+  ].filter(([, ok]) => ok !== true);
+  for (const [name] of walkFails) console.log(`  FAIL walkthrough: ${name}`);
 
   const failed = merged.filter((r) => !r.pass);
   console.log(`phase5nB: gates ${merged.length - failed.length}/${merged.length} pass.`);
@@ -334,7 +359,7 @@ try {
       body: JSON.stringify({}),
     });
   }
-  exitCode = failed.length > 0 ? 1 : 0;
+  exitCode = failed.length > 0 || walkFails.length > 0 ? 1 : 0;
 } catch (err) {
   console.error(`phase5nB: FATAL: ${err instanceof Error ? err.message : err}`);
   exitCode = 1;

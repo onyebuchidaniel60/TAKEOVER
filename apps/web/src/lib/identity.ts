@@ -80,6 +80,19 @@ export function updateUserProfile(patch: UserProfilePatch): Promise<{ profile: U
   });
 }
 
+/**
+ * Phase 5o-A (D26): claim a public handle. Separate endpoint from the profile
+ * scalars because the SERVER enforces set-once — this call mirrors the server
+ * rule only for the same-value idempotent case, and treats every 409 as
+ * terminal (a handle is a one-time action, so there is nothing to retry).
+ */
+export function setUsername(username: string): Promise<{ username: string; alreadySet: boolean }> {
+  return apiFetch<{ username: string; alreadySet: boolean }>('/api/v1/me/username', {
+    method: 'PATCH',
+    body: JSON.stringify({ username: username.trim().toLowerCase() }),
+  });
+}
+
 // -- client-side validation mirrors (inline errors only) --------------------
 //
 // Phase 5n-B: bio/phone/dob/location moved here from routes/onboarding/

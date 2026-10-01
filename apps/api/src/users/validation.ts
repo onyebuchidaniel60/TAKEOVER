@@ -105,3 +105,30 @@ export const userProfileBodySchema = z
   .partial();
 
 export type UserProfileBody = z.infer<typeof userProfileBodySchema>;
+
+/**
+ * Phase 5o-A — one-time username set. A SEPARATE body schema and endpoint,
+ * not a field on userProfileBodySchema, for three reasons:
+ *   1. Rate limit. The set budget is per-USER (10/hour, one lifetime action);
+ *      a preHandler runs before the body is parsed, so a body field on the
+ *      shared /me/profile route could not be budgeted separately from the
+ *      60/min per-IP profile limiter.
+ *   2. Audit. It writes its own `user.username_set` event, not the
+ *      `user.profile_updated` field list.
+ *   3. Semantics. Setting a handle is a one-time identity write with an
+ *      immutability rule; editing profile scalars is neither.
+ *
+ * Format + reserved-word rules are NOT re-implemented here — validateUsername
+ * is the single definition, shared with registration (ARCHITECTURE.md §4:
+ * one validator, two callers). A value that survives validateUsername is
+ * normalized; anything else is a 400 INVALID_INPUT naming the rule.
+ */
+export const usernameSetBodySchema = z
+  .object({
+    username: z.string({ required_error: 'Enter a username.' }).min(1, {
+      message: 'Enter a username.',
+    }),
+  })
+  .strict();
+
+export type UsernameSetBody = z.infer<typeof usernameSetBodySchema>;

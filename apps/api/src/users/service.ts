@@ -8,6 +8,7 @@ import { and, eq, ne } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
 import { users } from '../../../../db/schema';
 import { writeAuditEvent } from '../audit/events';
+import { validateUsername } from '../auth/username';
 import { AppError } from '../http/errors';
 
 type Db = ReturnType<typeof getDb>;
@@ -150,4 +151,101 @@ export async function updateUserProfile(
     dob: row.dob,
     location: row.location,
   };
+}
+
+/**
+ * Phase 5o-A (D26) — set a public handle ONCE, for an account that never had
+ * one. Wallet signup (the primary CTA) never collected a username and the
+ * column has always been nullable, so the 112 handle-less accounts are a
+ * structural dead end, not a display bug: without a handle the provider row
+ * on slot detail has nothing to link to.
+ *
+ * Immutability (D26): a user who ALREADY has a username can never change it.
+ * `/u/:username` is a shareable public URL and followers key off it, so a
+ * mutable handle would silently repoint a shared link — the same reasoning
+ * that made the column immutable at registration in Phase 5g. Re-submitting
+ * the SAME handle is an idempotent 200 no-op (a dropped response must not
+ * read as a failure); any DIFFERENT handle is 409 USERNAME_IMMUTABLE.
+ *
+ * Same rules as registration, deliberately reusing validateUsername so the
+ * format/reserved list has exactly one definition. Uniqueness is checked
+ * INSIDE the locked transaction and answered 409 USERNAME_TAKEN, because the
+ * UNIQUE column would otherwise surface as a 500 nobody can act on.
+ *
+ * The audit event carries the user id only — never the handle. A username is
+ * a public value, but audit rows are read by admins and a handle is PII-adjacent
+ * identity data; the audit privacy rule is IDs and reason strings.
+ */
+export async function setUsernameOnce(
+  db: Db,
+  userId: string,
+  rawUsername: string,
+  audit?: { requestId?: string | null },
+): Promise<{ username: string; alreadySet: boolean }> {
+  // Boundary-parsed body, but the RULE still lives in validateUsername — a
+  // future second caller cannot skip it by reaching this function directly.
+  const checked = validateUsername(rawUsername);
+  if (!checked.ok) {
+    throw new AppError(
+      400,
+      'INVALID_INPUT',
+      checked.reason === 'reserved'
+        ? 'This username is reserved.'
+        : 'Usernames are 3-20 lowercase letters, numbers, or underscores, starting with a letter.',
+    );
+  }
+  const candidate = checked.value;
+
+  const row = await db.transaction(async (tx) => {
+    const rows = await tx
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .for('update')
+      .limit(1);
+    const current = rows[0];
+    if (!current) {
+      throw new AppError(404, 'NOT_FOUND', 'User not found.');
+    }
+    if (current.status !== 'active' || current.disabledAt !== null) {
+      throw new AppError(403, 'USER_DISABLED', 'This account is disabled.');
+    }
+    // D26: set-once. Same value is an idempotent no-op; any other value is
+    // refused BEFORE the uniqueness probe, so an established handle can never
+    // leak whether some other handle is free.
+    if (current.username !== null) {
+      if (current.username === candidate) {
+        return { username: current.username, alreadySet: true };
+      }
+      throw new AppError(409, 'USERNAME_IMMUTABLE', 'Your username cannot be changed.');
+    }
+
+    const taken = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.username, candidate), ne(users.id, userId)))
+      .limit(1);
+    if (taken.length > 0) {
+      throw new AppError(409, 'USERNAME_TAKEN', 'This username is already taken.');
+    }
+
+    const updated = await tx
+      .update(users)
+      .set({ username: candidate, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    const next = updated[0];
+    if (!next || next.username === null) {
+      throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
+    }
+    await writeAuditEvent(tx, {
+      actorUserId: userId,
+      eventType: 'user.username_set',
+      entityType: 'user',
+      entityId: next.id,
+      requestId: audit?.requestId ?? null,
+    });
+    return { username: next.username, alreadySet: false };
+  });
+  return row;
 }

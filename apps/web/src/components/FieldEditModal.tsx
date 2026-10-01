@@ -13,16 +13,20 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '../lib/api';
 import {
+  setUsername,
   updateUserProfile,
   validateDob,
   validateEmailInput,
   validateLocation,
   validatePhone,
+  validateUsernameInput,
 } from '../lib/identity';
 import { queryKeys } from '../lib/queryKeys';
 import { useDialogFocus } from '../lib/dialog-focus';
+import { useAuth } from '../store/auth';
+import UsernameField from './UsernameField';
 
-export type EditableField = 'email' | 'phone' | 'dob' | 'location';
+export type EditableField = 'email' | 'username' | 'phone' | 'dob' | 'location';
 
 /** Everything the modal needs to render one field. */
 interface FieldSpec {
@@ -45,6 +49,19 @@ const SPECS: Record<EditableField, FieldSpec> = {
     autoComplete: 'email',
     placeholder: 'you@example.com',
     validate: (value) => validateEmailInput(value),
+  },
+  // Phase 5o-A: the ONE-TIME set. Unlike the four scalars below this is not
+  // an edit — the handle is set once and never changes (D26), so the copy
+  // says "claim", not "change", and the field is required rather than
+  // clearable (an empty body is a 400, not a clear).
+  username: {
+    title: 'Choose your username',
+    label: 'Username',
+    hint: 'Your public link. You can only set this once, so pick carefully.',
+    type: 'text',
+    autoComplete: 'off',
+    placeholder: 'your_handle',
+    validate: (value) => validateUsernameInput(value),
   },
   phone: {
     title: 'Edit phone',
@@ -87,16 +104,30 @@ export default function FieldEditModal({
   const spec = SPECS[field];
   const panelRef = useDialogFocus<HTMLDivElement>(true, onClose);
   const queryClient = useQueryClient();
+  // The auth store caches its own copy of the user (ProfileSetup reads the
+  // handle from there), so claiming one has to refresh BOTH caches or the
+  // onboarding step would still think the account has no handle.
+  const refreshAuth = useAuth((s) => s.refresh);
   const [value, setValue] = useState(current ?? '');
   const [touched, setTouched] = useState(false);
 
-  const save = useMutation({
+  // Typed as Promise<unknown> on purpose: the five fields now span TWO
+  // endpoints with different response shapes (four profile scalars, one
+  // username set). The modal only cares that the call SUCCEEDED — every
+  // payload is re-read from ['me'] on invalidate, never from the response.
+  const save = useMutation<unknown, unknown, string>({
     mutationFn: (next: string) =>
-      // Empty clears the field: the endpoint takes null to clear, and an
-      // untouched optional field should be clearable.
-      updateUserProfile({ [field]: next.trim() === '' ? null : next.trim() } as never),
+      // Phase 5o-A: the handle goes to its own endpoint because the SERVER
+      // owns set-once. The four scalars clear to null on an empty body; the
+      // handle never clears — an empty username is a 400, not a reset.
+      field === 'username'
+        ? setUsername(next)
+        : updateUserProfile({
+            [field]: next.trim() === '' ? null : next.trim(),
+          } as never),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.me });
+      void refreshAuth();
       onClose();
     },
   });
@@ -126,22 +157,38 @@ export default function FieldEditModal({
           save.mutate(value);
         }}
       >
-        <label htmlFor={`field-edit-${field}`} className="text-body font-medium text-muted">
-          {spec.label}
-        </label>
-        <input
-          id={`field-edit-${field}`}
-          type={spec.type}
-          autoComplete={spec.autoComplete}
-          value={value}
-          placeholder={spec.placeholder}
-          onChange={(event) => setValue(event.target.value)}
-          onBlur={() => setTouched(true)}
-          aria-describedby={error ? 'field-edit-error' : undefined}
-          aria-invalid={error ? true : undefined}
-          className="mt-1 block min-h-touch w-full rounded-control border border-border-strong bg-surface px-3 py-2 text-body text-text placeholder:text-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-        />
-        {error ? (
+        {/* Username renders the SHARED field (live availability + one
+            definition of the format copy); the scalars keep the plain input
+            they have always had. */}
+        {field === 'username' ? (
+          <UsernameField
+            id="field-edit-username"
+            value={value}
+            onChange={setValue}
+            onBlur={() => setTouched(true)}
+            touched={touched}
+            serverError={save.error ? describeError(save.error) : null}
+          />
+        ) : (
+          <>
+            <label htmlFor={`field-edit-${field}`} className="text-body font-medium text-muted">
+              {spec.label}
+            </label>
+            <input
+              id={`field-edit-${field}`}
+              type={spec.type}
+              autoComplete={spec.autoComplete}
+              value={value}
+              placeholder={spec.placeholder}
+              onChange={(event) => setValue(event.target.value)}
+              onBlur={() => setTouched(true)}
+              aria-describedby={error ? 'field-edit-error' : undefined}
+              aria-invalid={error ? true : undefined}
+              className="mt-1 block min-h-touch w-full rounded-control border border-border-strong bg-surface px-3 py-2 text-body text-text placeholder:text-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            />
+          </>
+        )}
+        {field === 'username' ? null : error ? (
           <p id="field-edit-error" role="alert" className="mt-2 text-body font-medium text-danger">
             {error}
           </p>
@@ -152,7 +199,7 @@ export default function FieldEditModal({
             disabled={save.isPending}
             className="inline-flex min-h-touch items-center rounded-pill bg-accent px-5 py-2 text-body font-medium text-accent-ink transition-transform duration-press ease-out-strong active:scale-[0.97] disabled:opacity-60 motion-reduce:transition-none"
           >
-            {save.isPending ? 'Saving…' : 'Save'}
+            {save.isPending ? 'Saving…' : field === 'username' ? 'Claim username' : 'Save'}
           </button>
           <button
             type="button"

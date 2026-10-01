@@ -47,7 +47,36 @@ afterEach(() => {
 function setFreshAccount(): void {
   useAuth.setState({
     status: 'authenticated',
-    user: { id: 'fresh-1', walletAddress: null, role: 'buyer', status: 'active', onboardedAt: null },
+    // Phase 5o-A: this fixture represents an EMAIL signup, which already
+    // chose a handle at registration — so the ProfileSetup step shows the
+    // username field disabled and the optional-skip behaviour these tests
+    // cover is unchanged. The wallet path (no handle) has its own describe
+    // block below, because that is the flow this phase added.
+    user: {
+      id: 'fresh-1',
+      username: 'fresh_one',
+      walletAddress: null,
+      role: 'buyer',
+      status: 'active',
+      onboardedAt: null,
+    },
+    error: null,
+    initialized: true,
+  });
+}
+
+/** Phase 5o-A: a WALLET signup — authenticated, but never collected a handle. */
+function setHandlelessWalletAccount(): void {
+  useAuth.setState({
+    status: 'authenticated',
+    user: {
+      id: 'fresh-wallet-1',
+      username: null,
+      walletAddress: 'NQ0700000000000000000000000000000000',
+      role: 'buyer',
+      status: 'active',
+      onboardedAt: null,
+    } as never,
     error: null,
     initialized: true,
   });
@@ -396,6 +425,119 @@ describe('ProfileSetup screen', () => {
     const { container } = renderProfile();
     expect(screen.getByLabelText('Full name')).toBeDefined();
     assertZeroCriticalOrSerious(await runAxe(container), '/onboarding/profile');
+  });
+
+  // -- Phase 5o-A: the wallet path (no handle) ------------------------------
+  //
+  // This is the flow that produced 112 handle-less accounts: wallet signup
+  // collects no username, so this step is the ONLY place a handle can be
+  // claimed before onboarding completes.
+
+  it('an email user sees their existing handle, disabled and prefilled', async () => {
+    setFreshAccount();
+    mockFetch(() => ({}));
+    renderProfile();
+    const field = (await screen.findByLabelText('Username')) as HTMLInputElement;
+    expect(field.value).toBe('fresh_one');
+    expect(field.disabled).toBe(true);
+    // D26: it is immutable, so an editable field that could only 409 is
+    // worse than no field at all.
+    await userEvent.type(field, 'zzz');
+    expect(field.value).toBe('fresh_one');
+  });
+
+  it('a wallet user is REQUIRED to choose a handle before onboarding completes', { timeout: 30_000 }, async () => {
+    setHandlelessWalletAccount();
+    const seen: string[] = [];
+    mockFetch((url) => {
+      seen.push(url);
+      if (url.includes('/auth/username-available')) return { available: true };
+      if (url.endsWith('/api/v1/me/provider-profile')) return { providerProfile: { displayName: 'Jordan Lee' } };
+      if (url.endsWith('/api/v1/me/username')) return { username: 'jordan_w', alreadySet: false };
+      if (url.endsWith('/api/v1/me/onboarded')) return { user: { ...freshMe(), username: 'jordan_w' } };
+      return {};
+    });
+    renderProfile();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Full name'), 'Jordan Lee');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+    // The handle is missing: blocked, and NOTHING was saved — otherwise the
+    // account would land in exactly the half-onboarded dead state (name
+    // written, no handle) that this phase exists to remove.
+    expect(await screen.findByText(/Usernames are 3/)).toBeDefined();
+    expect(seen.some((u) => u.endsWith('/api/v1/me/provider-profile'))).toBe(false);
+    expect(seen.some((u) => u.endsWith('/api/v1/me/onboarded'))).toBe(false);
+  });
+
+  it('a wallet user who chooses a handle completes onboarding', { timeout: 30_000 }, async () => {
+    setHandlelessWalletAccount();
+    const seen: string[] = [];
+    let sent: string | null = null;
+    mockFetch((url, init) => {
+      seen.push(url);
+      if (url.includes('/auth/username-available')) return { available: true };
+      if (url.endsWith('/api/v1/me/provider-profile')) return { providerProfile: { displayName: 'Jordan Lee' } };
+      if (url.endsWith('/api/v1/me/username')) {
+        sent = String(init?.body ?? '');
+        return { username: 'jordan_w', alreadySet: false };
+      }
+      if (url.endsWith('/api/v1/me/onboarded')) return { user: { ...freshMe(), username: 'jordan_w' } };
+      return {};
+    });
+    renderProfile();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Full name'), 'Jordan Lee');
+    await user.type(screen.getByLabelText('Username'), 'jordan_w');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(await screen.findByText('interests-stub')).toBeDefined();
+    expect(seen.some((u) => u.endsWith('/api/v1/me/username'))).toBe(true);
+    expect(JSON.parse(sent ?? '{}')).toEqual({ username: 'jordan_w' });
+    // The handle is claimed BEFORE markOnboarded, so the refreshed /me
+    // projection carries it.
+    expect(seen.indexOf('/api/v1/me/username')).toBeLessThan(
+      seen.findIndex((u) => u.endsWith('/api/v1/me/onboarded')),
+    );
+  });
+
+  it('offers no Skip while a handle is required — the control would be a lie', async () => {
+    setHandlelessWalletAccount();
+    mockFetch(() => ({ available: true }));
+    renderProfile();
+    await screen.findByLabelText('Full name');
+    expect(screen.queryByRole('button', { name: /skip for now/i })).toBeNull();
+    // The reason is shown instead, so the screen never looks like it is
+    // withholding an exit.
+    expect(screen.getByText(/A username keeps your profile linkable/)).toBeDefined();
+  });
+
+  it('surfaces a server USERNAME_TAKEN refusal and does not advance', { timeout: 30_000 }, async () => {
+    setHandlelessWalletAccount();
+    mockFetch((url) => {
+      if (url.includes('/auth/username-available')) return { available: true };
+      if (url.endsWith('/api/v1/me/provider-profile')) return { providerProfile: { displayName: 'Jordan Lee' } };
+      if (url.endsWith('/api/v1/me/username')) {
+        return err(409, 'USERNAME_TAKEN', 'This username is already taken.');
+      }
+      if (url.endsWith('/api/v1/me/onboarded')) return { user: freshMe() };
+      return {};
+    });
+    renderProfile();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Full name'), 'Jordan Lee');
+    await user.type(screen.getByLabelText('Username'), 'taken_handle');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByText('This username is already taken.')).toBeDefined();
+    expect(screen.queryByText('interests-stub')).toBeNull();
+  });
+
+  it('passes axe on the wallet path (handle required)', async () => {
+    setHandlelessWalletAccount();
+    mockFetch(() => ({ available: true }));
+    const { container } = renderProfile();
+    await screen.findByLabelText('Username');
+    assertZeroCriticalOrSerious(await runAxe(container), '/onboarding/profile (wallet)');
   });
 });
 

@@ -11,11 +11,12 @@ import {
   createUserRateLimiter,
   DEFAULT_AVATAR_RATE_LIMIT,
   DEFAULT_PROVIDER_PROFILE_RATE_LIMIT,
+  DEFAULT_USERNAME_SET_RATE_LIMIT,
   type RateLimitOptions,
 } from '../http/rate-limit';
 import { nullableImageDataField } from '../images/validation';
-import { setUserAvatar, updateUserProfile } from '../users/service';
-import { userProfileBodySchema } from '../users/validation';
+import { setUserAvatar, setUsernameOnce, updateUserProfile } from '../users/service';
+import { userProfileBodySchema, usernameSetBodySchema } from '../users/validation';
 import { upsertProviderProfile } from '../provider-profiles/service';
 import { providerProfileBodySchema } from '../provider-profiles/validation';
 
@@ -35,6 +36,8 @@ export interface ProviderRouteOptions {
     avatar?: RateLimitOptions;
     /** Per-IP profile-scalars update budget (default 60/min). */
     profile?: RateLimitOptions;
+    /** Per-user one-time username set budget (default 10/hour). */
+    usernameSet?: RateLimitOptions;
   };
 }
 
@@ -48,6 +51,11 @@ export async function providerRoutes(
   const avatarLimiter = createUserRateLimiter(opts.rateLimit?.avatar ?? DEFAULT_AVATAR_RATE_LIMIT);
   const userProfileLimiter = createRateLimiter(
     opts.rateLimit?.profile ?? DEFAULT_PROVIDER_PROFILE_RATE_LIMIT,
+  );
+  // Per-USER, and separate from userProfileLimiter: the set budget is 10/hour
+  // (one lifetime action) and must not be shared with 60/min of scalar edits.
+  const usernameSetLimiter = createUserRateLimiter(
+    opts.rateLimit?.usernameSet ?? DEFAULT_USERNAME_SET_RATE_LIMIT,
   );
 
   app.patch('/me/provider-profile', { preHandler: profileLimiter }, async (request) => {
@@ -96,5 +104,27 @@ export async function providerRoutes(
       requestId: request.id,
     });
     return successBody(request, { profile });
+  });
+
+  // Phase 5o-A (D26): claim a public handle, exactly once, for an account that
+  // never had one (the wallet signup path). Deliberately NOT a field on
+  // /me/profile — see usernameSetBodySchema for why (per-user budget, its own
+  // audit event, its own immutability rule). Idempotent for the SAME handle;
+  // 409 USERNAME_IMMUTABLE for a different one, 409 USERNAME_TAKEN when the
+  // handle is already owned, 400 INVALID_INPUT for format/reserved.
+  app.patch('/me/username', { preHandler: usernameSetLimiter }, async (request) => {
+    const user = await requireAuth(request);
+    const parsed = usernameSetBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(400, 'INVALID_INPUT', 'Enter a username.');
+    }
+    const db = getDb();
+    const result = await setUsernameOnce(db, user.id, parsed.data.username, {
+      requestId: request.id,
+    });
+    return successBody(request, {
+      username: result.username,
+      alreadySet: result.alreadySet,
+    });
   });
 }

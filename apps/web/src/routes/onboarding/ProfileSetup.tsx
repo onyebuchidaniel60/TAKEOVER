@@ -3,10 +3,20 @@
 // are optional. "Skip for now" still requires the name and skips only the
 // rest. Continue/Skip both save, then POST /me/onboarded, then →
 // /onboarding/interests. DOB/phone are private (stored, never public).
+//
+// Phase 5o-A (D25): a USERNAME is also required here — but only for an
+// account that does not already have one. Email signup chose a handle at
+// registration; wallet signup never collected one, and without a handle the
+// provider row on slot detail has nothing to link to (112 of 115 accounts
+// were in exactly that dead state). So: wallet users choose a handle on
+// this step, and it is required — D25 makes "completes onboarding" imply
+// "has a handle". An existing handle renders disabled, because D26 makes it
+// immutable and an editable field that always 409s is worse than no field.
 import { useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Avatar from '../../components/Avatar';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
+import UsernameField from '../../components/UsernameField';
 import OnboardingShell, {
   ONBOARDING_INPUT_CLASS,
   ONBOARDING_LABEL_CLASS,
@@ -17,7 +27,15 @@ import { ApiError } from '../../lib/api';
 import { prepareImage } from '../../lib/image';
 import { usePageMeta } from '../../lib/meta';
 import { updateMeAvatar, updateProviderProfile, validateDisplayName } from '../../lib/slots';
-import { updateUserProfile, validateBio, validateDob, validateLocation, validatePhone } from '../../lib/identity';
+import {
+  setUsername,
+  updateUserProfile,
+  validateBio,
+  validateDob,
+  validateLocation,
+  validatePhone,
+  validateUsernameInput,
+} from '../../lib/identity';
 import { useAuth } from '../../store/auth';
 
 function todayInput(): string {
@@ -50,8 +68,20 @@ export default function ProfileSetup() {
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [nameTouched, setNameTouched] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+const [formError, setFormError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  // Phase 5o-A: an email user already has a handle (chosen at signup); a
+  // wallet user never collected one. `hasHandle` drives BOTH whether the
+  // field is required and whether the skip button can bypass it.
+  const currentUser = useAuth((s) => s.user);
+  const existingUsername = currentUser?.username ?? null;
+  const hasHandle = existingUsername !== null && existingUsername !== '';
+  const [username, setUsernameValue] = useState(existingUsername ?? '');
+  const [usernameTouched, setUsernameTouched] = useState(false);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  // D25: onboarding cannot be completed without a handle. In settings mode
+  // this screen is not the onboarding gate, so the rule does not apply there.
+  const usernameRequired = !isSettings && !hasHandle;
 
   if (!initialized) {
     return (
@@ -67,6 +97,31 @@ export default function ProfileSetup() {
 
   const nameError = nameTouched ? validateDisplayName(fullName) : null;
 
+  /**
+   * Phase 5o-A: claim the handle BEFORE the rest of the save, and only when
+   * the account has none. Ordering matters — markOnboarded() (called at the
+   * end of saveAll) returns a fresh /me projection, so setting the handle
+   * first is what puts it into the refreshed auth store. A separate call
+   * rather than a /me/profile field, because the server owns set-once (D26)
+   * and answers 409 USERNAME_IMMUTABLE / USERNAME_TAKEN.
+   */
+  async function saveUsername(): Promise<boolean> {
+    if (hasHandle) return true;
+    setUsernameTouched(true);
+    setUsernameError(null);
+    const candidate = username.trim().toLowerCase();
+    if (validateUsernameInput(candidate)) {
+      return false;
+    }
+    try {
+      await setUsername(candidate);
+      return true;
+    } catch (err) {
+      setUsernameError(err instanceof ApiError ? err.message : 'Something went wrong.');
+      return false;
+    }
+  }
+
   function handleAvatarFile(event: React.ChangeEvent<HTMLInputElement>): void {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -81,7 +136,7 @@ export default function ProfileSetup() {
       .finally(() => setAvatarBusy(false));
   }
 
-  async function saveAll(includeOptional: boolean): Promise<boolean> {
+async function saveAll(includeOptional: boolean): Promise<boolean> {
     setNameTouched(true);
     setFormError(null);
     const nameProblem = validateDisplayName(fullName);
@@ -90,6 +145,13 @@ export default function ProfileSetup() {
       includeOptional &&
       (validateBio(bio) ?? validatePhone(phone) ?? validateDob(dob) ?? validateLocation(location))
     ) {
+      return false;
+    }
+    // D25: the handle is claimed first, so a rejected handle never leaves a
+    // half-saved profile behind (display name written, no handle, onboarding
+    // marked done — the exact dead state this phase exists to remove).
+    if (!(await saveUsername())) {
+      setBusy(false);
       return false;
     }
     setBusy(true);
@@ -142,10 +204,12 @@ export default function ProfileSetup() {
       step={isSettings ? 'Profile' : 'Step 2 of 3'}
       eyebrow={isSettings ? 'Your profile' : 'Set up your profile'}
       title={isSettings ? 'Edit your profile' : 'What should people call you?'}
-      supporting={
+supporting={
         isSettings
           ? 'Your name shows on your openings. Everything else is optional.'
-          : 'Your name shows on your openings. Everything else is optional — add it now or later.'
+          : usernameRequired
+            ? 'Your name shows on your openings, and your username is your public link.'
+            : 'Your name shows on your openings. Everything else is optional — add it now or later.'
       }
     >
       <form onSubmit={(e) => void handleContinue(e)} noValidate aria-label="Profile setup">
@@ -164,8 +228,24 @@ export default function ProfileSetup() {
               placeholder="Jordan Lee"
               className={ONBOARDING_INPUT_CLASS}
             />
-            {nameError ? <OnboardingFieldError message={nameError} /> : null}
+{nameError ? <OnboardingFieldError message={nameError} /> : null}
           </div>
+
+          {/* Phase 5o-A (D25/D26). Sits directly under the name because the
+              two are one identity block: the name is what people read, the
+              handle is what they can reach. Required for handle-less wallet
+              accounts; disabled (pre-filled) once a handle exists. */}
+          {hasHandle || usernameRequired ? (
+            <UsernameField
+              id="profile-username"
+              value={username}
+              onChange={setUsernameValue}
+              onBlur={() => setUsernameTouched(true)}
+              disabled={hasHandle}
+              touched={usernameTouched}
+              serverError={usernameError}
+            />
+          ) : null}
 
           <div>
             <span id="profile-avatar-label" className={ONBOARDING_LABEL_CLASS}>
@@ -271,18 +351,29 @@ export default function ProfileSetup() {
             {locationError ? <OnboardingFieldError message={locationError} /> : null}
           </div>
 
-          {formError ? <OnboardingFieldError message={formError} /> : null}
+{formError ? <OnboardingFieldError message={formError} /> : null}
           <button type="submit" disabled={busy} className={ONBOARDING_PRIMARY_CTA_CLASS}>
             {busy ? 'Saving…' : isSettings ? 'Save' : 'Continue'}
           </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void handleSkip()}
-            className="min-h-touch w-full py-2 text-center text-body font-medium text-muted"
-          >
-            {isSettings ? 'Cancel' : 'Skip for now'}
-          </button>
+          {/* D25: while a handle is still required there is nothing to skip —
+              offering "Skip for now" would be a control that cannot do what
+              it says. The requirement replaces it with the reason, so the
+              screen never looks like it is withholding an exit. */}
+          {isSettings || !usernameRequired ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void handleSkip()}
+              className="min-h-touch w-full py-2 text-center text-body font-medium text-muted"
+            >
+              {isSettings ? 'Cancel' : 'Skip for now'}
+            </button>
+          ) : (
+            <p className="text-center text-small text-faint">
+              A username keeps your profile linkable. Everything else on this
+              screen is optional.
+            </p>
+          )}
         </div>
       </form>
     </OnboardingShell>

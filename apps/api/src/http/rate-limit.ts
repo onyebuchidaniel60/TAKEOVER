@@ -50,6 +50,11 @@ export const DEFAULT_USERNAME_AVAILABLE_RATE_LIMIT: RateLimitOptions = {
   windowMs: 60_000,
   max: 30,
 };
+// Phase 5o-A one-time username set. Per USER, 10/hour: setting a handle is a
+// single lifetime action, so anything beyond a handful of attempts is either a
+// confused user or someone probing which handles are free (the endpoint's
+// 409s would otherwise become a handle-enumeration oracle).
+export const DEFAULT_USERNAME_SET_RATE_LIMIT: RateLimitOptions = { windowMs: 3_600_000, max: 10 };
 
 /** Fixed-window per-IP limiter. Throws 429 RATE_LIMITED when the budget is spent. */
 export function createRateLimiter(options: RateLimitOptions) {
