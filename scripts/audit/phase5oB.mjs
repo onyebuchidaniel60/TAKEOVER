@@ -82,14 +82,20 @@ function killTree(child) {
   });
 }
 
-function run(cmd, args, shell = false) {
+// Phase 5p: tolerateNonZero lets an audit run report a FAILED gate without
+// throwing into this wrapper's FATAL branch — the per-viewport breakdown below
+// is the whole point of the wrapper. Seeding calls keep the default.
+function run(cmd, args, shell = false, tolerateNonZero = false) {
   return new Promise((resolveRun, reject) => {
     const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], shell });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
     child.stderr.on('data', (d) => process.stderr.write(`[seed] ${d}`));
     child.on('error', reject);
-    child.on('exit', (code) => (code === 0 ? resolveRun(out) : reject(new Error(`${cmd} exited ${code}: ${out}`))));
+    child.on('exit', (code) =>
+      code === 0 || tolerateNonZero
+        ? resolveRun(out)
+        : reject(new Error(`${cmd} exited ${code}: ${out}`)));
   });
 }
 
@@ -279,8 +285,14 @@ const multiSlot = await publishSlot(provider, { title: `Quantity audit ${provide
   console.log(`phase5nD: claim ${claim.id} holds ${claim.quantity} slots; available now ${availableAfter.available_quantity}`);
 
   const TARGETS = [
+    // The selector IS expected here.
     ['slot-available5', `/slot/${multiSlot}?desktop=1`, 'default', 'text:How many?', buyer.cookie],
-    ['slot-available1', `/slot/${singleSlot}?desktop=1`, 'default', 'text:How many?', buyer.cookie],
+    // NO selector here BY DESIGN — so its ready selector must be something that
+    // actually exists. It previously waited on "text:How many?" too, which can
+    // never match: the harness swallowed that timeout and reported 12/12 until
+    // Phase 5p made an unmeasured gate a failure. The absence of the selector
+    // is asserted in the walkthrough below, not by waiting for it here.
+    ['slot-available1', `/slot/${singleSlot}?desktop=1`, 'default', 'text:Claim this slot', buyer.cookie],
     ['claim-detail', `/claim/${claim.id}?desktop=1`, 'default', 'text:Claimed', buyer.cookie],
   ];
 
@@ -291,7 +303,7 @@ const multiSlot = await publishSlot(provider, { title: `Quantity audit ${provide
     const args = ['scripts/audit/audit.mjs', '--route', route, '--viewports', VIEWPORTS, '--states', states, '--out', sub];
     if (ready) args.push('--ready', ready);
     if (cookie) args.push('--cookie', cookie);
-    await run(process.execPath, args);
+    await run(process.execPath, args, false, true);
     const report = JSON.parse(readFileSync(join(sub, 'report.json'), 'utf8'));
     merged.push(...report.results);
     for (const f of readdirSync(sub)) {
@@ -409,6 +421,17 @@ const multiSlot = await publishSlot(provider, { title: `Quantity audit ${provide
   const failed = merged.filter((r) => !r.pass);
   console.log(`phase5nD: gates ${merged.length - failed.length}/${merged.length} pass.`);
   for (const f of failed) {
+    // Phase 5p: name the READY TIMEOUT as its own cause. Reporting it as
+    // "contrast=0 touch=0 overflow=false" is not just incomplete — it points at
+    // three gates that passed, on a viewport that was never actually measured,
+    // which is how this phase's first run looked green while broken.
+    if (f.readyTimedOut) {
+      console.log(
+        `  FAIL ${f.viewport} [${f.state}]: NOT MEASURED — ready timeout: ` +
+          `"${f.readySelector ?? ''}" not found within 30000ms`,
+      );
+      continue;
+    }
     console.log(`  FAIL ${f.viewport}: contrast=${f.contrastFailures.length} touch=${f.touchFailures.length} overflow=${f.overflow.overflow}`);
     for (const c of f.contrastFailures) console.log(`    contrast ${c.ratio} ${c.fg} on ${c.bg} (${c.fontSize}) "${c.text}"`);
     for (const t of f.touchFailures) console.log(`    touch ${t.tag} ${t.w}x${t.h} "${t.label}"`);

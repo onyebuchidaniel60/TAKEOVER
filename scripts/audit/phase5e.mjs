@@ -134,7 +134,10 @@ function killTree(child) {
   });
 }
 
-function run(cmd, args, shell = false) {
+// Phase 5p: tolerateNonZero lets an audit run report a FAILED gate without
+// throwing into this wrapper's FATAL branch — the per-viewport breakdown below
+// is the whole point of the wrapper. Seeding calls keep the default.
+function run(cmd, args, shell = false, tolerateNonZero = false) {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], shell });
     let out = '';
@@ -143,7 +146,10 @@ function run(cmd, args, shell = false) {
     });
     child.stderr.on('data', (d) => process.stderr.write(`[seed] ${d}`));
     child.on('error', reject);
-    child.on('exit', (code) => (code === 0 ? resolve(out) : reject(new Error(`${cmd} exited ${code}: ${out}`))));
+    child.on('exit', (code) =>
+      code === 0 || tolerateNonZero
+        ? resolve(out)
+        : reject(new Error(`${cmd} exited ${code}: ${out}`)));
   });
 }
 
@@ -222,7 +228,7 @@ try {
     if (ready) args.push('--ready', ready);
     if (authed) args.push('--cookie', cookieFlag);
     if (scrollY) args.push('--scrollY', String(scrollY));
-    await run(process.execPath, args);
+    await run(process.execPath, args, false, true);
     const report = JSON.parse(readFileSync(join(sub, 'report.json'), 'utf8'));
     merged.push(...report.results);
     for (const f of readdirSync(sub)) {

@@ -97,14 +97,20 @@ function killTree(child) {
   });
 }
 
-function run(cmd, args, shell = false) {
+// Phase 5p: tolerateNonZero lets an audit run report a FAILED gate without
+// throwing into this wrapper's FATAL branch — the per-viewport breakdown below
+// is the whole point of the wrapper. Seeding calls keep the default.
+function run(cmd, args, shell = false, tolerateNonZero = false) {
   return new Promise((resolveRun, reject) => {
     const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], shell });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
     child.stderr.on('data', (d) => process.stderr.write(`[seed] ${d}`));
     child.on('error', reject);
-    child.on('exit', (code) => (code === 0 ? resolveRun(out) : reject(new Error(`${cmd} exited ${code}: ${out}`))));
+    child.on('exit', (code) =>
+      code === 0 || tolerateNonZero
+        ? resolveRun(out)
+        : reject(new Error(`${cmd} exited ${code}: ${out}`)));
   });
 }
 
@@ -224,7 +230,7 @@ try {
     let results = [];
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        await run(process.execPath, args);
+        await run(process.execPath, args, false, true);
       } catch (err) {
         console.log(`phase5nC: ${key} run ${attempt} threw: ${err.message}`);
       }

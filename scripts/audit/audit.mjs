@@ -247,6 +247,17 @@ try {
         // content (cards, the empty copy, or the error panel).
         const readyFor =
           state === 'empty' ? readyEmpty : state === 'error' ? readyError : state === 'loading' ? '' : readyDefault;
+        // Phase 5p: a ready-timeout is a MEASUREMENT FAILURE, not a note.
+        //
+        // It used to be swallowed into `notes` while the result still reported
+        // pass: true — so an audit could print "12/12 pass" for a route whose
+        // element under test never rendered at all. Two phases were misled by
+        // it. An audit that cannot report the state it failed to reach is not
+        // measuring anything; every remaining measurement below (contrast,
+        // touch, overflow) is taken against whatever DID render, which for an
+        // unreachable route is an error panel or a shell — numbers that look
+        // clean precisely because the surface under test is absent.
+        let readyTimedOut = false;
         if (readyFor) {
           try {
             if (readyFor.startsWith('text:')) {
@@ -259,8 +270,13 @@ try {
               await page.waitForSelector(readyFor, { timeout: 30000 });
             }
             notes.push(`ready: ${readyFor}`);
-          } catch {
-            notes.push(`ready-timeout (30s): ${readyFor}`);
+          } catch (err) {
+            readyTimedOut = true;
+            // Named in the note AND as a first-class failure field, so it is
+            // impossible to read a green report and miss the reason.
+            notes.push(`ready-timeout (30s): ${readyFor} — NOT MEASURED, gate fails`);
+            console.log(`audit: ${width}x${height} [${state}] READY TIMEOUT: ${readyFor}`);
+            if (!(err instanceof Error)) console.log(`  (non-Error thrown: ${String(err)})`);
           }
         }
 
@@ -310,12 +326,22 @@ try {
           touchFailures: failures.touch,
           overflow: m.overflow,
           focusSample: focus,
-          pass: failures.contrast.length === 0 && failures.touch.length === 0 && !failures.overflow,
+          // Phase 5p: an unmeasured gate is a failed gate.
+          readyTimedOut,
+          readySelector: readyFor,
+          pass:
+            !readyTimedOut &&
+            failures.contrast.length === 0 &&
+            failures.touch.length === 0 &&
+            !failures.overflow,
         });
         console.log(
           `audit: ${width}x${height} [${state}] pairs=${m.pairs.length} ` +
             `contrastFails=${failures.contrast.length} touchFails=${failures.touch.length} ` +
-            `overflow=${failures.overflow}`,
+            `overflow=${failures.overflow}` +
+            // Announced inline so the terminal summary cannot read as clean
+            // while a viewport was skipped.
+            (readyTimedOut ? ` READY-TIMEOUT(pass=false)` : ''),
         );
       } catch (e) {
         report.results.push({
@@ -342,6 +368,19 @@ try {
 
 mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, 'report.json'), JSON.stringify(report, null, 2));
-const failed = report.results.filter((r) => !r.pass).length;
-console.log(`audit: done. ${report.results.length - failed}/${report.results.length} pass. Report: ${join(outDir, 'report.json')}`);
-process.exit(0);
+const failing = report.results.filter((r) => !r.pass);
+console.log(`audit: done. ${report.results.length - failing.length}/${report.results.length} pass. Report: ${join(outDir, 'report.json')}`);
+// Phase 5p: this used to be an unconditional `process.exit(0)`, so the exit
+// code could never signal a failed gate — only report.json could, which is a
+// file a caller has to remember to parse. Every phase wrapper's `run()` helper
+// rejects on a non-zero exit, so with a hardcoded 0 that rejection was dead
+// code and a failing contrast/touch/overflow gate could never fail a run.
+if (failing.length > 0) {
+  for (const f of failing) {
+    const why = f.readyTimedOut
+      ? `ready timeout: "${f.readySelector ?? ''}" not found within 30000ms`
+      : `contrast=${(f.contrastFailures ?? []).length} touch=${(f.touchFailures ?? []).length} overflow=${f.overflow?.overflow}`;
+    console.error(`  FAIL ${f.viewport} [${f.state}]: ${why}`);
+  }
+}
+process.exit(failing.length > 0 ? 1 : 0);
