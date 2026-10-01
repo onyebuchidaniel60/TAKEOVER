@@ -55,6 +55,8 @@ export async function claimRoutes(app: FastifyInstance, opts: ClaimRouteOptions 
     const { claim, slot } = await createClaim(db, {
       slotId: params.data.slotId,
       buyerId: user.id,
+      // Phase 5n-D: absent = 1, so every pre-5n-D client keeps its behaviour.
+      quantity: body.data.quantity,
       now,
       ttlSeconds: getClaimHoldTtlSeconds(),
       requestId: request.id,

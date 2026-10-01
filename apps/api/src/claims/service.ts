@@ -1,6 +1,11 @@
 // Atomic claim service. The row lock (SELECT … FOR UPDATE) is what
 // serializes concurrent claims — no advisory locks, no external mechanisms.
-// Quantity is fixed at 1; the schema supports more, the feature is deferred.
+//
+// Phase 5n-D: a claim carries `quantity` units (default 1), so the whole
+// inventory arithmetic below is in UNITS, not rows. The rule that matters:
+// a slot's total is conserved — available + (sum of live claim quantities)
+// never exceeds totalQuantity — so every path that takes units out must give
+// the same number back.
 import { and, count, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import { getDb } from '../../../../db/client';
 import { claims, escrows, slots, users } from '../../../../db/schema';
@@ -20,8 +25,8 @@ import {
 
 type Db = ReturnType<typeof getDb>;
 
-/** Claim quantity is fixed at 1. */
-export const CLAIM_QUANTITY = 1;
+/** Units a claim takes when the client does not ask for a specific amount. */
+export const DEFAULT_CLAIM_QUANTITY = 1;
 
 /** Claim states that count as "live" — mirrors the partial unique index. */
 export const LIVE_CLAIM_STATUSES = ['active_hold', 'payment_pending', 'payment_review'] as const;
@@ -66,18 +71,32 @@ export function isUniqueViolation(err: unknown): boolean {
 export interface CreateClaimOptions {
   slotId: string;
   buyerId: string;
+  /**
+   * Phase 5n-D: units to claim. Absent = 1. Shape is validated at the request
+   * boundary; the per-slot UPPER bound is checked here, inside the row lock,
+   * because it is only knowable against the locked row.
+   */
+  quantity?: number;
   now?: Date;
   ttlSeconds?: number;
   requestId?: string | null;
 }
 
 /**
- * Atomically claim one unit: lock the slot row, reject the slot's own
+ * Atomically claim `quantity` units: lock the slot row, reject the slot's own
  * provider (403 CANNOT_CLAIM_OWN_SLOT — before the live-claim check),
  * return the buyer's existing live claim if there is one (FR-05
  * idempotent return — no second claim, no decrement), otherwise
- * re-check eligibility, insert the hold, decrement, and flip to
- * sold_out at 0.
+ * re-check eligibility, insert the hold, decrement by the requested quantity,
+ * and flip to sold_out at 0.
+ *
+ * Phase 5n-D: the idempotent return deliberately IGNORES the requested
+ * quantity. FR-05 says a buyer's second claim on a slot returns their
+ * existing one rather than erroring, and silently topping a live hold up to
+ * a new quantity would be a money-relevant action nobody asked for. So a
+ * repeat claim with a different quantity returns the SAME claim it returned
+ * before — the caller can see the real quantity in the response rather than
+ * discovering it by paying.
  */
 export async function createClaim(
   db: Db,
@@ -85,6 +104,12 @@ export async function createClaim(
 ): Promise<{ claim: ClaimView; slot: PublicSlot }> {
   const now = options.now ?? new Date();
   const ttlSeconds = options.ttlSeconds ?? getClaimHoldTtlSeconds();
+  // Boundary defaults it, but a direct service caller must not be able to
+  // skip the floor either — the unit check below is the last line.
+  const quantity = options.quantity ?? DEFAULT_CLAIM_QUANTITY;
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    throw new AppError(400, 'INVALID_INPUT', 'Quantity must be a whole number of 1 or more.');
+  }
   const decided = await db.transaction(async (tx) => {
     // Wallet gate (Phase 5g D5): claiming is the payment-adjacent action,
     // so a wallet-less (email-only) user is rejected BEFORE locking the
@@ -128,6 +153,14 @@ export async function createClaim(
     if (!isClaimEligible(slot, now)) {
       throw new AppError(409, 'SLOT_UNAVAILABLE', 'This slot is no longer available.');
     }
+    // Phase 5n-D: the per-slot bound, checked HERE and not in the zod schema —
+    // this runs under the row lock, so it is the serialized answer to "do we
+    // still have N units?". A buyer racing for 2 of 3 and a rival racing for
+    // 2 of 3 cannot both pass: whichever acquires the lock second re-reads a
+    // smaller availableQuantity and is refused.
+    if (quantity > slot.availableQuantity) {
+      throw new AppError(409, 'SLOT_UNAVAILABLE', 'This slot is no longer available.');
+    }
     let inserted;
     try {
       inserted = await tx
@@ -135,7 +168,7 @@ export async function createClaim(
         .values({
           slotId: options.slotId,
           buyerId: options.buyerId,
-          quantity: CLAIM_QUANTITY,
+          quantity,
           status: 'active_hold',
           holdExpiresAt: new Date(now.getTime() + ttlSeconds * 1000),
           claimedAt: now,
@@ -159,7 +192,7 @@ export async function createClaim(
       throw new AppError(500, 'INTERNAL_ERROR', 'Something went wrong.');
     }
     // Conditional write on the locked quantity: fails closed if anything moved.
-    const newAvailable = slot.availableQuantity - CLAIM_QUANTITY;
+    const newAvailable = slot.availableQuantity - quantity;
     const updated = await tx
       .update(slots)
       .set({
@@ -183,7 +216,7 @@ export async function createClaim(
       entityType: 'claim',
       entityId: claim.id,
       requestId: options.requestId ?? null,
-      metadata: { slotId: options.slotId, quantity: CLAIM_QUANTITY },
+      metadata: { slotId: options.slotId, quantity },
     });
     return { claimRow: claim, slotRow: updatedSlot };
   });
@@ -201,9 +234,14 @@ export interface ExpireHoldsResult {
 
 /**
  * Idempotent lazy expiry for one slot: flip past-due holds to expired and
- * restore exactly one unit per expired hold, flipping sold_out back to
+ * restore exactly the units those holds took, flipping sold_out back to
  * published when quantity returns. The `status = 'active_hold'` predicate is
  * what makes concurrent sweeps safe — a second sweep finds nothing to do.
+ *
+ * Phase 5n-D: the restore sums `quantity`, it does NOT count rows. Counting
+ * rows was correct only while a claim was always one unit; with quantity 2 a
+ * row count would hand back 1 unit for 2 taken and the slot would slowly leak
+ * inventory it can never re-publish.
  */
 export async function expireHoldsForSlot(
   db: Db,
@@ -221,21 +259,25 @@ export async function expireHoldsForSlot(
           lt(claims.holdExpiresAt, now),
         ),
       )
-      .returning({ id: claims.id });
+      // The quantity is read back FROM the flipped rows, so the restore can
+      // never disagree with what was actually removed from inventory.
+      .returning({ id: claims.id, quantity: claims.quantity });
     if (expired.length === 0) {
       return { expired: 0, restored: 0 };
     }
+    // Phase 5n-D: units, not rows.
+    const restoredUnits = expired.reduce((sum, row) => sum + row.quantity, 0);
     // Guarded increment: never exceed total even under pathological data.
     const bumped = await tx
       .update(slots)
       .set({
-        availableQuantity: sql`${slots.availableQuantity} + ${expired.length}`,
+        availableQuantity: sql`${slots.availableQuantity} + ${restoredUnits}`,
         updatedAt: now,
       })
       .where(
         and(
           eq(slots.id, slotId),
-          sql`${slots.availableQuantity} + ${expired.length} <= ${slots.totalQuantity}`,
+          sql`${slots.availableQuantity} + ${restoredUnits} <= ${slots.totalQuantity}`,
         ),
       )
       .returning({ availableQuantity: slots.availableQuantity, status: slots.status });
@@ -248,7 +290,7 @@ export async function expireHoldsForSlot(
         .set({ status: 'published', updatedAt: now })
         .where(eq(slots.id, slotId));
     }
-    return { expired: expired.length, restored: expired.length };
+    return { expired: expired.length, restored: restoredUnits };
   });
 }
 

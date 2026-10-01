@@ -1,10 +1,16 @@
-// Hold one unit of a claimable opening, then open the claim page.
+// Hold one or more units of a claimable opening, then open the claim page.
 // No wallet SDK here — the session cookie authenticates the POST.
 //
 // Phase 5n-A (D22): claiming needs a wallet, and a wallet-less email user
 // used to dead-end on a 409. Instead the 409 opens an inline wallet dialog
 // and the claim RESUMES by itself once the wallet is linked. The user never
 // has to find the profile, and never has to press Claim twice.
+//
+// Phase 5n-D: `quantity` is threaded through the whole flow INCLUDING the
+// wallet-gate resume — a retry that silently dropped the quantity would
+// claim one unit after the user asked for three, which is the worst possible
+// place to lose it. Undefined = the pre-5n-D call, so a single-unit slot
+// sends exactly the body it always did.
 //
 // Primary pill per design.md §7: accent fill, accent-ink text,
 // press scale(0.97) at 120ms ease-out-strong. Disabled (in-flight
@@ -19,19 +25,30 @@ import { createClaim } from '../lib/slots';
 import { useWalletLink } from '../hooks/useWalletLink';
 import WalletConnectModal from './WalletConnectModal';
 
-export default function ClaimButton({ slotId }: { slotId: string }) {
+export default function ClaimButton({
+  slotId,
+  quantity,
+}: {
+  slotId: string;
+  /** Phase 5n-D: units to claim. Undefined = 1 (pre-5n-D behaviour). */
+  quantity?: number;
+}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
   const { link, isLinking, error: linkError } = useWalletLink();
+  // Phase 5n-D: the label states the amount, so the number the buyer chose
+  // and the number they are about to commit to cannot disagree. At one unit
+  // (or no selector at all) the copy is exactly what it has always been.
+  const label = quantity && quantity > 1 ? `Claim ${quantity} slots` : 'Claim this slot';
 
   // Money mutation: on success the slot (availability changed), the
   // buyer's holds, and every feed list are stale — invalidate all
   // three, then navigate. Invalidations run fire-and-forget so the
   // navigation never waits on refetches.
   const claimMutation = useMutation({
-    mutationFn: (id: string) => createClaim(id),
+    mutationFn: (id: string) => createClaim(id, quantity),
     onSuccess: ({ claim }) => {
       void queryClient.invalidateQueries({ queryKey: ['slot', slotId] });
       void queryClient.invalidateQueries({ queryKey: ['my-claims'] });
@@ -80,10 +97,10 @@ export default function ClaimButton({ slotId }: { slotId: string }) {
               aria-hidden="true"
               className="h-4 w-4 animate-spin rounded-full border-2 border-faint/30 border-t-faint"
             />
-            Claim this slot
+            {label}
           </span>
         ) : (
-          'Claim this slot'
+          label
         )}
       </button>
       {error ? (
@@ -94,7 +111,7 @@ export default function ClaimButton({ slotId }: { slotId: string }) {
       {connectOpen ? (
         <div className="mt-3">
           <WalletConnectModal
-            action="claim this slot"
+            action={quantity && quantity > 1 ? `claim ${quantity} slots` : 'claim this slot'}
             onConnect={handleConnect}
             onDismiss={() => setConnectOpen(false)}
             isConnecting={isLinking}

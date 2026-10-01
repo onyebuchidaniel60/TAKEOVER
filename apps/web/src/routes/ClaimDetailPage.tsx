@@ -20,8 +20,10 @@ import { ApiError } from '../lib/api';
 import { usePageMeta } from '../lib/meta';
 import { queryKeys } from '../lib/queryKeys';
 import {
+  claimTotalBaseUnits,
   createPaymentIntent,
   fetchClaim,
+  formatUsdt,
   nextVerifyPollDelayMs,
   VERIFY_POLL_MAX_ATTEMPTS,
   verifyPayment,
@@ -123,6 +125,12 @@ function ClaimBody({
   // keep the compact header price so no amount ever hides.
   const panelRendered =
     claim.status === 'active_hold' || ESCROW_CLAIM_STATUSES.includes(claim.status);
+  // Phase 5n-D: quantity is stated only when it is more than one. Every
+  // pre-5n-D claim has quantity 1, and "1 slot" on every claim row is noise
+  // that would crowd the header; the number only earns its place when it is
+  // telling the buyer they hold more than one.
+  const quantity = claim.quantity ?? 1;
+  const multiUnit = quantity > 1;
   return (
     <article className="overflow-hidden rounded-card border border-border bg-surface">
       <div className="p-5">
@@ -136,6 +144,11 @@ function ClaimBody({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <TimeBadge startsAt={slot.starts_at} endsAt={slot.ends_at} />
           <ClaimStatusBadge status={claim.status} />
+          {multiUnit ? (
+            <span className="rounded-pill bg-surface-2 px-3 py-1 text-small font-medium text-muted">
+              {quantity} slots claimed
+            </span>
+          ) : null}
         </div>
         <p className="mt-2 font-mono text-small tabular-nums text-muted">
           Claimed {new Date(claim.claimed_at).toLocaleString()}.
@@ -147,7 +160,23 @@ function ClaimBody({
         ) : null}
         {!panelRendered ? (
           <div className="mt-3">
-            <PriceDisplay priceUsdt={slot.price_usdt} />
+            {/* Phase 5n-D: for a multi-unit claim this row is the TOTAL, not
+                the unit price — the legacy states have no escrow panel to own
+                the amount, so this is the only place the money is stated. */}
+            {multiUnit ? (
+              <p className="text-body text-muted">
+                {quantity} slots at{' '}
+                <span className="font-mono tabular-nums">
+                  {formatUsdt(slot.price_usdt).replace(/\s*USDT\s*$/, '')}
+                </span>{' '}
+                each
+              </p>
+            ) : null}
+            <PriceDisplay
+              priceUsdt={
+                multiUnit ? claimTotalBaseUnits(slot.price_usdt, quantity) : slot.price_usdt
+              }
+            />
           </div>
         ) : null}
         {claim.status === 'active_hold' ? (

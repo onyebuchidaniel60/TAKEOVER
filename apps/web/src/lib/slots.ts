@@ -83,6 +83,22 @@ export function formatUsdt(priceUsdt: string): string {
   return `${whole.toString()}.${fracStr} USDT`;
 }
 
+/**
+ * Phase 5n-D: the escrow total for a claim — unit price x quantity, in base
+ * units. Exact BigInt math, never a float: 0.1 USDT x 3 must be exactly
+ * 300000, not 0.30000000000000004, and the server's on-chain exact-amount
+ * check has no tolerance to give away.
+ *
+ * This is the ONE place the multiplication exists on the client. The stepper,
+ * the claim detail, and the claims list all call it, so the number a buyer is
+ * shown before paying and the number the escrow will demand cannot drift.
+ * (The server computes its own independently in escrow/service.ts — the client
+ * copy is display only and is never trusted for an amount.)
+ */
+export function claimTotalBaseUnits(priceUsdt: string, quantity: number): string {
+  return (BigInt(priceUsdt) * BigInt(quantity)).toString();
+}
+
 function toQuery(filters: SlotFilters): string {
   const params = new URLSearchParams();
   if (filters.q?.trim()) params.set('q', filters.q.trim());
@@ -453,10 +469,20 @@ export interface MyClaimsResponse {
   offset: number;
 }
 
-export function createClaim(slotId: string): Promise<{ claim: ClaimView; slot: PublicSlot }> {
+/**
+ * Phase 5n-D: `quantity` is optional and defaults server-side to 1, so
+ * omitting it is exactly the pre-5n-D call. The server owns the upper bound
+ * (1..available_quantity, checked under the slot row lock) — the client must
+ * never clamp it, because a stale available_quantity would silently claim
+ * less than the user asked for.
+ */
+export function createClaim(
+  slotId: string,
+  quantity?: number,
+): Promise<{ claim: ClaimView; slot: PublicSlot }> {
   return apiFetch<{ claim: ClaimView; slot: PublicSlot }>(
     `/api/v1/slots/${encodeURIComponent(slotId)}/claims`,
-    { method: 'POST', body: JSON.stringify({}) },
+    { method: 'POST', body: JSON.stringify(quantity === undefined ? {} : { quantity }) },
   );
 }
 

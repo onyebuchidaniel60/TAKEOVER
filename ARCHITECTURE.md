@@ -560,7 +560,7 @@ Deprecated: the payment_intents table is kept for historical rows only. All new 
 - buyer_id UUID FK users.id
 - provider_id UUID FK users.id
 - payment_token ENUM('NIM','USDT_POLYGON') NOT NULL
-- amount_base_units BIGINT NOT NULL
+- amount_base_units BIGINT NOT NULL      -- Phase 5n-D: slot.price_usdt x claim.quantity, snapshotted once at creation. One escrow per claim (claim_id is UNIQUE), so a multi-unit claim is covered by ONE escrow holding the whole total, never N escrows.
 - status ENUM(escrow_status: 'created','funded','delivered','disputed','released','refunded','refunding','releasing') NOT NULL
   -- 'refunding'/'releasing' are escrow-internal transitional states (broadcast in flight); the claim row never carries them.
 - deposit_tx_hash TEXT UNIQUE NOT NULL   -- on-chain deposit tx: NIM transfer hash, or Polygon tx hash containing the escrow contract's Deposited event
@@ -1009,7 +1009,39 @@ Request:
 { "quantity": 1 }
 ```
 
+`quantity` is optional and defaults to **1** — an omitted field is exactly the
+pre-5n-D request. It must be a whole number >= 1 (400 `INVALID_INPUT`
+otherwise). There is deliberately **no** schema-level maximum: the real bound
+is the slot's availability, which is only knowable against the locked row.
+
 Must use a transaction and row lock.
+
+Quantity semantics (Phase 5n-D): one claim carries `quantity` units. It is NOT
+N claims — a claim is one hold and one escrow. The invariant is conservation:
+
+```
+available_quantity + SUM(quantity of live claims) == total_quantity
+```
+
+Inside the row lock the service re-reads availability and enforces
+`quantity <= available_quantity`, then 409 `SLOT_UNAVAILABLE` if it does not
+fit. The bound must be a comparison against the requested quantity, NOT
+`available_quantity > 0`: with quantity, a buyer asking for 3 against 2
+remaining would otherwise oversell the slot (1 available + 3 held = 4 units
+out of a 3-unit slot).
+
+Every path that removes units must restore the same number:
+
+- **hold expiry** — restores `SUM(quantity)` over the flipped rows, read back
+  from the update's `RETURNING`. Counting ROWS is correct only while every
+  claim is one unit; with quantity 2 it would return 1 unit for 2 taken.
+- **admin payment-review rejection** — restores `claim.quantity`, and skips
+  the restore entirely when the slot itself was cancelled.
+
+A repeat claim returns the buyer's existing live claim (FR-05) and ignores
+the requested quantity — silently topping a live hold up to a new quantity
+would be a money-relevant action nobody asked for. The response carries the
+quantity actually held.
 
 A wallet-less (email-only) user is rejected BEFORE the lock with 409
 `WALLET_REQUIRED` ("Connect a wallet to claim an opening."). Browsing,

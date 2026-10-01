@@ -15,6 +15,21 @@ import SlotDetailPage from '../src/routes/SlotDetailPage';
 import { claimFixture, mockFetch, setBuyer, slotFixture } from './a11y-helpers';
 
 const FOCUSABLE = 'a[href], button, input, select, textarea, summary';
+/**
+ * Phase 5n-D: the CSS query above also matches DISABLED controls, which are
+ * not in the tab order at all. The quantity stepper disables its minus button
+ * at the lower bound, so counting the raw selector made this file assert that
+ * a control the browser deliberately skips is reachable — it is not, and it
+ * should not be. Tab-walk assertions therefore run against genuinely
+ * focusable elements only.
+ *
+ * The `:not()` is applied to EACH part of the list, not appended to the whole
+ * string: `a, button:not([disabled])` leaves plain `button` unfiltered, which
+ * is the exact bug this note exists to prevent.
+ */
+const TABBABLE = FOCUSABLE.split(', ')
+  .map((selector) => `${selector}:not([disabled])`)
+  .join(', ');
 
 /** Accessible name via aria-label, aria-labelledby, associated label, or text. */
 function accessibleName(el: Element, container: HTMLElement): string {
@@ -140,7 +155,10 @@ describe('keyboard activation', () => {
       </MemoryRouter>,
     );
     await screen.findByRole('button', { name: /claim this slot/i });
-    const order = [...container.querySelectorAll(FOCUSABLE)].map((el) => el.tagName);
+    // TABBABLE, not FOCUSABLE: a disabled control is matched by the CSS query
+    // but is skipped by Tab, so including it would assert reachability the
+    // browser deliberately denies (see the TABBABLE note above).
+    const order = [...container.querySelectorAll(TABBABLE)].map((el) => el.tagName);
     expect(order).toContain('A');
     expect(order).toContain('BUTTON');
     // Walk the whole tab order without leaving the page.

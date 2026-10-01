@@ -3,8 +3,10 @@
 // No dispute/admin/refund logic — those live in the dispute module. No NIM path.
 //
 // Pricing note: amount_base_units is snapshotted from the slot's price_usdt
-// (the USDT-denominated price is used as the USDT base-unit amount). This is
-// the current pricing model and out of scope to change here.
+// TIMES the claim's quantity (Phase 5n-D) — one escrow covers one claim, and a
+// claim may hold several units. The USDT-denominated price is used as the USDT
+// base-unit amount. This is the current pricing model and out of scope to change
+// here.
 //
 // Buyer-binding note (model B, owner-decided): deposit verification matches
 // on escrowId and exact amount only. The on-chain Deposited.buyer (an EVM
@@ -206,7 +208,11 @@ export async function createEscrowIntent(
           buyerId: options.buyerId,
           providerId: slot.providerId,
           paymentToken: 'USDT_POLYGON',
-          amountBaseUnits: slot.priceUsdt,
+          // Phase 5n-D: the escrow covers the WHOLE claim, so the amount is
+          // the unit price times the claim's quantity. Exact BigInt math in
+          // base units — never a float, so 1.5 USDT x 3 is exactly 4500000 and
+          // the on-chain exact-amount check can still be strict.
+          amountBaseUnits: slot.priceUsdt * BigInt(claim.quantity),
           status: 'created',
           contractAddress,
           onChainEscrowId: newOnChainEscrowId(),

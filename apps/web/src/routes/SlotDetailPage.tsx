@@ -5,10 +5,11 @@
 // cached slot with zero fetches (stale-while-revalidate — the skeleton
 // shows on first load only, never on a cached revisit).
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import ClaimButton from '../components/ClaimButton';
 import ErrorState from '../components/ErrorState';
+import QuantityStepper from '../components/QuantityStepper';
 import ReportDialog from '../components/ReportDialog';
 import SlotDetail from '../components/SlotDetail';
 import { isAdminUser } from '../lib/admin';
@@ -76,6 +77,8 @@ export default function SlotDetailPage() {
   const user = useAuth((s) => s.user);
   const [reporting, setReporting] = useState(false);
   const [reported, setReported] = useState(false);
+  // Phase 5n-D: units the buyer will claim. Starts at 1 for every slot.
+  const [quantity, setQuantity] = useState(1);
 
   const slotQuery = useQuery({
     queryKey: queryKeys.slot(slotId ?? ''),
@@ -130,6 +133,23 @@ export default function SlotDetailPage() {
 
   const showStickyCta =
     state.kind === 'ready' && authenticated && isClaimable(state.slot) && isOwner === false;
+  // Phase 5n-D: the selector only exists when there is a choice to make. A
+  // slot with one vacancy gets no stepper and the unchanged "Claim this slot"
+  // CTA — a disabled control that can only ever be 1 is noise.
+  const showQuantitySelector =
+    state.kind === 'ready' && authenticated && isOwner === false && state.slot.available_quantity > 1;
+
+  // Clamp the chosen quantity to whatever the slot NOW offers. Availability
+  // can shrink under the buyer (another claim lands, a hold expires), and a
+  // stepper pinned at 4 on a slot with 2 left would send an unsatisfiable
+  // request. The server refuses it either way — this just stops the UI from
+  // offering something it knows is out of range.
+  const available = state.kind === 'ready' ? state.slot.available_quantity : 0;
+  useEffect(() => {
+    if (quantity > available && available > 0) {
+      setQuantity(available);
+    }
+  }, [available, quantity]);
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
@@ -169,6 +189,22 @@ export default function SlotDetailPage() {
         ) : (
           <>
             <SlotDetail slot={state.slot} />
+            {/* Phase 5n-D: in-flow, directly under the price/availability
+                content, so the choice and its total are read together. It is
+                deliberately NOT inside the fixed CTA bar — that bar is one
+                line tall by design (the spacer math below assumes a single
+                56px button), and a second control there would both break
+                that and put two tap targets in the thumb zone. */}
+            {showQuantitySelector ? (
+              <div className="mt-4">
+                <QuantityStepper
+                  value={quantity}
+                  max={state.slot.available_quantity}
+                  unitPriceBaseUnits={state.slot.price_usdt}
+                  onChange={setQuantity}
+                />
+              </div>
+            ) : null}
             {authenticated && isClaimable(state.slot) && isOwner === true ? (
               <p className="mt-4 text-body text-muted">This is your opening.</p>
             ) : null}
@@ -215,7 +251,7 @@ export default function SlotDetailPage() {
             {showStickyCta ? (
               <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+90px)] z-30 px-4 sm:px-6">
                 <div className="mx-auto max-w-3xl">
-                  <ClaimButton slotId={state.slot.id} />
+                  <ClaimButton slotId={state.slot.id} quantity={showQuantitySelector ? quantity : undefined} />
                 </div>
               </div>
             ) : null}
