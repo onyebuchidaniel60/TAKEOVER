@@ -16,6 +16,7 @@ import {
   ONBOARDING_LABEL_CLASS,
   OnboardingFieldError,
 } from './onboarding/OnboardingShell';
+import { useEffect, useState } from 'react';
 import { useUsernameAvailable, usernameUnavailableMessage } from '../hooks/useUsernameAvailable';
 import { validateUsernameInput } from '../lib/identity';
 
@@ -23,22 +24,44 @@ export default function UsernameField({
   id,
   value,
   onChange,
-  onBlur,
-  disabled = false,
-  touched = false,
+  required,
+  revealToken = 0,
   serverError = null,
+  disabled = false,
 }: {
   id: string;
   value: string;
   onChange: (value: string) => void;
-  onBlur?: () => void;
-  /** True for an email user who already chose a handle at signup (D25). */
-  disabled?: boolean;
-  /** Suppresses the format error until the field has been left once. */
-  touched?: boolean;
+  /**
+   * Whether an empty value blocks submit. EXPLICIT, not derived from
+   * `disabled`: the two used to be the same flag, which made the handle
+   * mandatory in the settings variant of ProfileSetup — where D25's
+   * requirement does not apply (that rule is an ONBOARDING gate) and the same
+   * claim is optional from the Profile page. One screen, two entry points, and
+   * HTML validation silently enforcing a rule only one of them had.
+   */
+  required: boolean;
+  /**
+   * Increment to reveal the format error WITHOUT waiting for a blur. A submit
+   * attempt on a never-focused empty field never fires onBlur, so the user
+   * pressed Continue, nothing happened, and nothing said why — the same
+   * "silent wall" shape as the Cancel bug, one layer down. A counter (rather
+   * than a boolean) fires on every attempt, including the second one.
+   */
+  revealToken?: number;
   /** Server-side reason (409 message), shown below the live check. */
   serverError?: string | null;
+  /** True for an account that already has a handle (D26 immutable). */
+  disabled?: boolean;
 }) {
+  // Touched is owned here, not by the caller. It was passed in alongside an
+  // onBlur callback, which meant every surface had to remember to wire a
+  // "has this been visited yet" flag — a piece of interaction state with no
+  // business living in a parent, and an easy prop to forget.
+  const [touched, setTouched] = useState(false);
+  useEffect(() => {
+    if (revealToken > 0) setTouched(true);
+  }, [revealToken]);
   const availability = useUsernameAvailable(disabled ? '' : value);
   const formatError = !disabled && touched ? validateUsernameInput(value) : null;
   const error = formatError ?? serverError;
@@ -57,12 +80,12 @@ export default function UsernameField({
         autoCapitalize="off"
         autoCorrect="off"
         spellCheck={false}
-        required={!disabled}
+        required={required && !disabled}
         disabled={disabled}
         readOnly={disabled}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
+        onBlur={() => setTouched(true)}
         placeholder="your_handle"
         aria-describedby={`${id}-note`}
         aria-invalid={error ? true : undefined}

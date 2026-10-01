@@ -165,8 +165,9 @@ export default function FieldEditModal({
             id="field-edit-username"
             value={value}
             onChange={setValue}
-            onBlur={() => setTouched(true)}
-            touched={touched}
+            // A claim must not be empty; there is no "clear the handle" state
+            // (D26 set-once), so an empty body would be a 400 anyway.
+            required
             serverError={save.error ? describeError(save.error) : null}
           />
         ) : (

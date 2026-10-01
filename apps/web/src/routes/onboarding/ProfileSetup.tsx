@@ -1,8 +1,15 @@
 // Step 3 — Profile setup (Phase 5j). Full name is required (becomes
 // provider_profiles.display_name); avatar, bio, DOB, phone, and location
-// are optional. "Skip for now" still requires the name and skips only the
-// rest. Continue/Skip both save, then POST /me/onboarded, then →
-// /onboarding/interests. DOB/phone are private (stored, never public).
+// are optional. In ONBOARDING, "Skip for now" still requires the name and
+// skips only the rest; Continue/Skip both save, then POST /me/onboarded,
+// then → /onboarding/interests. DOB/phone are private (stored, never public).
+//
+// In SETTINGS (?from=settings) the second button is a real Cancel: it
+// navigates away and saves nothing (Phase 5q). It used to share the skip
+// handler, which meant the control whose job is to leave WITHOUT committing
+// was gated on a required, empty-by-default field and silently wrote the
+// profile. One screen, two modes, two genuinely different second actions —
+// keep them on separate branches.
 //
 // Phase 5o-A (D25): a USERNAME is also required here — but only for an
 // account that does not already have one. Email signup chose a handle at
@@ -76,8 +83,11 @@ const [formError, setFormError] = useState<string | null>(null);
   const currentUser = useAuth((s) => s.user);
   const existingUsername = currentUser?.username ?? null;
   const hasHandle = existingUsername !== null && existingUsername !== '';
-  const [username, setUsernameValue] = useState(existingUsername ?? '');
-  const [usernameTouched, setUsernameTouched] = useState(false);
+const [username, setUsernameValue] = useState(existingUsername ?? '');
+  // Bumped on a failed submit to reveal the handle's format error: a field the
+  // user never focused never fires blur, so the submit attempt would otherwise
+  // be refused in silence.
+  const [usernameReveal, setUsernameReveal] = useState(0);
   const [usernameError, setUsernameError] = useState<string | null>(null);
   // D25: onboarding cannot be completed without a handle. In settings mode
   // this screen is not the onboarding gate, so the rule does not apply there.
@@ -107,10 +117,12 @@ const [formError, setFormError] = useState<string | null>(null);
    */
   async function saveUsername(): Promise<boolean> {
     if (hasHandle) return true;
-    setUsernameTouched(true);
     setUsernameError(null);
     const candidate = username.trim().toLowerCase();
     if (validateUsernameInput(candidate)) {
+      // Reveal the reason: a never-focused field never blurs, so without this
+      // the submit is refused in silence.
+      setUsernameReveal((n) => n + 1);
       return false;
     }
     try {
@@ -233,16 +245,29 @@ supporting={
 
           {/* Phase 5o-A (D25/D26). Sits directly under the name because the
               two are one identity block: the name is what people read, the
-              handle is what they can reach. Required for handle-less wallet
-              accounts; disabled (pre-filled) once a handle exists. */}
-          {hasHandle || usernameRequired ? (
+              handle is what they can reach. Disabled (pre-filled) once a handle
+              exists.
+
+              Phase 5q: rendered in SETTINGS mode too. It used to render only
+              when a handle existed or the onboarding gate demanded one, so a
+              handle-less account opening "Edit profile" saw NO username field
+              at all — while the Profile page's Information row offered the
+              exact same claim one tap away. Two entry points to the same
+              action, one of them silently missing. The D25 requirement itself
+              stays an ONBOARDING gate: `usernameRequired` is false here, so
+              the field is optional and saving without one is allowed. */}
+          {hasHandle || usernameRequired || isSettings ? (
             <UsernameField
               id="profile-username"
               value={username}
               onChange={setUsernameValue}
-              onBlur={() => setUsernameTouched(true)}
+              // D25's requirement is an ONBOARDING gate. In settings the same
+              // claim is optional (Profile's Information row offers it), so
+              // requiring it here would make one entry point stricter than the
+              // other for the identical action.
+              required={usernameRequired}
               disabled={hasHandle}
-              touched={usernameTouched}
+              revealToken={usernameReveal}
               serverError={usernameError}
             />
           ) : null}
@@ -355,24 +380,52 @@ supporting={
           <button type="submit" disabled={busy} className={ONBOARDING_PRIMARY_CTA_CLASS}>
             {busy ? 'Saving…' : isSettings ? 'Save' : 'Continue'}
           </button>
-          {/* D25: while a handle is still required there is nothing to skip —
-              offering "Skip for now" would be a control that cannot do what
-              it says. The requirement replaces it with the reason, so the
-              screen never looks like it is withholding an exit. */}
-          {isSettings || !usernameRequired ? (
+          {/* Phase 5q — Cancel must actually cancel.
+              It used to call handleSkip(), which runs the FULL save path:
+              validateDisplayName, then updateProviderProfile, then
+              markOnboarded. So the one control whose whole job is to leave
+              without committing was gated on a required field that starts
+              EMPTY (this screen never prefills the name), and it silently
+              wrote the profile when it did work. The owner's report — "Cancel
+              does not work, I have to re-enter my name to get out of it" —
+              is that gate, exactly.
+
+              Settings mode is therefore a real cancel: navigate, no
+              validation, no request. The onboarding "Skip for now" is a
+              DIFFERENT action and keeps the save, because onboarding
+              legitimately persists the required name on the way out; it is
+              rendered by its own branch below so the two never share a
+              handler again.
+
+              No "discard changes?" prompt: the fields start empty, so the
+              common case is an accidental tap with nothing typed, and a
+              window.confirm() in a WebView is its own problem. */}
+          {isSettings ? (
+            <button
+              type="button"
+              onClick={() => navigate('/profile')}
+              className="min-h-touch w-full py-2 text-center text-body font-medium text-muted"
+            >
+              Cancel
+            </button>
+          ) : usernameRequired ? (
+            /* D25: while a handle is still required there is nothing to skip —
+               offering "Skip for now" would be a control that cannot do what
+               it says. The requirement replaces it with the reason, so the
+               screen never looks like it is withholding an exit. */
+            <p className="text-center text-small text-faint">
+              A username keeps your profile linkable. Everything else on this
+              screen is optional.
+            </p>
+          ) : (
             <button
               type="button"
               disabled={busy}
               onClick={() => void handleSkip()}
               className="min-h-touch w-full py-2 text-center text-body font-medium text-muted"
             >
-              {isSettings ? 'Cancel' : 'Skip for now'}
+              Skip for now
             </button>
-          ) : (
-            <p className="text-center text-small text-faint">
-              A username keeps your profile linkable. Everything else on this
-              screen is optional.
-            </p>
           )}
         </div>
       </form>
