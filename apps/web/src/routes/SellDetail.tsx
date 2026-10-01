@@ -1,7 +1,7 @@
 // Manage one owned opening. Drafts are editable + publishable;
 // drafts and published openings are cancellable. Auth-guarded.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import Avatar from '../components/Avatar';
 import CancelConfirmDialog from '../components/CancelConfirmDialog';
@@ -11,6 +11,8 @@ import ErrorState from '../components/ErrorState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import MarkDeliveredForm from '../components/MarkDeliveredForm';
 import PublishButton from '../components/PublishButton';
+import FeeRetryBanner, { RETRYABLE_FEE_CODES } from '../components/FeeRetryBanner';
+import { pollUntilPublished } from '../lib/fee-poll';
 import SlotDetail from '../components/SlotDetail';
 import SlotForm, { initialValues } from '../components/SlotForm';
 import StatusBadge from '../components/StatusBadge';
@@ -38,11 +40,16 @@ import {
 // submitted (ARCH §15). The retryable set means "same hash, try again
 // later" (confirmations accrue / outage passes); anything else means the
 // hash can never publish and the provider needs a new payment.
-const RETRYABLE_FEE_CODES = new Set([
-  'PAYMENT_NOT_CONFIRMED',
-  'PAYMENT_NOT_FOUND',
-  'RPC_UNAVAILABLE',
-]);
+
+// Phase 5n-C (D24) polling model. The user sees progress, never a retry
+// button: a fee payment that is on-chain but not yet at 3 confirmations is a
+// WAITING state, not a failure, and the backend still owns the decision on
+// every poll.
+const FEE_POLL_MS = 5_000;
+/** RPC outage: slow down, but keep going. The chain read is the flaky part. */
+const FEE_POLL_BACKOFF_MS = 15_000;
+/** After this, stop asking and tell the user it will finish on its own. */
+const FEE_POLL_TOTAL_MS = 5 * 60_000;
 
 // sessionStorage key for the broadcast fee hash (per slot). The hash is
 // public chain data (it lands in audit metadata), so tab-session scope
@@ -108,14 +115,25 @@ export default function SellDetail() {
   const [actionError, setActionError] = useState<string | null>(null);
   // NIM listing-fee state. feeHash is the one-time payment: once set,
   // the approve path is gone for this session and every attempt reuses
-  // the same hash (double-charge impossible). feeFailure carries the
-  // last publish failure WITH a hash (code drives the retryable/fatal
-  // banner copy). hasStoredHash marks a hash restored from
-  // sessionStorage after a reload (no failure seen yet).
+  // the same hash (double-charge impossible). It is ALSO the reload signal —
+  // Phase 5n-C reads it back from sessionStorage and re-arms the poll loop,
+  // so a page refresh mid-publish still needs no user action. feeFailure
+  // carries the last publish failure WITH a hash (its code drives the
+  // auto-retry vs hard-failure branch).
   const [feeStep, setFeeStep] = useState<'paying' | 'verifying' | null>(null);
   const [feeHash, setFeeHash] = useState<string | null>(null);
+  // Phase 5n-C: live confirmation progress from the error meta, plus the
+  // "still confirming" handover once the poll budget is spent.
+  const [feeConfirm, setFeeConfirm] = useState<{
+    confirmations: number | null;
+    required: number;
+  } | null>(null);
+  const [feeHandover, setFeeHandover] = useState(false);
+  // Auto-retry is ON while a hash is on-chain and the last outcome was
+  // retryable. A fatal code clears it and the hard-failure banner returns.
+  const [autoRetrying, setAutoRetrying] = useState(false);
+  const pollDeadlineRef = useRef<number | null>(null);
   const [feeFailure, setFeeFailure] = useState<{ code: string; message: string } | null>(null);
-  const [hasStoredHash, setHasStoredHash] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -147,19 +165,24 @@ export default function SellDetail() {
           ? { kind: 'loading' }
           : { kind: 'ready', slot: ownerSlot };
 
-  const refreshAfter = (slot: OwnerSlot): void => {
-    if (slotId) queryClient.setQueryData(queryKeys.ownerSlot(slotId), { slot });
-    setFormKey((k) => k + 1);
-  };
+  // Stable identities: the fee poll effect below depends on these, and
+  // re-creating them per render would restart the poll loop every render.
+  const refreshAfter = useCallback(
+    (slot: OwnerSlot): void => {
+      if (slotId) queryClient.setQueryData(queryKeys.ownerSlot(slotId), { slot });
+      setFormKey((k) => k + 1);
+    },
+    [slotId, queryClient],
+  );
 
-  const invalidateScopes = (): void => {
+  const invalidateScopes = useCallback((): void => {
     if (slotId) {
       void invalidateSlotScopes(
         (key) => queryClient.invalidateQueries({ queryKey: key }),
         slotId,
       );
     }
-  };
+  }, [slotId, queryClient]);
 
   // Slot mutations as mutateAsync transports: the Phase 4c state
   // machine around them (fee hash guard, banners, form reset rules) is
@@ -258,7 +281,10 @@ export default function SellDetail() {
         setFeeHash(null);
         writeStoredFeeHash(id, null);
         setFeeFailure(null);
-        setHasStoredHash(false);
+        setAutoRetrying(false);
+        setFeeConfirm(null);
+        setFeeHandover(false);
+        pollDeadlineRef.current = null;
       })
       .catch((err: unknown) => {
         // After a broadcast, the hash is preserved and the failure
@@ -269,11 +295,32 @@ export default function SellDetail() {
         // (under-confirmed / not-found / RPC down) vs fatal (the hash
         // can never publish).
         if (broadcasted) {
-          setFeeFailure({
-            code: err instanceof ApiError ? err.code : 'UNKNOWN',
-            message: err instanceof ApiError ? err.message : 'Something went wrong.',
-          });
-          setActionError(err instanceof ApiError ? err.message : 'Something went wrong.');
+          const apiErr = err instanceof ApiError ? err : null;
+          const code = apiErr?.code ?? 'UNKNOWN';
+          setFeeFailure({ code, message: apiErr?.message ?? 'Something went wrong.' });
+          // The actionable "try again" line is gone from the retryable path:
+          // the poll loop owns it (D24). Fatal codes keep the message.
+          setActionError(
+            apiErr && RETRYABLE_FEE_CODES.has(code)
+              ? null
+              : (apiErr?.message ?? 'Something went wrong.'),
+          );
+          if (apiErr && RETRYABLE_FEE_CODES.has(code)) {
+            // Start (or continue) the wait. Deadline is set on the FIRST
+            // retryable outcome so a long chain does not reset the budget.
+            if (pollDeadlineRef.current === null) {
+              pollDeadlineRef.current = Date.now() + FEE_POLL_TOTAL_MS;
+            }
+            setAutoRetrying(true);
+            const meta = apiErr.meta as { confirmations?: number; required?: number } | undefined;
+            setFeeConfirm({
+              confirmations: typeof meta?.confirmations === 'number' ? meta.confirmations : null,
+              required: typeof meta?.required === 'number' ? meta.required : 3,
+            });
+          } else {
+            setAutoRetrying(false);
+            setFeeConfirm(null);
+          }
         } else {
           setActionError(err instanceof ApiError ? err.message : 'Something went wrong.');
         }
@@ -282,6 +329,85 @@ export default function SellDetail() {
       });
   };
 
+  /**
+   * Phase 5n-C (D24): the auto-retry loop.
+   *
+   * Driven by STATE rather than chained promises, so it survives a reload
+   * (the stored hash re-arms it) and cannot double-fire. Each attempt
+   * re-POSTs the SAME hash — the fee is one payment, so this is a status
+   * read dressed as a mutation, and the backend stays authoritative on
+   * every single attempt.
+   */
+  useEffect(() => {
+    if (!autoRetrying || !feeHash || !slotId) return;
+let cancelled = false;
+    setPublishing(true);
+    setFeeStep('verifying');
+    // Captured so a successful poll can render the published slot without
+    // waiting for a reload — the loop IS the publish, so nothing else will
+    // refresh the page's view of it.
+    let publishedSlot: OwnerSlot | null = null;
+    void pollUntilPublished({
+      hash: feeHash,
+      attempt: () =>
+        publishSlot(slotId, feeHash).then(
+          ({ slot }) => {
+            publishedSlot = slot;
+            return { ok: true, status: 200, json: () => Promise.resolve({ data: { slot } }) };
+          },
+          (err: unknown) => ({
+            ok: false,
+            status: err instanceof ApiError ? err.status : 0,
+            json: () =>
+              Promise.resolve({
+                error: {
+                  code: err instanceof ApiError ? err.code : 'UNKNOWN',
+                  message: err instanceof ApiError ? err.message : 'Something went wrong.',
+                  meta: err instanceof ApiError ? err.meta : undefined,
+                },
+              }),
+          }),
+        ),
+      intervalMs: FEE_POLL_MS,
+      backoffMs: FEE_POLL_BACKOFF_MS,
+      totalMs: FEE_POLL_TOTAL_MS,
+      now: () => Date.now(),
+      setTimeoutFn: (fn, ms) => window.setTimeout(fn, ms),
+      clearTimeoutFn: (handle) => window.clearTimeout(handle),
+}).then((outcome) => {
+      if (cancelled) return;
+      setAutoRetrying(false);
+      if (outcome === 'published') {
+        // The loop performed the publish, so this is where the page learns
+        // about it: clear the hash, then show the published slot.
+        if (publishedSlot) {
+          refreshAfter(publishedSlot);
+          invalidateScopes();
+        }
+        setFeeHash(null);
+        writeStoredFeeHash(slotId, null);
+        setFeeConfirm(null);
+        setFeeHandover(false);
+        setFeeFailure(null);
+        pollDeadlineRef.current = null;
+      } else if (outcome === 'handover') {
+        // Budget spent. The hash is already on the slot row server-side, so
+        // the publish still lands — the user is told, not left hanging.
+        setFeeHandover(true);
+        setFeeConfirm(null);
+      } else {
+        // Hard failure: this hash can never publish, so surface the code and
+        // stop polling.
+        setFeeConfirm(null);
+      }
+      setPublishing(false);
+      setFeeStep(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [autoRetrying, feeHash, slotId, invalidateScopes, refreshAfter]);
+
   const handlePublish = (): void => {
     if (!slotId) return;
     // A hash already exists: money is on-chain, so this is always a
@@ -289,7 +415,17 @@ export default function SellDetail() {
     // just the hidden button below) is what makes a double-charge
     // structurally impossible.
     if (feeHash) {
-      handleRetryPublish();
+      // Phase 5n-C: no manual retry any more. If a hash exists the poll
+      // loop is already running (or has handed over); re-arming it here is
+      // just a safety net for a case where the loop was never started.
+      setAutoRetrying(true);
+      if (pollDeadlineRef.current === null) {
+        pollDeadlineRef.current = Date.now() + FEE_POLL_TOTAL_MS;
+      }
+      setPublishing(true);
+      setFeeStep('verifying');
+      setActionError(null);
+      postPublish(slotId, feeHash, true);
       return;
     }
     // No-fee path (unchanged): fee not required, or the config read failed
@@ -310,7 +446,6 @@ export default function SellDetail() {
     setFeeStep('paying');
     setActionError(null);
     setFeeFailure(null);
-    setHasStoredHash(false);
     void (async (): Promise<void> => {
       let provider;
       try {
@@ -343,13 +478,6 @@ export default function SellDetail() {
     })();
   };
 
-  const handleRetryPublish = (): void => {
-    if (!slotId || !feeHash) return;
-    setPublishing(true);
-    setFeeStep('verifying');
-    setActionError(null);
-    postPublish(slotId, feeHash, true);
-  };
 
   // Escape hatch (fatal hash only): discard a hash that can never
   // publish (wrong address/amount/data) so the provider can pay again.
@@ -359,23 +487,27 @@ export default function SellDetail() {
     setFeeHash(null);
     writeStoredFeeHash(slotId, null);
     setFeeFailure(null);
-    setHasStoredHash(false);
     setActionError(null);
   };
 
-  // Reload recovery: a hash broadcast before a refresh returns as a
-  // retry banner ("already on record"), never as a fresh pay button.
+  // Reload recovery (Phase 5n-C): a hash broadcast before a refresh comes
+  // back as a hash on record, and the poll loop RE-ARMS immediately — the
+  // user reloads mid-publish and still never has to press anything.
   useEffect(() => {
     if (!slotId) return;
     const stored = readStoredFeeHash(slotId);
     if (stored) {
       setFeeHash(stored);
-      setHasStoredHash(true);
+      setAutoRetrying(true);
+      if (pollDeadlineRef.current === null) {
+        pollDeadlineRef.current = Date.now() + FEE_POLL_TOTAL_MS;
+      }
     } else {
       setFeeHash(null);
-      setHasStoredHash(false);
+      setAutoRetrying(false);
     }
     setFeeFailure(null);
+    setFeeHandover(false);
   }, [slotId]);
 
   const handleCancel = (): void => {
@@ -450,11 +582,11 @@ export default function SellDetail() {
             feeStep={feeStep}
             feeFailure={feeFailure}
             hasFeeHash={feeHash !== null}
-            hasStoredHash={hasStoredHash}
+            feeConfirm={feeConfirm}
+            feeHandover={feeHandover}
             onSave={handleSave}
             onSaveNote={handleSaveNote}
             onPublish={handlePublish}
-            onRetryPublish={handleRetryPublish}
             onNewPayment={handleNewPayment}
             onAskCancel={() => setConfirmingCancel(true)}
             onDismissCancel={() => setConfirmingCancel(false)}
@@ -479,11 +611,11 @@ function ManageSlot({
   feeStep,
   feeFailure,
   hasFeeHash,
-  hasStoredHash,
+  feeConfirm,
+  feeHandover,
   onSave,
   onSaveNote,
   onPublish,
-  onRetryPublish,
   onNewPayment,
   onAskCancel,
   onDismissCancel,
@@ -500,11 +632,12 @@ function ManageSlot({
   feeStep: 'paying' | 'verifying' | null;
   feeFailure: { code: string; message: string } | null;
   hasFeeHash: boolean;
-  hasStoredHash: boolean;
+  /** Phase 5n-C: a retryable fee failure is being polled automatically. */
+  feeConfirm: { confirmations: number | null; required: number } | null;
+  feeHandover: boolean;
   onSave: (body: SlotWrite, note: string | null) => void;
   onSaveNote: (note: string | null, image: string | null | undefined) => void;
   onPublish: () => void;
-  onRetryPublish: () => void;
   onNewPayment: () => void;
   onAskCancel: () => void;
   onDismissCancel: () => void;
@@ -592,11 +725,15 @@ function ManageSlot({
               Listing fee is misconfigured. Publishing is unavailable — contact support.
             </p>
           ) : null}
-          {hasFeeHash && !publishing && (feeFailure || hasStoredHash) ? (
+          {/* Phase 5n-C: the banner is also the live progress surface, so it
+              must stay mounted WHILE polling (previously it only rendered
+              when idle). `hasFeeHash` alone is the right condition. */}
+          {hasFeeHash ? (
             <FeeRetryBanner
               feeFailure={feeFailure}
               publishing={publishing}
-              onRetryPublish={onRetryPublish}
+              confirm={feeConfirm}
+              handover={feeHandover}
               onNewPayment={onNewPayment}
             />
           ) : null}
@@ -666,55 +803,6 @@ function ManageSlot({
 // can never publish) vs restored-after-reload (no failure seen yet).
 // The escape hatch (fatal only) discards the hash so the provider can
 // pay again; it stays small and de-emphasized by design.
-function FeeRetryBanner({
-  feeFailure,
-  publishing,
-  onRetryPublish,
-  onNewPayment,
-}: {
-  feeFailure: { code: string; message: string } | null;
-  publishing: boolean;
-  onRetryPublish: () => void;
-  onNewPayment: () => void;
-}) {
-  const retryable = feeFailure === null || RETRYABLE_FEE_CODES.has(feeFailure.code);
-  const title = feeFailure
-    ? retryable
-      ? 'Payment sent — waiting for confirmations. Retry with the same transaction.'
-      : 'Payment sent but publish failed. Retry with the same transaction.'
-    : 'A fee payment is already on record for this opening. Retry with the same transaction.';
-  return (
-    <div
-      className="rounded-lg border border-warning bg-surface-2 p-3 text-body text-warning"
-      role="alert"
-    >
-      <p className="font-medium">{title}</p>
-      {feeFailure && !retryable ? (
-        <p className="mt-1 text-body text-muted">{feeFailure.message}</p>
-      ) : null}
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={onRetryPublish}
-          disabled={publishing}
-          className="min-h-touch rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink disabled:opacity-50"
-        >
-          {publishing ? 'Retrying…' : 'Retry publish'}
-        </button>
-        {feeFailure && !retryable ? (
-          <button
-            type="button"
-            onClick={onNewPayment}
-            className="min-h-touch text-body font-medium text-muted underline"
-          >
-            Use a new payment instead
-          </button>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 // Provider demand list (D5 — per-claim rows on SellDetail).
 // Claim rows come from the existing provider endpoint (truncated buyer
 // identifiers server-side); each row resolves its own escrow state for

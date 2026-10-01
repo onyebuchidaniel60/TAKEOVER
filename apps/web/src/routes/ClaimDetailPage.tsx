@@ -339,7 +339,7 @@ function VerifyPollBox({ claim, onResolved }: { claim: ClaimView; onResolved: ()
         </p>
       ) : display === 'exhausted' ? (
         <p className="text-body font-medium text-warning">
-          Still pending. Tap to check again.
+          Still confirming — it settles on its own. Tap to check now.
         </p>
       ) : display === 'rpc-down' ? (
         <p className="text-body font-medium text-warning">

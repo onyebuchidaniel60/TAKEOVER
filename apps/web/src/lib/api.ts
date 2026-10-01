@@ -84,7 +84,9 @@ export function apiBaseUrl(): string {
 }
 
 export interface ApiErrorEnvelope {
-  error: { code: string; message: string };
+  // `meta` is optional and absent on every error that does not use it, so
+  // the shape is unchanged for all existing consumers.
+  error: { code: string; message: string; meta?: Record<string, unknown> };
   requestId: string;
 }
 
@@ -94,6 +96,12 @@ export class ApiError extends Error {
   readonly requestId?: string;
   /** Milliseconds from a `Retry-After` response header (seconds form), if present. */
   readonly retryAfterMs?: number;
+  /**
+   * Optional structured detail (Phase 5n-C). The listing-fee flow uses
+   * `{ confirmations, required }` so the client can render "Confirming 2/3…"
+   * and keep polling, instead of parsing a human sentence.
+   */
+  readonly meta?: Record<string, unknown>;
 
   constructor(
     status: number,
@@ -101,6 +109,7 @@ export class ApiError extends Error {
     message: string,
     requestId?: string,
     retryAfterMs?: number,
+    meta?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -108,6 +117,9 @@ export class ApiError extends Error {
     this.code = code;
     this.requestId = requestId;
     this.retryAfterMs = retryAfterMs;
+    if (meta !== undefined) {
+      this.meta = meta;
+    }
   }
 }
 
@@ -162,6 +174,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       err?.message ?? `Request failed (${res.status}).`,
       requestId,
       parseRetryAfterMs(res),
+      err?.meta,
     );
   }
   return (body as { data: T }).data;

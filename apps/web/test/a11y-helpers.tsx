@@ -72,8 +72,17 @@ export function ok<T>(data: T): T {
   return data;
 }
 
-export function err(status: number, code: string, message: string): { status: number; json: unknown } {
-  return { status, json: { error: { code, message }, requestId: 'test-request' } };
+export function err(
+  status: number,
+  code: string,
+  message: string,
+  /** Phase 5n-C: structured error detail (e.g. listing-fee confirmations). */
+  meta?: Record<string, unknown>,
+): { status: number; json: unknown } {
+  return {
+    status,
+    json: { error: meta === undefined ? { code, message } : { code, message, meta }, requestId: 'test-request' },
+  };
 }
 
 export function setGuest(): void {

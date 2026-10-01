@@ -129,12 +129,13 @@ describe('NIM listing fee publish flow', () => {
     renderWithConfig(requiredFee);
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Approve payment & publish' }));
-    expect(
-      await screen.findByText('Payment sent — waiting for confirmations. Retry with the same transaction.'),
-    ).toBeDefined();
-    await user.click(screen.getByRole('button', { name: 'Retry publish' }));
-    await waitFor(() => expect(publishBodies).toHaveLength(2));
-    // Same hash, manual retry only — no second broadcast.
+    // Phase 5n-C (D24): the waiting surface is progress, not a retry prompt,
+    // and the loop re-posts the SAME hash by itself — no click, no second
+    // broadcast. The poll's first attempt is immediate, so the retry lands
+    // without waiting out the cadence (and the progress banner is transient
+    // here: it disappears the moment the publish succeeds).
+    await waitFor(() => expect(publishBodies).toHaveLength(2), { timeout: 15_000 });
+    // Same hash, automatic retry only — no second broadcast.
     expect(publishBodies[0]).toEqual({ transactionHash: HASH });
     expect(publishBodies[1]).toEqual({ transactionHash: HASH });
     expect(vi.mocked(sendListingFee)).toHaveBeenCalledTimes(1);
@@ -147,7 +148,6 @@ describe('NIM listing fee publish flow', () => {
     renderWithConfig(requiredFee);
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Approve payment & publish' }));
-    await screen.findByRole('button', { name: 'Retry publish' });
     // The wallet path is gone while the hash exists: no approve button,
     // so no second payment is possible from this screen.
     expect(screen.queryByRole('button', { name: 'Approve payment & publish' })).toBeNull();
@@ -160,9 +160,8 @@ describe('NIM listing fee publish flow', () => {
     renderWithConfig(requiredFee);
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Approve payment & publish' }));
-    await screen.findByRole('button', { name: 'Retry publish' });
     expect(screen.queryByRole('button', { name: 'Approve payment & publish' })).toBeNull();
-    const hatch = await screen.findByRole('button', { name: 'Use a new payment instead' });
+    const hatch = await screen.findByRole('button', { name: 'Pay again' });
     await user.click(hatch);
     expect(await screen.findByRole('button', { name: 'Approve payment & publish' })).toBeTruthy();
     // The hatch discarded the hash without paying: still one broadcast.
@@ -172,14 +171,12 @@ describe('NIM listing fee publish flow', () => {
   it('restores a pre-reload hash from session storage as retry-only', async () => {
     window.sessionStorage.setItem(`takeover.feeHash.${SLOT_ID}`, HASH);
     renderWithConfig(requiredFee);
-    // No click, no wallet: the stored hash returns as a retry banner.
-    expect(
-      await screen.findByText('A fee payment is already on record for this opening. Retry with the same transaction.'),
-    ).toBeDefined();
+    // No click, no wallet: the stored hash returns and the poll loop
+    // re-arms on load (Phase 5n-C).
+    await waitFor(() => expect(publishBodies.length).toBeGreaterThanOrEqual(1));
     expect(screen.queryByRole('button', { name: 'Approve payment & publish' })).toBeNull();
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Retry publish' }));
-    await waitFor(() => expect(publishBodies).toHaveLength(1));
+    expect(screen.queryByRole('button', { name: /retry publish/i })).toBeNull();
+    expect(publishBodies[0]).toEqual({ transactionHash: HASH });
     expect(publishBodies[0]).toEqual({ transactionHash: HASH });
     expect(vi.mocked(sendListingFee)).not.toHaveBeenCalled();
     expect(vi.mocked(connectWallet)).not.toHaveBeenCalled();

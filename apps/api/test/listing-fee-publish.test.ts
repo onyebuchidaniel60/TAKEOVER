@@ -15,6 +15,7 @@ import { buildApp } from '../src/app';
 import { deriveNimiqAddress } from '../src/auth/nimiq-address';
 import type { VerifySignatureFn } from '../src/auth/nimiq-verify';
 import type { NimiqRpcClient, TxRecord } from '../src/payments/rpc';
+import { REQUIRED_CONFIRMATIONS } from '../src/payments/rpc';
 import { getDb, isDatabaseConfigured } from '../../../db/client';
 import { auditEvents, authChallenges, claims, sessions, slots, users } from '../../../db/schema';
 
@@ -362,9 +363,29 @@ describe.skipIf(!isDatabaseConfigured())('NIM listing fee publish (live)', () =>
     const pendingId = await createDraft(cookie, `listing-fee ${tag} fee-pending`);
     const tx = feeTx(pendingId, owner, wallet, { confirmations: 2 });
     chain.set(tx.hash, tx);
-    expect(errorOf(await publish(cookie, pendingId, { transactionHash: tx.hash }))).toEqual({
+    const pending = await publish(cookie, pendingId, { transactionHash: tx.hash });
+    expect(errorOf(pending)).toEqual({
       status: 409,
       code: 'PAYMENT_NOT_CONFIRMED',
+    });
+    // Phase 5n-C (D24): the server must publish the confirmation count as
+    // DATA. The client auto-retries off this instead of parsing a sentence,
+    // so pinning the envelope here is the contract both sides depend on.
+    expect((pending.json() as { error: { meta?: { confirmations: number; required: number } } }).error.meta).toEqual({
+      confirmations: 2,
+      required: REQUIRED_CONFIRMATIONS,
+    });
+    // And the message must not tell the user to retry: nobody is retrying.
+    expect((pending.json() as { error: { message: string } }).error.message).not.toMatch(/try again/i);
+
+    // A hash the chain has not propagated yet is a slow-cadence wait, not an
+    // outage, so it is distinguishable from a real RPC failure.
+    const missingId2 = await createDraft(cookie, `listing-fee ${tag} fee-missing-2`);
+    const notFound = await publish(cookie, missingId2, { transactionHash: feeHash() });
+    expect(errorOf(notFound)).toEqual({ status: 409, code: 'PAYMENT_NOT_FOUND' });
+    expect((notFound.json() as { error: { meta?: { confirmations: number | null; required: number } } }).error.meta).toEqual({
+      confirmations: null,
+      required: REQUIRED_CONFIRMATIONS,
     });
   });
 

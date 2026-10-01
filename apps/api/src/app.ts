@@ -115,7 +115,9 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
       return;
     }
     if (error instanceof AppError) {
-      void reply.code(error.statusCode).send(errorBody(request, error.code, error.message));
+      void reply
+        .code(error.statusCode)
+        .send(errorBody(request, error.code, error.message, error.meta));
       return;
     }
     const statusCode =

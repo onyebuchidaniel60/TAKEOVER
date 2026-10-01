@@ -19,6 +19,7 @@ import { nimToBaseUnits } from '../payments/amounts';
 import {
   createRpcClient,
   getNimiqRpcUrl,
+  REQUIRED_CONFIRMATIONS,
   RpcUnavailableError,
   type NimiqRpcClient,
 } from '../payments/rpc';
@@ -466,17 +467,25 @@ async function publishSlotWithFee(
   }
   if (assessment.status === 'pending') {
     if (assessment.reason === 'not-found') {
+      // Phase 5n-C: `confirmations: null` tells the client this is a
+      // propagation delay, not a problem — so it keeps polling on the slow
+      // cadence instead of backing off like an RPC outage.
       throw new AppError(
         409,
         'PAYMENT_NOT_FOUND',
-        'Fee payment not found on-chain yet. Please try again.',
+        'Fee payment is still propagating. It will be picked up automatically.',
+        { confirmations: null, required: REQUIRED_CONFIRMATIONS },
       );
     }
     const n = assessment.confirmations ?? 0;
+    // Phase 5n-C: the count is now DATA, not a sentence the client has to
+    // parse. The message is kept for logs and any consumer that reads it;
+    // "Please try again" is gone because the user is not the one retrying.
     throw new AppError(
       409,
       'PAYMENT_NOT_CONFIRMED',
-      `Fee payment needs 3 confirmations (${n} so far). Please try again.`,
+      `Fee payment is confirming (${n} of ${REQUIRED_CONFIRMATIONS}).`,
+      { confirmations: n, required: REQUIRED_CONFIRMATIONS },
     );
   }
   if (assessment.status === 'review') {

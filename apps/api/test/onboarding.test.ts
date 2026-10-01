@@ -151,6 +151,10 @@ describe.skipIf(!isDatabaseConfigured())('onboarding backend (live)', () => {
     });
     expect(full.statusCode).toBe(200);
     expect((full.json() as { data: { profile: unknown } }).data.profile).toEqual({
+      // Phase 5n-B: email joined this projection when it became editable
+      // through the same endpoint. It is echoed back so a client can
+      // reconcile without a second /me round trip.
+      email: null,
       bio: 'Regular at the night market.',
       phone: '+49 170 123456',
       dob: '1990-04-12',
@@ -171,6 +175,7 @@ describe.skipIf(!isDatabaseConfigured())('onboarding backend (live)', () => {
     const partial = await patch({ bio: '', location: 'Neukölln' });
     expect(partial.statusCode).toBe(200);
     expect((partial.json() as { data: { profile: unknown } }).data.profile).toEqual({
+      email: null,
       bio: null,
       phone: '+49 170 123456',
       dob: '1990-04-12',
